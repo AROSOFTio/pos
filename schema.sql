@@ -142,6 +142,77 @@ CREATE TABLE IF NOT EXISTS purchases (
   status TEXT NOT NULL DEFAULT 'received',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+  po_no TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  notes TEXT,
+  subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
+  total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  created_by TEXT,
+  ordered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,po_no)
+);
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+  id BIGSERIAL PRIMARY KEY,
+  purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  product_name TEXT NOT NULL,
+  qty_ordered NUMERIC(14,3) NOT NULL,
+  qty_received NUMERIC(14,3) NOT NULL DEFAULT 0,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS goods_receipts (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE RESTRICT,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+  grn_no TEXT NOT NULL,
+  supplier_reference TEXT,
+  notes TEXT,
+  received_by TEXT,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,grn_no)
+);
+CREATE TABLE IF NOT EXISTS goods_receipt_items (
+  id BIGSERIAL PRIMARY KEY,
+  goods_receipt_id BIGINT REFERENCES goods_receipts(id) ON DELETE CASCADE,
+  purchase_order_item_id BIGINT REFERENCES purchase_order_items(id) ON DELETE RESTRICT,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  qty_received NUMERIC(14,3) NOT NULL,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  movement_type TEXT NOT NULL,
+  quantity NUMERIC(14,3) NOT NULL,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  stock_before NUMERIC(14,3) NOT NULL DEFAULT 0,
+  stock_after NUMERIC(14,3) NOT NULL DEFAULT 0,
+  reference_type TEXT,
+  reference_id BIGINT,
+  reference_no TEXT,
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_po_business_status ON purchase_orders(business_id,status);
+CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(business_id,supplier_id);
+CREATE INDEX IF NOT EXISTS idx_grn_business_date ON goods_receipts(business_id,received_at);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(business_id,product_id,created_at);
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
