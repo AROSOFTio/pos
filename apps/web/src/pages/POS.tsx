@@ -10,15 +10,16 @@ export default function POS({currency}:{currency:string}){
  const [items,setItems]=useState<any[]>([]),[cart,setCart]=useState<any[]>([]),[type,setType]=useState('counter'),[category,setCategory]=useState('All')
  const [busy,setBusy]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[balancesOpen,setBalancesOpen]=useState(false),[balances,setBalances]=useState<any[]>([])
  const [selectedSale,setSelectedSale]=useState<any>(null),[success,setSuccess]=useState<any>(null)
+ const [customers,setCustomers]=useState<any[]>([]),[customerId,setCustomerId]=useState(0)
  const [chargesOpen,setChargesOpen]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustment,setAdjustment]=useState<Adjustment|null>(null),[adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
 
  const load=()=>api('/menu/available?orderType='+type).then(setItems)
  async function loadDefaults(){
-   const s=await api('/document-settings')
-   setTaxRate(Number(s.default_tax_rate||0));setServiceRate(Number(s.default_service_charge_rate||0));setTaxInclusive(!!s.tax_inclusive)
+   const [s,c]=await Promise.all([api('/document-settings'),api('/customers')])
+   setTaxRate(Number(s.default_tax_rate||0));setServiceRate(Number(s.default_service_charge_rate||0));setTaxInclusive(!!s.tax_inclusive);setCustomers(c)
  }
- useEffect(()=>{setCart([]);setAdjustment(null);load();loadDefaults()},[type])
+ useEffect(()=>{setCart([]);setAdjustment(null);setCustomerId(0);load();loadDefaults()},[type])
 
  const cats=['All',...Array.from(new Set(items.map(x=>x.category_name||'Other')))]
  const shown=items.filter(x=>category==='All'||(x.category_name||'Other')===category)
@@ -52,7 +53,7 @@ export default function POS({currency}:{currency:string}){
    if(!cart.length||!adjustment||adjustment.status!=='approved'||adjustment.adjustment_type!=='foc')return
    setBusy(true)
    try{
-     const out=await api('/sales',{method:'POST',body:JSON.stringify({items:cart.map(x=>({productId:x.id,qty:x.qty})),payments:[],orderType:type,taxRate,serviceRate,tip,taxInclusive,adjustmentRequestId:adjustment.id})})
+     const out=await api('/sales',{method:'POST',body:JSON.stringify({items:cart.map(x=>({productId:x.id,qty:x.qty})),payments:[],orderType:type,customerId:customerId||null,taxRate,serviceRate,tip,taxInclusive,adjustmentRequestId:adjustment.id})})
      setCart([]);setAdjustment(null);setChargesOpen(false);await load();setSuccess({sale:out.sale,payments:[],existing:false})
    }finally{setBusy(false)}
  }
@@ -66,7 +67,7 @@ export default function POS({currency}:{currency:string}){
        setSuccess({sale:out.sale,payments:lines,existing:true})
      }else{
        const out=await api('/sales',{method:'POST',body:JSON.stringify({
-         items:cart.map(x=>({productId:x.id,qty:x.qty})),payments:lines,orderType:type,
+         items:cart.map(x=>({productId:x.id,qty:x.qty})),payments:lines,orderType:type,customerId:customerId||null,
          taxRate,serviceRate,tip,taxInclusive,adjustmentRequestId:adjustment?.status==='approved'?adjustment.id:null
        })})
        setPaymentOpen(false);setCart([]);setAdjustment(null);await load();setSuccess({sale:out.sale,payments:out.payments||lines,existing:false})
@@ -113,6 +114,12 @@ export default function POS({currency}:{currency:string}){
     </Panel>
 
     <Panel title="Current sale" sub={cart.reduce((n,x)=>n+x.qty,0)+' item(s)'} action={<button onClick={()=>setChargesOpen(true)} disabled={!cart.length} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-40"><SlidersHorizontal size={14}/>Charges</button>}>
+      <label className="mb-3 block text-xs font-bold text-slate-500">Customer / credit account
+        <select value={customerId} onChange={e=>setCustomerId(Number(e.target.value))} className="control">
+          <option value="0">Walk-in · balance cannot remain unpaid</option>
+          {customers.map(x=><option key={x.id} value={x.id}>{x.name}{x.credit_enabled?' · Credit '+money(x.credit_limit,currency):''}{Number(x.balance)>0?' · Owes '+money(x.balance,currency):''}</option>)}
+        </select>
+      </label>
       <div className="space-y-1 min-h-48">{cart.length?cart.map((x,i)=><div key={x.id} className="flex gap-3 items-center py-3 border-b border-slate-100"><div className="flex-1"><b className="text-sm">{x.name}</b><div className="text-xs text-slate-400">{money(x.price,currency)}</div></div><div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1"><button onClick={()=>qty(i,-1)} className="h-7 w-7 rounded-md bg-white">−</button><b className="w-5 text-center text-sm">{x.qty}</b><button onClick={()=>qty(i,1)} className="h-7 w-7 rounded-md bg-white">+</button></div><b className="text-sm">{money(x.price*x.qty,currency)}</b></div>):<div className="h-48 grid place-items-center text-center text-slate-400"><div><ShoppingCart className="mx-auto mb-2"/><span className="text-sm">Tap menu items to start a sale</span></div></div>}</div>
 
       <div className="mt-4 rounded-2xl bg-slate-950 text-white p-5">
