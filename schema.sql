@@ -213,6 +213,91 @@ CREATE INDEX IF NOT EXISTS idx_po_supplier ON purchase_orders(business_id,suppli
 CREATE INDEX IF NOT EXISTS idx_grn_business_date ON goods_receipts(business_id,received_at);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON stock_movements(business_id,product_id,created_at);
 
+
+CREATE TABLE IF NOT EXISTS inventory_locations (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  location_type TEXT NOT NULL DEFAULT 'store',
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,branch_id,name)
+);
+CREATE TABLE IF NOT EXISTS inventory_balances (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 0,
+  avg_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(location_id,product_id)
+);
+CREATE TABLE IF NOT EXISTS stock_adjustments (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  reference_no TEXT NOT NULL,
+  adjustment_type TEXT NOT NULL,
+  reason TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,reference_no)
+);
+CREATE TABLE IF NOT EXISTS stock_adjustment_items (
+  id BIGSERIAL PRIMARY KEY,
+  adjustment_id BIGINT REFERENCES stock_adjustments(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  qty_change NUMERIC(14,3) NOT NULL,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS stock_transfers (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  from_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  to_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  reference_no TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'posted',
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,reference_no)
+);
+CREATE TABLE IF NOT EXISTS stock_transfer_items (
+  id BIGSERIAL PRIMARY KEY,
+  transfer_id BIGINT REFERENCES stock_transfers(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  qty NUMERIC(14,3) NOT NULL
+);
+CREATE TABLE IF NOT EXISTS stock_counts (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  reference_no TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  posted_at TIMESTAMPTZ,
+  UNIQUE(business_id,reference_no)
+);
+CREATE TABLE IF NOT EXISTS stock_count_items (
+  id BIGSERIAL PRIMARY KEY,
+  stock_count_id BIGINT REFERENCES stock_counts(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  expected_qty NUMERIC(14,3) NOT NULL DEFAULT 0,
+  counted_qty NUMERIC(14,3)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_balances_business_product ON inventory_balances(business_id,product_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_locations_branch ON inventory_locations(business_id,branch_id);
+CREATE INDEX IF NOT EXISTS idx_stock_counts_business_status ON stock_counts(business_id,status);
+CREATE INDEX IF NOT EXISTS idx_stock_transfers_business_date ON stock_transfers(business_id,created_at);
+
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS from_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE SET NULL;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS to_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE SET NULL;
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS reason TEXT;
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
@@ -261,6 +346,22 @@ WHERE NOT EXISTS (SELECT 1 FROM branches WHERE business_id=b.id);
 INSERT INTO products(business_id,name,sku,barcode,category,cost,price,stock,reorder_level)
 SELECT b.id,'Demo Product','DEMO-001','1234567890123','General',3000,5000,25,5 FROM businesses b
 WHERE NOT EXISTS (SELECT 1 FROM products WHERE business_id=b.id);
+
+
+INSERT INTO inventory_locations(business_id,branch_id,name,location_type,is_default)
+SELECT b.business_id,b.id,'Main Store','main',true
+FROM branches b
+WHERE NOT EXISTS (
+  SELECT 1 FROM inventory_locations l WHERE l.business_id=b.business_id AND l.branch_id=b.id AND l.is_default=true
+);
+
+INSERT INTO inventory_balances(business_id,location_id,product_id,qty,avg_cost)
+SELECT p.business_id,l.id,p.id,p.stock,p.cost
+FROM products p
+JOIN inventory_locations l ON l.business_id=p.business_id AND l.is_default=true
+WHERE NOT EXISTS (
+  SELECT 1 FROM inventory_balances ib WHERE ib.business_id=p.business_id AND ib.product_id=p.id
+);
 
 INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at)
 SELECT b.id,m.code,true,(NOT m.core),CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
