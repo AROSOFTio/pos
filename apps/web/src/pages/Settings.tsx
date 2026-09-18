@@ -4,6 +4,7 @@ import { PageHeading, Panel, Loading } from '../components'
 
 export default function Settings(){
  const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false)
+ const [currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState(''),[passwordMessage,setPasswordMessage]=useState(''),[passwordBusy,setPasswordBusy]=useState(false)
  useEffect(()=>{api('/document-settings').then(setS)},[])
  async function save(){
    setSaving(true);setSaved(false)
@@ -17,6 +18,7 @@ export default function Settings(){
      setS(next);setSaved(true)
    }finally{setSaving(false)}
  }
+ async function changePassword(){setPasswordMessage('');if(newPassword.length<10){setPasswordMessage('New password must be at least 10 characters.');return}if(newPassword!==confirmPassword){setPasswordMessage('New passwords do not match.');return}setPasswordBusy(true);try{await api('/me/password',{method:'PUT',body:JSON.stringify({currentPassword,newPassword})});setCurrentPassword('');setNewPassword('');setConfirmPassword('');setPasswordMessage('Password changed successfully.')}catch(e:any){setPasswordMessage(e.message)}finally{setPasswordBusy(false)}}
  if(!s)return <Loading/>
  const patch=(k:string,v:any)=>setS({...s,[k]:v})
  return <div>
@@ -47,6 +49,16 @@ export default function Settings(){
        </div>
      </Panel>
    </div>
+
+   <Panel title="Account Security" sub="Change your MauzoPOS login password without leaving the workspace.">
+     <div className="grid sm:grid-cols-3 gap-4">
+       <Field label="Current password"><input className="control" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} autoComplete="current-password"/></Field>
+       <Field label="New password"><input className="control" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password"/></Field>
+       <Field label="Confirm new password"><input className="control" type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password"/></Field>
+     </div>
+     {passwordMessage&&<div className={'mt-3 rounded-xl p-3 text-sm font-semibold '+(passwordMessage.includes('success')?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-800')}>{passwordMessage}</div>}
+     <button onClick={changePassword} disabled={passwordBusy||!currentPassword||!newPassword||!confirmPassword} className="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-bold text-white disabled:opacity-40">{passwordBusy?'Changing…':'Change Password'}</button>
+   </Panel>
 
    <div className="mt-4 flex items-center gap-3">
      <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 text-white px-5 py-3 font-bold">{saving?'Saving…':'Save Settings'}</button>
