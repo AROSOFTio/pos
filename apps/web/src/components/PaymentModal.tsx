@@ -60,7 +60,11 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
     for(const x of clean){
       if(x.method==='cash'&&x.tenderedAmount+0.005<x.amount){setError('Cash tendered cannot be less than the cash payment amount.');return}
     }
-    await onSubmit(clean)
+    try{
+      await onSubmit(clean)
+    }catch(e:any){
+      setError(e?.message||'Payment could not be posted.')
+    }
   }
 
   return <Modal title={title} onClose={onClose}>
