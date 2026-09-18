@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2 } from 'lucide-react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, SlidersHorizontal } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
@@ -15,6 +15,8 @@ export default function Orders({currency}:{currency:string}){
  const [transferOpen,setTransferOpen]=useState(false),[cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false),[transferTable,setTransferTable]=useState(0)
  const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null)
  const [depositOpen,setDepositOpen]=useState(false),[depositBusy,setDepositBusy]=useState(false)
+ const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
+ const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -55,6 +57,38 @@ export default function Orders({currency}:{currency:string}){
  async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
  async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const out=await api('/restaurant/orders/'+detail.order.id+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid')setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d)}finally{setPaymentBusy(false)}}
  async function submitDeposit(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setDepositBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/deposits',{method:'POST',body:JSON.stringify({payments:lines})});setDepositOpen(false);await refreshDetail();await load()}finally{setDepositBusy(false)}}
+ async function openCharges(){
+   if(!detail?.order)return
+   const settings=await api('/document-settings')
+   setTaxRate(Number(detail.order.tax_rate??settings.default_tax_rate??0))
+   setServiceRate(Number(detail.order.service_charge_rate??settings.default_service_charge_rate??0))
+   setTip(Number(detail.order.tip||0))
+   setTaxInclusive(detail.order.tax_inclusive===true||detail.order.tax_inclusive==='true'?true:!!settings.tax_inclusive)
+   setAdjustType('discount');setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false);setAdjustMessage('')
+   setChargesOpen(true)
+ }
+ async function saveCharges(){
+   if(!detail?.order?.id)return
+   setChargesBusy(true)
+   try{
+     await api('/restaurant/orders/'+detail.order.id+'/charges',{method:'PUT',body:JSON.stringify({taxRate,serviceRate,tip,taxInclusive})})
+     await refreshDetail();await load();setAdjustMessage('Charges updated successfully.')
+   }finally{setChargesBusy(false)}
+ }
+ async function requestAdjustment(){
+   if(!detail?.order?.id||!adjustReason.trim())return
+   if(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))return
+   setChargesBusy(true)
+   try{
+     const out=await api('/transaction-adjustments/request',{method:'POST',body:JSON.stringify({
+       sourceType:'restaurant_order',sourceId:Number(detail.order.id),adjustmentType:adjustType,
+       requestedAmount:adjustType==='discount'?adjustAmount:0,requestedPercent:adjustType==='discount'?adjustPercent:0,
+       reason:adjustReason,urgent:adjustUrgent
+     })})
+     setAdjustMessage((adjustType==='foc'?'FOC':'Discount')+' request '+out.adjustment.reference_no+' sent to management for approval.')
+     setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false)
+   }finally{setChargesBusy(false)}
+ }
  async function closePaidOrder(){if(!detail?.order?.id)return;await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'closed',comment:'Order closed after full settlement'})});setDetailOpen(false);await load()}
  async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
@@ -84,11 +118,24 @@ export default function Orders({currency}:{currency:string}){
   {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)}>
     <div className="flex flex-wrap gap-2 mb-4"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
     <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">{detail.items.length?detail.items.map((x:any)=><div key={x.id} className="py-3 flex justify-between gap-3"><div><b className="text-sm">{Number(x.qty)} × {x.product_name}{x.variant_name?' · '+x.variant_name:''}</b>{x.modifiers?.length>0&&<div className="text-xs text-slate-400 mt-1">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="text-xs text-amber-700 mt-1">{x.notes}</div>}</div><div className="text-right"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge><div className="text-sm font-bold mt-1">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div></div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
-    <div className="mt-4 rounded-xl bg-slate-950 text-white p-4 flex justify-between items-end"><div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-black">{money(detail.order.total,currency)}</div>{Number(detail.order.amount_paid||0)>0&&<div className="mt-1 text-xs text-emerald-300">{money(detail.order.amount_paid,currency)} paid · {money(detail.order.balance_due,currency)} due</div>}</div>{!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 text-sm font-bold">+ Add Item</button>}</div>
+    <div className="mt-4 rounded-xl bg-slate-950 text-white p-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <span className="text-slate-400">Subtotal</span><span className="text-right">{money(detail.order.subtotal,currency)}</span>
+        {Number(detail.order.discount||0)>0&&<><span className="text-slate-400">Discount</span><span className="text-right text-emerald-300">− {money(detail.order.discount,currency)}</span></>}
+        {Number(detail.order.service_charge||0)>0&&<><span className="text-slate-400">Service charge</span><span className="text-right">{money(detail.order.service_charge,currency)}</span></>}
+        {Number(detail.order.tax||0)>0&&<><span className="text-slate-400">Tax {detail.order.tax_inclusive?'(inclusive)':''}</span><span className="text-right">{money(detail.order.tax,currency)}</span></>}
+        {Number(detail.order.tip||0)>0&&<><span className="text-slate-400">Tip</span><span className="text-right">{money(detail.order.tip,currency)}</span></>}
+      </div>
+      <div className="mt-3 flex justify-between items-end border-t border-white/10 pt-3">
+        <div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-black">{money(detail.order.total,currency)}</div>{Number(detail.order.amount_paid||0)>0&&<div className="mt-1 text-xs text-emerald-300">{money(detail.order.amount_paid,currency)} paid · {money(detail.order.balance_due,currency)} due</div>}</div>
+        {!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 text-sm font-bold">+ Add Item</button>}
+      </div>
+    </div>
     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
       {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send Kitchen"/>}
       <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
       {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer"/>}
+      {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}
       {['open','sent_to_kitchen','preparing','ready','served'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<Action onClick={()=>setDepositOpen(true)} icon={ReceiptIcon} label={Number(detail.order.amount_paid||0)>0?'Add Deposit':'Take Deposit'}/>}
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
@@ -106,6 +153,31 @@ export default function Orders({currency}:{currency:string}){
     <button onClick={addItem} disabled={!selectedProduct} className="mt-4 w-full rounded-xl bg-slate-950 text-white py-3 font-bold disabled:opacity-40">Add to Order</button>
   </Modal>}
 
+
+  {chargesOpen&&detail&&<Modal title="Charges & Adjustments" onClose={()=>setChargesOpen(false)}>
+    <div className="grid sm:grid-cols-2 gap-3">
+      <Field label="Tax rate (%)"><input className="control" type="number" min="0" step="0.01" value={taxRate} onChange={e=>setTaxRate(Number(e.target.value))}/></Field>
+      <Field label="Tax mode"><select className="control" value={taxInclusive?'inclusive':'exclusive'} onChange={e=>setTaxInclusive(e.target.value==='inclusive')}><option value="exclusive">Exclusive · add to bill</option><option value="inclusive">Inclusive · included in price</option></select></Field>
+      <Field label="Service charge (%)"><input className="control" type="number" min="0" step="0.01" value={serviceRate} onChange={e=>setServiceRate(Number(e.target.value))}/></Field>
+      <Field label="Tip"><input className="control" type="number" min="0" step="0.01" value={tip} onChange={e=>setTip(Number(e.target.value))}/></Field>
+    </div>
+    <button onClick={saveCharges} disabled={chargesBusy} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-bold text-white disabled:opacity-40">{chargesBusy?'Saving…':'Save Tax / Service / Tip'}</button>
+
+    <div className="my-5 h-px bg-slate-200"/>
+    <div className="text-xs font-black uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-bold '+(adjustType==='discount'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>Discount</button>
+      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-bold '+(adjustType==='foc'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>FOC / Complimentary</button>
+    </div>
+    {adjustType==='discount'&&<div className="mt-3 grid grid-cols-2 gap-3">
+      <Field label="Fixed amount"><input className="control" type="number" min="0" step="0.01" value={adjustAmount||''} onChange={e=>{setAdjustAmount(Number(e.target.value));if(Number(e.target.value)>0)setAdjustPercent(0)}} placeholder="Amount"/></Field>
+      <Field label="Or percent (%)"><input className="control" type="number" min="0" max="100" step="0.01" value={adjustPercent||''} onChange={e=>{setAdjustPercent(Number(e.target.value));if(Number(e.target.value)>0)setAdjustAmount(0)}} placeholder="%"/></Field>
+    </div>}
+    <label className="mt-3 block text-sm font-semibold text-slate-700">Reason<textarea className="control min-h-20" value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} placeholder="Why is this adjustment required?"/></label>
+    <label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800"><input type="checkbox" checked={adjustUrgent} onChange={e=>setAdjustUrgent(e.target.checked)}/>Mark approval request as urgent</label>
+    <button onClick={requestAdjustment} disabled={chargesBusy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="mt-3 w-full rounded-xl bg-[#22A53A] py-3 font-bold text-white disabled:opacity-40">Send {adjustType==='foc'?'FOC':'Discount'} for Approval</button>
+    {adjustMessage&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">{adjustMessage}</div>}
+  </Modal>}
 
   <PaymentModal
     open={depositOpen}
