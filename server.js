@@ -175,10 +175,16 @@ async function ensureRestaurantSale(client,bid,order,userName){
 
 app.get('/api/sales',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.business_id=$1 ORDER BY s.id DESC LIMIT 200',[bid])).rows)});
 app.post('/api/sales',auth,tenant,async(req,res)=>{
-  const bid=await getBiz(req),{items=[],payments=null,paymentMethod='cash',tenderedAmount=null,customerId=null,discount=0,tax=0,orderType='counter',branchId=null}=req.body||{};
+  const bid=await getBiz(req),{
+    items=[],payments=null,paymentMethod='cash',tenderedAmount=null,customerId=null,
+    discount=0,taxRate=null,serviceRate=null,tip=0,taxInclusive=null,adjustmentRequestId=null,
+    orderType='counter',branchId=null
+  }=req.body||{};
   if(!Array.isArray(items)||!items.length)return res.status(400).json({error:'Cart is empty'});
   const clean=items.map(x=>({productId:Number(x.productId),qty:Number(x.qty)})).filter(x=>x.productId&&x.qty>0);
   if(clean.length!==items.length)return res.status(400).json({error:'Invalid cart item'});
+  if(Number(discount||0)>0&&!adjustmentRequestId)return res.status(400).json({error:'Discounts require an approved management request'});
+
   let branch=Number(branchId||0);
   if(branch){
     const b=await pool.query('SELECT id FROM branches WHERE id=$1 AND business_id=$2 AND active=true',[branch,bid]);
@@ -188,6 +194,7 @@ app.post('/api/sales',auth,tenant,async(req,res)=>{
     branch=Number(b.rows[0]?.id||0);
   }
   if(!branch)return res.status(400).json({error:'No active branch found'});
+
   const ids=clean.map(x=>x.productId);
   const p=await pool.query("SELECT p.*,mi.id menu_item_id,mi.available,mi.sold_out,coalesce((SELECT mp.price FROM menu_item_prices mp WHERE mp.menu_item_id=mi.id AND mp.branch_id=$3 AND mp.order_type IN ($4,'all') ORDER BY CASE WHEN mp.order_type=$4 THEN 0 ELSE 1 END LIMIT 1),p.price)::numeric sale_price FROM products p LEFT JOIN menu_items mi ON mi.product_id=p.id AND mi.business_id=p.business_id WHERE p.business_id=$1 AND p.active=true AND p.sellable=true AND p.id=ANY($2::bigint[])",[bid,ids,branch,String(orderType||'counter')]);
   const map=new Map(p.rows.map(x=>[Number(x.id),x]));
@@ -198,26 +205,53 @@ app.post('/api/sales',auth,tenant,async(req,res)=>{
     if(pr.menu_item_id&&(pr.available===false||pr.sold_out===true))return res.status(400).json({error:pr.name+' is currently unavailable'});
     subtotal+=Number(pr.sale_price)*i.qty;
   }
-  const total=Math.max(0,subtotal-Number(discount||0)+Number(tax||0)),receipt=makeDocNo('R'),client=await pool.connect();
+
+  const receipt=makeDocNo('R'),client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const s=await client.query("INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier,order_type,payment_status,amount_paid,balance_due,tendered_amount,change_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,'unpaid',0,$8,0,0) RETURNING *",[bid,branch,customerId||null,receipt,subtotal,discount,tax,total,req.user.name,String(orderType||'counter')]);
+    const settings=await client.query('SELECT default_tax_rate,tax_inclusive,default_service_charge_rate FROM businesses WHERE id=$1',[bid]);
+    let discountAmount=0,approvedAdjustment=null;
+    if(adjustmentRequestId){
+      const aq=await client.query("SELECT * FROM transaction_adjustment_requests WHERE id=$1 AND business_id=$2 AND source_type='pos_draft' AND status='approved' AND consumed_at IS NULL FOR UPDATE",[Number(adjustmentRequestId),bid]);
+      if(!aq.rowCount)throw new Error('Approved discount/FOC request is missing, already used, or not approved');
+      approvedAdjustment=aq.rows[0];
+      if(Math.abs(Number(approvedAdjustment.base_amount)-subtotal)>0.01)throw new Error('Cart total changed after approval. Request a new approval.');
+      discountAmount=approvedAdjustment.adjustment_type==='foc'?subtotal:Math.min(Number(approvedAdjustment.requested_amount||0),subtotal);
+    }
+
+    const foc=approvedAdjustment?.adjustment_type==='foc';
+    const defaultTax=Number(settings.rows[0]?.default_tax_rate||0),defaultService=Number(settings.rows[0]?.default_service_charge_rate||0);
+    const tr=foc?0:Math.max(0,Number(taxRate??defaultTax)),sr=foc?0:Math.max(0,Number(serviceRate??defaultService));
+    const inclusive=foc?false:(taxInclusive===null||taxInclusive===undefined?!!settings.rows[0]?.tax_inclusive:!!taxInclusive);
+    const base=Math.max(0,subtotal-discountAmount);
+    const tax=tr>0?(inclusive?base-(base/(1+tr/100)):base*tr/100):0;
+    const service=foc?0:base*sr/100;
+    const tipAmount=foc?0:Math.max(0,Number(tip||0));
+    const total=Math.max(0,base+service+tipAmount+(inclusive?0:tax));
+
+    const s=await client.query("INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,service_charge,tip,tax_inclusive,total,payment_method,cashier,order_type,payment_status,amount_paid,balance_due,tendered_amount,change_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',$12,$13,'unpaid',0,$11,0,0) RETURNING *",[bid,branch,customerId||null,receipt,subtotal,discountAmount,tax,service,tipAmount,inclusive,total,req.user.name,String(orderType||'counter')]);
+
     for(const i of clean){
       const pr=map.get(i.productId);
       const lineCost=await consumeSoldItem(client,{bid,productId:pr.id,qty:i.qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName:req.user.name});
       await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,pr.id,pr.name,i.qty,pr.sale_price,lineCost/i.qty,Number(pr.sale_price)*i.qty]);
     }
+
+    if(approvedAdjustment)await client.query("UPDATE transaction_adjustment_requests SET source_id=$1,consumed_at=now() WHERE id=$2",[s.rows[0].id,approvedAdjustment.id]);
+
     let lines=Array.isArray(payments)?payments:null;
     if(lines===null){
-      if(paymentMethodName(paymentMethod)==='credit')lines=[];
+      if(total<=0.005)lines=[];
+      else if(paymentMethodName(paymentMethod)==='credit')lines=[];
       else lines=[{method:paymentMethod,amount:total,tenderedAmount:tenderedAmount??total}];
     }
     const posted=await postPaymentLines(client,{bid,branchId:branch,customerId,sourceType:'sale',sourceId:Number(s.rows[0].id),total,lines,userName:req.user.name});
     const tendered=posted.posted.reduce((n,x)=>n+Number(x.tendered_amount||0),0),change=posted.posted.reduce((n,x)=>n+Number(x.change_amount||0),0);
-    const method=posted.summaryMethod||(posted.status==='unpaid'?'credit':'pending');
+    const method=total<=0.005?'foc':posted.summaryMethod||(posted.status==='unpaid'?'credit':'pending');
     const updated=await client.query('UPDATE sales SET payment_method=$1,payment_status=$2,amount_paid=$3,balance_due=$4,tendered_amount=$5,change_amount=$6 WHERE id=$7 RETURNING *',[method,posted.status,posted.paid,posted.balance,tendered,change,s.rows[0].id]);
+
     await client.query('COMMIT');
-    await audit(req.user,bid,'create','sale',s.rows[0].id,{receiptNo:receipt,total,paymentStatus:posted.status,amountPaid:posted.paid,balanceDue:posted.balance});
+    await audit(req.user,bid,'create','sale',s.rows[0].id,{receiptNo:receipt,total,discount:discountAmount,tax,serviceCharge:service,tip:tipAmount,paymentStatus:posted.status,amountPaid:posted.paid,balanceDue:posted.balance,adjustmentRequestId:approvedAdjustment?.id||null});
     res.json({sale:updated.rows[0],items:clean,payments:posted.posted});
   }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
 });
