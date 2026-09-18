@@ -354,6 +354,7 @@ CREATE TABLE IF NOT EXISTS approval_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_approval_requests_business_status ON approval_requests(business_id,status,requested_at);
 CREATE INDEX IF NOT EXISTS idx_approval_requests_approver ON approval_requests(business_id,approver_user_id,status);
+ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'normal';
 
 ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft';
 ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approval_comment TEXT;
