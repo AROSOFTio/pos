@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, ShoppingCart, ClipboardList, ChefHat, UtensilsCrossed, Package, Truck, ReceiptText, ShieldCheck, Bell, Search, Menu as MenuIcon, LogOut, X, UserRound, CheckCircle2 } from 'lucide-react'
+import { LayoutDashboard, ShoppingCart, ClipboardList, ChefHat, UtensilsCrossed, Package, Truck, ReceiptText, ShieldCheck, Bell, Search, Menu as MenuIcon, LogOut, X, UserRound, CheckCircle2, Boxes, UsersRound, Building2, Settings as SettingsIcon, Banknote } from 'lucide-react'
 import { api, nice, type User } from './api'
 import Dashboard from './pages/Dashboard'
 import POS from './pages/POS'
@@ -10,11 +10,16 @@ import Approvals from './pages/Approvals'
 import Inventory from './pages/Inventory'
 import Purchasing from './pages/Purchasing'
 import Expenses from './pages/Expenses'
+import Products from './pages/Products'
+import Suppliers from './pages/Suppliers'
+import Branches from './pages/Branches'
+import Settings from './pages/Settings'
+import CashDrawer from './pages/CashDrawer'
 
-export type ViewKey='Dashboard'|'POS'|'Orders'|'Kitchen'|'Restaurant'|'Approvals'|'Inventory'|'Purchasing'|'Expenses'
+export type ViewKey='Dashboard'|'POS'|'Orders'|'Kitchen'|'Restaurant'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
 
 const operations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed]] as const
-const administration=[['Approvals',ShieldCheck],['Inventory',Package],['Purchasing',Truck],['Expenses',ReceiptText]] as const
+const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
   const [user,setUser]=useState<User|null>(null)
@@ -81,7 +86,12 @@ export default function App(){
         {view==='Approvals'&&<Approvals currency={currency}/>}
         {view==='Inventory'&&<Inventory currency={currency}/>}
         {view==='Purchasing'&&<Purchasing currency={currency}/>}
-        {view==='Expenses'&&<Expenses currency={currency}/>}
+        {view==='Expenses'&&<Expenses currency={currency}/>} 
+        {view==='Products'&&<Products currency={currency}/>} 
+        {view==='Suppliers'&&<Suppliers currency={currency}/>} 
+        {view==='Cash Drawer'&&<CashDrawer currency={currency}/>} 
+        {view==='Branches'&&<Branches/>} 
+        {view==='Settings'&&<Settings/>}
       </div>
     </main>
   </div>
