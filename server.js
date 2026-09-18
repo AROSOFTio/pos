@@ -114,6 +114,65 @@ app.post('/api/suppliers',auth,tenant,async(req,res)=>{const bid=await getBiz(re
 app.put('/api/suppliers/:id/products',auth,tenant,async(req,res)=>{const bid=await getBiz(req),sid=Number(req.params.id),ids=[...new Set((Array.isArray(req.body?.productIds)?req.body.productIds:[]).map(Number).filter(Boolean))];const client=await pool.connect();try{await client.query('BEGIN');const s=await client.query('SELECT id,name FROM suppliers WHERE id=$1 AND business_id=$2',[sid,bid]);if(!s.rowCount)throw new Error('Supplier not found');if(ids.length){const v=await client.query('SELECT id FROM products WHERE business_id=$1 AND id=ANY($2::bigint[])',[bid,ids]);if(v.rowCount!==ids.length)throw new Error('One or more selected products are invalid')}await client.query('DELETE FROM supplier_products WHERE business_id=$1 AND supplier_id=$2',[bid,sid]);for(const pid of ids)await client.query('INSERT INTO supplier_products(business_id,supplier_id,product_id) VALUES($1,$2,$3)',[bid,sid,pid]);await client.query('COMMIT');await audit(req.user,bid,'update_products','supplier',sid,{productIds:ids});res.json({ok:true,supplierId:sid,productIds:ids})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
 app.get('/api/expenses',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query("SELECT e.*,s.name supplier_name,po.po_no,g.grn_no FROM expenses e LEFT JOIN suppliers s ON s.id=e.supplier_id LEFT JOIN purchase_orders po ON po.id=e.purchase_order_id LEFT JOIN goods_receipts g ON g.id=e.grn_id WHERE e.business_id=$1 ORDER BY e.expense_date DESC,e.id DESC LIMIT 300",[bid])).rows)});
 app.post('/api/expenses',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const {category='General',description,amount,expenseDate=null}=req.body||{};if(!description?.trim()||!(Number(amount)>0))return res.status(400).json({error:'Description and a positive amount are required'});const ref=makeDocNo('EXP');const q=await pool.query("INSERT INTO expenses(business_id,category,description,amount,expense_date,reference_no,source_type,auto_generated,accounting_treatment,status) VALUES($1,$2,$3,$4,coalesce($5,current_date),$6,'manual',false,'operating_expense','posted') RETURNING *",[bid,category||'General',description.trim(),Number(amount),expenseDate,ref]);await audit(req.user,bid,'create','expense',q.rows[0].id,{referenceNo:ref,amount:Number(amount)});res.json(q.rows[0])});
+
+function paymentMethodName(v){
+  const raw=String(v||'cash').trim().toLowerCase();
+  const aliases={'mobile_money':'mobile money','momo':'mobile money','bank':'bank transfer','bank_transfer':'bank transfer'};
+  return aliases[raw]||raw;
+}
+async function allocatedPaymentTotal(client,bid,sourceType,sourceId){
+  const q=await client.query("SELECT coalesce(sum(pa.amount),0)::numeric total FROM payment_allocations pa JOIN payments p ON p.id=pa.payment_id WHERE pa.business_id=$1 AND pa.source_type=$2 AND pa.source_id=$3 AND p.status='posted'",[bid,sourceType,sourceId]);
+  return Number(q.rows[0].total||0);
+}
+async function postPaymentLines(client,{bid,branchId,customerId=null,sourceType,sourceId,total,lines=[],userName}){
+  const current=await allocatedPaymentTotal(client,bid,sourceType,sourceId);
+  const remaining=Math.max(0,Number(total)-current);
+  const clean=(Array.isArray(lines)?lines:[]).map(x=>({
+    method:paymentMethodName(x.method||x.paymentMethod),
+    amount:Number(x.amount||0),
+    tenderedAmount:Number(x.tenderedAmount??x.amount??0),
+    reference:String(x.reference||'').trim()||null
+  })).filter(x=>x.amount>0);
+  const requested=clean.reduce((n,x)=>n+x.amount,0);
+  if(requested>remaining+0.005)throw new Error('Payment amount exceeds the outstanding balance');
+  const posted=[];
+  for(const line of clean){
+    const isCash=line.method==='cash';
+    const tendered=isCash?line.tenderedAmount:line.amount;
+    if(tendered+0.005<line.amount)throw new Error('Cash tendered cannot be less than the payment amount');
+    const change=isCash?Math.max(0,tendered-line.amount):0;
+    const paymentNo=makeDocNo('PAY');
+    const q=await client.query("INSERT INTO payments(business_id,branch_id,customer_id,payment_no,payment_method,amount,tendered_amount,change_amount,reference,status,received_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'posted',$10) RETURNING *",[bid,branchId||null,customerId||null,paymentNo,line.method,line.amount,tendered,change,line.reference,userName]);
+    await client.query('INSERT INTO payment_allocations(business_id,payment_id,source_type,source_id,amount) VALUES($1,$2,$3,$4,$5)',[bid,q.rows[0].id,sourceType,sourceId,line.amount]);
+    posted.push(q.rows[0]);
+  }
+  const paid=current+requested,balance=Math.max(0,Number(total)-paid);
+  const status=balance<=0.005?'paid':paid>0?'partially_paid':'unpaid';
+  const methods=[...new Set(posted.map(x=>x.payment_method))];
+  return {posted,paid,balance,status,summaryMethod:methods.length===1?methods[0]:methods.length>1?'split':null};
+}
+async function paymentSummaryForSource(client,bid,sourceType,sourceId){
+  const q=await client.query("SELECT p.*,pa.amount allocated_amount FROM payment_allocations pa JOIN payments p ON p.id=pa.payment_id WHERE pa.business_id=$1 AND pa.source_type=$2 AND pa.source_id=$3 ORDER BY p.id",[bid,sourceType,sourceId]);
+  const rows=q.rows,total=rows.filter(x=>x.status==='posted').reduce((n,x)=>n+Number(x.allocated_amount||0),0);
+  return {payments:rows,total};
+}
+async function ensureRestaurantSale(client,bid,order,userName){
+  if(order.sale_id){
+    const existing=await client.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2',[order.sale_id,bid]);
+    if(existing.rowCount)return existing.rows[0];
+  }
+  const receipt=makeDocNo('R');
+  const s=await client.query("INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier,order_type,payment_status,amount_paid,balance_due,tendered_amount,change_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,'unpaid',0,$8,0,0) RETURNING *",[bid,order.branch_id,order.customer_id||null,receipt,order.subtotal,order.discount,order.tax,order.total,userName,order.order_type]);
+  const items=await client.query("SELECT oi.*,coalesce(sum(m.line_total),0)::numeric modifier_total FROM restaurant_order_items oi LEFT JOIN restaurant_order_item_modifiers m ON m.order_item_id=oi.id WHERE oi.order_id=$1 AND oi.status<>'cancelled' GROUP BY oi.id ORDER BY oi.id",[order.id]);
+  for(const item of items.rows){
+    const qty=Number(item.qty),lineTotal=Number(item.line_total)+Number(item.modifier_total||0),unitPrice=qty>0?lineTotal/qty:Number(item.unit_price);
+    const lineCost=await consumeSoldItem(client,{bid,productId:item.product_id,qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName});
+    await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,item.product_id,item.product_name,qty,unitPrice,qty>0?lineCost/qty:0,lineTotal]);
+  }
+  await client.query('UPDATE restaurant_orders SET sale_id=$1 WHERE id=$2',[s.rows[0].id,order.id]);
+  return s.rows[0];
+}
+
 app.get('/api/sales',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.business_id=$1 ORDER BY s.id DESC LIMIT 200',[bid])).rows)});
 app.post('/api/sales',auth,tenant,async(req,res)=>{
   const bid=await getBiz(req),{items=[],paymentMethod='cash',customerId=null,discount=0,tax=0,orderType='counter',branchId=null}=req.body||{};
