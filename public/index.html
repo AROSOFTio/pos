@@ -1,0 +1,4 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OwlTech Universal POS</title><link rel="stylesheet" href="/styles.css"></head><body>
+<div id="login" class="center"><div class="card login"><h1>Universal POS</h1><p>SaaS Administration & Business Operations</p><input id="email" placeholder="Email" value="admin@owltechsolutionsltd.com"><input id="password" type="password" placeholder="Password"><button onclick="login()">Sign in</button><small id="loginMsg"></small></div></div>
+<div id="app" class="hidden"><aside><div class="brand">OwlTech POS</div><nav id="nav"></nav><button class="logout" onclick="logout()">Sign out</button></aside><main><header><div><h2 id="title">Dashboard</h2><span id="who"></span></div><button onclick="loadDashboard()">Refresh</button></header><section id="view"></section></main></div>
+<script src="/app.js"></script></body></html>

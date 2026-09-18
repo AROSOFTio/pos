@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: owl-pos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pos}
+      POSTGRES_USER: ${POSTGRES_USER:-pos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pos_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-pos} -d ${POSTGRES_DB:-pos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  app:
+    build: .
+    container_name: owl-pos-app
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pos}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-pos}
+      JWT_SECRET: ${JWT_SECRET}
+      SAAS_ADMIN_EMAIL: ${SAAS_ADMIN_EMAIL:-admin@owltechsolutionsltd.com}
+      SAAS_ADMIN_PASSWORD: ${SAAS_ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+volumes:
+  pos_db:
