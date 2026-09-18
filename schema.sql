@@ -869,3 +869,51 @@ INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at)
 SELECT b.id,m.code,true,(NOT m.core),CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
 FROM businesses b CROSS JOIN module_catalog m
 ON CONFLICT(business_id,module_code) DO NOTHING;
+
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS default_tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS default_service_charge_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS service_charge NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tip NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS tip NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS transaction_adjustment_requests (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  source_type TEXT NOT NULL,
+  source_id BIGINT,
+  reference_no TEXT NOT NULL,
+  adjustment_type TEXT NOT NULL,
+  base_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  requested_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  requested_percent NUMERIC(8,4) NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  requested_by_name TEXT,
+  approved_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  approved_by_name TEXT,
+  approved_at TIMESTAMPTZ,
+  rejected_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  rejected_by_name TEXT,
+  rejected_at TIMESTAMPTZ,
+  decision_comment TEXT,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK(source_type IN ('restaurant_order','pos_draft')),
+  CHECK(adjustment_type IN ('discount','foc'))
+);
+CREATE INDEX IF NOT EXISTS idx_tx_adjustment_business_status ON transaction_adjustment_requests(business_id,status,created_at);
+CREATE INDEX IF NOT EXISTS idx_tx_adjustment_source ON transaction_adjustment_requests(business_id,source_type,source_id);
+
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Sales','transaction_discount','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Sales','transaction_foc','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
