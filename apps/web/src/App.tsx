@@ -6,6 +6,7 @@ import Marketing from './Marketing'
 import Register from './Register'
 import Dashboard from './pages/Dashboard'
 import POS from './pages/POS'
+import Sales from './pages/Sales'
 import Orders from './pages/Orders'
 import Kitchen from './pages/Kitchen'
 import Restaurant from './pages/Restaurant'
@@ -20,9 +21,9 @@ import Settings from './pages/Settings'
 import CashDrawer from './pages/CashDrawer'
 import Customers from './pages/Customers'
 
-export type ViewKey='Dashboard'|'POS'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
 
-const operations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed],['Customers',UsersRound]] as const
+const operations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Sales',ReceiptText],['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed],['Customers',UsersRound]] as const
 const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
@@ -98,7 +99,8 @@ export default function App(){
 
       <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         {view==='Dashboard'&&<Dashboard currency={currency} go={go}/>}
-        {view==='POS'&&<POS currency={currency}/>}
+        {view==='POS'&&<POS currency={currency}/>} 
+        {view==='Sales'&&<Sales currency={currency}/>}
         {view==='Orders'&&<Orders currency={currency}/>}
         {view==='Kitchen'&&<Kitchen/>}
         {view==='Restaurant'&&<Restaurant currency={currency}/>} 
