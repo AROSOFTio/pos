@@ -106,7 +106,7 @@ export default function App(){
 function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){
   return <div className="mt-7">
     <div className="px-4 mb-2 text-[10px] font-bold tracking-[.16em] uppercase text-slate-500">{title}</div>
-    <div className="space-y-1">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'w-full flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition '+(view===name?'bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/10':'text-slate-300 hover:bg-white/5 hover:text-white')}><Icon size={18}/><span>{name}</span></button>)}</div>
+    <div className="space-y-1">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'w-full flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition '+(view===name?'bg-[#22A53A] text-white shadow-lg shadow-green-900/10':'text-slate-300 hover:bg-white/5 hover:text-white')}><Icon size={18}/><span>{name}</span></button>)}</div>
   </div>
 }
 
@@ -130,67 +130,14 @@ function Login({onLogin}:{onLogin:(u:User)=>void}){
     <div className="pointer-events-none absolute -bottom-40 -left-28 h-[380px] w-[380px] rounded-full border-[48px] border-[#b8f59c]/40"/>
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_15%,rgba(255,255,255,.96),transparent_35%),radial-gradient(circle_at_85%_80%,rgba(187,247,208,.42),transparent_34%)]"/>
 
-    <div className="relative mx-auto grid min-h-[calc(100vh-24px)] max-w-[1420px] lg:min-h-[calc(100vh-56px)] lg:grid-cols-[1.08fr_.92fr] lg:gap-4">
-      <section className="relative hidden overflow-hidden rounded-[34px] border border-white/80 bg-[linear-gradient(145deg,#efffe9_0%,#dfffd2_46%,#f7fff4_100%)] p-7 shadow-[0_24px_80px_rgba(22,155,54,.12)] lg:flex lg:flex-col">
-        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#9bf278]/25 blur-2xl"/>
-        <div className="absolute -left-24 bottom-16 h-64 w-64 rounded-full bg-white/80 blur-3xl"/>
-
-        <div className="relative z-10 flex items-center justify-between">
-          <MauzoLogo/>
-          <div className="rounded-full border border-[#22A53A]/15 bg-white/80 px-3 py-1.5 text-[11px] font-bold text-[#169B36] shadow-sm">Restaurant • Retail • Multi-branch</div>
-        </div>
-
-        <div className="relative z-10 mt-8 flex flex-1 items-center justify-center">
-          <div className="w-full max-w-[620px]">
-            <div className="mb-5 max-w-[460px]">
-              <div className="text-[11px] font-black uppercase tracking-[.2em] text-[#169B36]">Good business. Brighter tomorrow.</div>
-              <h1 className="mt-2 text-[38px] font-black leading-[1.03] tracking-[-.045em] text-[#0F172A] xl:text-[46px]">Run every sale, table and stock movement beautifully.</h1>
-              <p className="mt-3 max-w-[450px] text-sm leading-6 text-slate-600">Fast checkout, live kitchen orders, purchasing, approvals and stock control in one modern workspace.</p>
-            </div>
-
-            <div className="relative mx-auto mt-5 w-[92%] rounded-[28px] border border-[#0F172A]/10 bg-[#0F172A] p-3 shadow-[0_35px_70px_rgba(15,23,42,.24)]">
-              <div className="rounded-[20px] bg-[#f8fafc] p-3">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0F172A]"><MauzoMark className="h-5 w-5"/></div>
-                  <div className="h-7 flex-1 rounded-lg bg-white px-3 text-[10px] leading-7 text-slate-400 shadow-sm">Search products...</div>
-                  <div className="rounded-lg bg-[#22A53A] px-3 py-2 text-[10px] font-black text-white">POS</div>
-                </div>
-                <div className="mt-3 grid grid-cols-[90px_1fr_145px] gap-3">
-                  <div className="space-y-2 rounded-xl bg-[#0F172A] p-2">
-                    {['Sales','Orders','Products','Reports'].map((x,i)=><div key={x} className={'rounded-lg px-2 py-2 text-[9px] font-bold '+(i===0?'bg-[#22A53A] text-white':'text-slate-400')}>{x}</div>)}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Coffee','Burger','Chicken','Juice','Rice','Dessert'].map((x,i)=><div key={x} className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-                      <div className={'h-10 rounded-lg '+['bg-amber-100','bg-orange-100','bg-yellow-100','bg-emerald-100','bg-lime-100','bg-rose-100'][i]}/>
-                      <div className="mt-2 text-[9px] font-bold text-slate-700">{x}</div>
-                      <div className="mt-1 text-[8px] font-semibold text-[#169B36]">UGX {(5000+i*1500).toLocaleString()}</div>
-                    </div>)}
-                  </div>
-                  <div className="rounded-xl bg-white p-3 shadow-sm">
-                    <div className="text-[9px] font-black text-slate-900">Current Sale</div>
-                    <div className="mt-3 space-y-2">
-                      <div className="flex justify-between text-[8px] text-slate-500"><span>2 × Coffee</span><b>10,000</b></div>
-                      <div className="flex justify-between text-[8px] text-slate-500"><span>1 × Burger</span><b>6,500</b></div>
-                    </div>
-                    <div className="mt-4 border-t border-slate-200 pt-2">
-                      <div className="flex justify-between text-[8px] text-slate-400"><span>Total</span><span>3 items</span></div>
-                      <div className="mt-1 text-sm font-black text-slate-950">UGX 16,500</div>
-                    </div>
-                    <div className="mt-3 rounded-lg bg-[#22A53A] py-2 text-center text-[8px] font-black text-white">Complete Sale</div>
-                  </div>
-                </div>
-              </div>
-              <div className="mx-auto h-4 w-40 rounded-b-xl bg-slate-700"/>
-              <div className="mx-auto h-2 w-52 rounded-full bg-slate-900/70 blur-[1px]"/>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-6 grid grid-cols-3 gap-3">
-          <div className="flex items-center gap-3 rounded-2xl border border-white/90 bg-white/85 px-4 py-3 shadow-sm"><div className="grid h-9 w-9 place-items-center rounded-xl bg-green-50 text-[#22A53A]"><ShoppingCart size={18}/></div><div><div className="text-xs font-black text-slate-900">Easy Sales</div><div className="text-[10px] text-slate-500">In seconds</div></div></div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/90 bg-white/85 px-4 py-3 shadow-sm"><div className="grid h-9 w-9 place-items-center rounded-xl bg-green-50 text-[#22A53A]"><Package size={18}/></div><div><div className="text-xs font-black text-slate-900">Manage Stock</div><div className="text-[10px] text-slate-500">In real time</div></div></div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/90 bg-white/85 px-4 py-3 shadow-sm"><div className="grid h-9 w-9 place-items-center rounded-xl bg-green-50 text-[#22A53A]"><UsersRound size={18}/></div><div><div className="text-xs font-black text-slate-900">Grow Business</div><div className="text-[10px] text-slate-500">Together</div></div></div>
-        </div>
+    <div className="relative mx-auto grid min-h-[calc(100vh-24px)] max-w-[1440px] lg:min-h-[calc(100vh-56px)] lg:grid-cols-[1.08fr_.92fr] lg:gap-4">
+      <section className="relative hidden overflow-hidden rounded-[34px] border border-white/90 bg-white shadow-[0_24px_80px_rgba(22,155,54,.14)] lg:block">
+        <img
+          src="/brand/mauzopos-login-hero.webp"
+          alt="MauzoPOS — Sell smarter. Grow faster."
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 ring-1 ring-inset ring-white/60 rounded-[34px]"/>
       </section>
 
       <section className="flex items-center justify-center py-5 lg:py-0">
