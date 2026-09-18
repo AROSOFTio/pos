@@ -1,0 +1,10 @@
+import { useEffect, useState } from 'react'
+import { Store, Users, UtensilsCrossed, XCircle } from 'lucide-react'
+import { api, money } from '../api'
+import { PageHeading, Stat, Panel, DataTable, Badge, Loading } from '../components'
+export default function Restaurant({currency}:{currency:string}){
+ const [o,setO]=useState<any>(null),[tables,setTables]=useState<any[]>([]),[menu,setMenu]=useState<any[]>([])
+ useEffect(()=>{Promise.all([api('/restaurant/overview'),api('/restaurant/tables'),api('/menu/items')]).then(([o,t,m])=>{setO(o);setTables(t);setMenu(m)})},[])
+ if(!o)return <Loading/>
+ return <div><PageHeading eyebrow="Restaurant setup" title="Floor & Menu Control" sub="A premium operational view of tables, capacity and menu availability."/><div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4"><Stat label="Tables" value={o.tables} sub="Configured tables" icon={Store}/><Stat label="Occupied" value={o.occupied} sub="In service" icon={Users} tone="amber"/><Stat label="Available menu" value={o.availableMenu} sub="Can be ordered" icon={UtensilsCrossed}/><Stat label="Sold out" value={o.soldOut} sub="Hidden from POS" icon={XCircle} tone="rose"/></div><div className="grid xl:grid-cols-2 gap-4 mt-4"><Panel title="Floor status"><div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{tables.map(t=><div key={t.id} className={'rounded-xl border p-4 '+(t.status==='occupied'?'bg-red-50 border-red-100':t.status==='reserved'?'bg-amber-50 border-amber-100':'bg-emerald-50 border-emerald-100')}><div className="flex justify-between"><b>{t.name}</b><Badge tone={t.status==='occupied'?'red':t.status==='reserved'?'amber':'green'}>{t.status}</Badge></div><div className="text-xs text-slate-500 mt-2">{t.area_name||'Floor'} · {t.capacity} seats</div></div>)}</div></Panel><Panel title="Menu control"><DataTable head={['Item','Category','Station','Price','Status']} rows={menu.slice(0,15).map(x=>[<b>{x.product_name}</b>,x.category_name||'Other',x.station_name||'-',money(x.base_price,currency),x.sold_out?<Badge tone="red">Sold out</Badge>:<Badge tone="green">Available</Badge>])}/></Panel></div></div>
+}
