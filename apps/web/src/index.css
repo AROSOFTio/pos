@@ -10,3 +10,7 @@ button { cursor:pointer; }
 .premium-shadow { box-shadow:0 14px 36px rgba(15,23,42,.08); }
 .glass { background:rgba(255,255,255,.92); backdrop-filter:blur(16px); }
 .stat-glow { background:radial-gradient(circle at top right,rgba(16,185,129,.15),transparent 44%),#fff; }
+
+.control { margin-top:.375rem; width:100%; border:1px solid #e2e8f0; border-radius:.75rem; background:#fff; padding:.7rem .8rem; color:#0f172a; outline:none; transition:.18s ease; }
+.control:focus { border-color:#10b981; box-shadow:0 0 0 4px rgba(16,185,129,.12); }
+.control:disabled { background:#f8fafc; color:#94a3b8; }
