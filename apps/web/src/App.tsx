@@ -16,10 +16,11 @@ import Suppliers from './pages/Suppliers'
 import Branches from './pages/Branches'
 import Settings from './pages/Settings'
 import CashDrawer from './pages/CashDrawer'
+import Customers from './pages/Customers'
 
-export type ViewKey='Dashboard'|'POS'|'Orders'|'Kitchen'|'Restaurant'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
 
-const operations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed]] as const
+const operations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed],['Customers',UsersRound]] as const
 const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
@@ -88,7 +89,8 @@ export default function App(){
         {view==='POS'&&<POS currency={currency}/>}
         {view==='Orders'&&<Orders currency={currency}/>}
         {view==='Kitchen'&&<Kitchen/>}
-        {view==='Restaurant'&&<Restaurant currency={currency}/>}
+        {view==='Restaurant'&&<Restaurant currency={currency}/>} 
+        {view==='Customers'&&<Customers currency={currency}/>}
         {view==='Approvals'&&<Approvals currency={currency}/>}
         {view==='Inventory'&&<Inventory currency={currency}/>}
         {view==='Purchasing'&&<Purchasing currency={currency}/>}
