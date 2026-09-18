@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban } from 'lucide-react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2 } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
+import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 
 type OrderDraft={branchId:number;orderType:string;tableId:number;customerId:number;guestCount:number;waiterUserId:number;reservationId:number;notes:string}
 
@@ -12,6 +13,7 @@ export default function Orders({currency}:{currency:string}){
  const [draft,setDraft]=useState<OrderDraft>({branchId:0,orderType:'dine_in',tableId:0,customerId:0,guestCount:1,waiterUserId:0,reservationId:0,notes:''})
  const [menu,setMenu]=useState<any[]>([]),[mods,setMods]=useState<any[]>([]),[addOpen,setAddOpen]=useState(false),[selectedProduct,setSelectedProduct]=useState<number>(0),[menuDetail,setMenuDetail]=useState<any>(null),[variantId,setVariantId]=useState<number>(0),[modifierIds,setModifierIds]=useState<number[]>([]),[qty,setQty]=useState(1),[itemNotes,setItemNotes]=useState('')
  const [transferOpen,setTransferOpen]=useState(false),[cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false),[transferTable,setTransferTable]=useState(0)
+ const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null)
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -49,6 +51,9 @@ export default function Orders({currency}:{currency:string}){
    const action=detail.order.held?'resume':'hold';await api('/restaurant/orders/'+detail.order.id+'/'+action,{method:'POST',body:'{}'});await refreshDetail();await load()
  }
  async function requestBill(){await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'bill_requested',comment:'Bill requested from premium POS'})});await refreshDetail();await load()}
+ async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
+ async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const out=await api('/restaurant/orders/'+detail.order.id+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid')setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d)}finally{setPaymentBusy(false)}}
+ async function closePaidOrder(){if(!detail?.order?.id)return;await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'closed',comment:'Order closed after full settlement'})});setDetailOpen(false);await load()}
  async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
 
@@ -77,13 +82,15 @@ export default function Orders({currency}:{currency:string}){
   {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)}>
     <div className="flex flex-wrap gap-2 mb-4"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
     <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">{detail.items.length?detail.items.map((x:any)=><div key={x.id} className="py-3 flex justify-between gap-3"><div><b className="text-sm">{Number(x.qty)} × {x.product_name}{x.variant_name?' · '+x.variant_name:''}</b>{x.modifiers?.length>0&&<div className="text-xs text-slate-400 mt-1">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="text-xs text-amber-700 mt-1">{x.notes}</div>}</div><div className="text-right"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge><div className="text-sm font-bold mt-1">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div></div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
-    <div className="mt-4 rounded-xl bg-slate-950 text-white p-4 flex justify-between items-end"><div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-black">{money(detail.order.total,currency)}</div></div><button onClick={()=>setAddOpen(true)} className="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 text-sm font-bold">+ Add Item</button></div>
+    <div className="mt-4 rounded-xl bg-slate-950 text-white p-4 flex justify-between items-end"><div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-black">{money(detail.order.total,currency)}</div>{Number(detail.order.amount_paid||0)>0&&<div className="mt-1 text-xs text-emerald-300">{money(detail.order.amount_paid,currency)} paid · {money(detail.order.balance_due,currency)} due</div>}</div>{!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 text-sm font-bold">+ Add Item</button>}</div>
     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
       {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send Kitchen"/>}
       <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
       {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer"/>}
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
-      <Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>
+      {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
+      {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
+      {!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}
     </div>
     <div className="mt-4 border-t border-slate-100 pt-3"><div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">History</div>{detail.history.slice(0,6).map((h:any)=><div key={h.id} className="flex justify-between gap-3 py-1.5 text-xs"><span className="text-slate-400">{new Date(h.created_at).toLocaleString()}</span><b>{nice(h.to_status)}</b></div>)}</div>
   </Modal>}
@@ -95,6 +102,18 @@ export default function Orders({currency}:{currency:string}){
     <div className="grid grid-cols-2 gap-3 mt-3"><Field label="Quantity"><input type="number" min="1" value={qty} onChange={e=>setQty(Number(e.target.value))} className="control"/></Field><Field label="Item notes"><input value={itemNotes} onChange={e=>setItemNotes(e.target.value)} className="control" placeholder="No onions…"/></Field></div>
     <button onClick={addItem} disabled={!selectedProduct} className="mt-4 w-full rounded-xl bg-slate-950 text-white py-3 font-bold disabled:opacity-40">Add to Order</button>
   </Modal>}
+
+
+  <PaymentModal
+    open={paymentOpen}
+    title={detail?.order?.order_no?'Settle Bill · '+detail.order.order_no:'Settle Restaurant Bill'}
+    total={Number(bill?.order?.total??detail?.order?.total??0)}
+    amountPaid={Number(bill?.amountPaid??detail?.order?.amount_paid??0)}
+    currency={currency}
+    busy={paymentBusy}
+    onClose={()=>{setPaymentOpen(false);setBill(null)}}
+    onSubmit={submitBillPayment}
+  />
 
   {transferOpen&&<Modal title="Transfer Table" onClose={()=>setTransferOpen(false)}><Field label="Destination table"><select value={transferTable} onChange={e=>setTransferTable(Number(e.target.value))} className="control">{availableTables.map(t=><option key={t.id} value={t.id}>{t.area_name||'Floor'} · {t.name}</option>)}</select></Field><button onClick={doTransfer} className="mt-4 w-full rounded-xl bg-slate-950 text-white py-3 font-bold">Transfer Order</button></Modal>}
 
