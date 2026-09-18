@@ -458,6 +458,147 @@ INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
 SELECT b.id,'Millilitre','ml','volume',0.001 FROM businesses b
 ON CONFLICT(business_id,symbol) DO NOTHING;
 
+
+CREATE TABLE IF NOT EXISTS restaurant_areas (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,branch_id,name)
+);
+CREATE TABLE IF NOT EXISTS restaurant_tables (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  area_id BIGINT REFERENCES restaurant_areas(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  code TEXT,
+  capacity INT NOT NULL DEFAULT 2,
+  status TEXT NOT NULL DEFAULT 'available',
+  sort_order INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,branch_id,name)
+);
+CREATE TABLE IF NOT EXISTS kitchen_stations (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  station_type TEXT NOT NULL DEFAULT 'kitchen',
+  printer_name TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,branch_id,name)
+);
+CREATE TABLE IF NOT EXISTS menu_categories (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  parent_id BIGINT REFERENCES menu_categories(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  default_station_id BIGINT REFERENCES kitchen_stations(id) ON DELETE SET NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,parent_id,name)
+);
+CREATE TABLE IF NOT EXISTS menu_items (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  category_id BIGINT REFERENCES menu_categories(id) ON DELETE SET NULL,
+  kitchen_station_id BIGINT REFERENCES kitchen_stations(id) ON DELETE SET NULL,
+  description TEXT,
+  image_url TEXT,
+  available BOOLEAN NOT NULL DEFAULT true,
+  sold_out BOOLEAN NOT NULL DEFAULT false,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,product_id)
+);
+CREATE TABLE IF NOT EXISTS menu_variants (
+  id BIGSERIAL PRIMARY KEY,
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  sku TEXT,
+  price_delta NUMERIC(14,2) NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  UNIQUE(menu_item_id,name)
+);
+CREATE TABLE IF NOT EXISTS modifier_groups (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  required BOOLEAN NOT NULL DEFAULT false,
+  min_select INT NOT NULL DEFAULT 0,
+  max_select INT NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,name)
+);
+CREATE TABLE IF NOT EXISTS modifiers (
+  id BIGSERIAL PRIMARY KEY,
+  modifier_group_id BIGINT REFERENCES modifier_groups(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  price NUMERIC(14,2) NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  UNIQUE(modifier_group_id,name)
+);
+CREATE TABLE IF NOT EXISTS menu_item_modifier_groups (
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE CASCADE,
+  modifier_group_id BIGINT REFERENCES modifier_groups(id) ON DELETE CASCADE,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY(menu_item_id,modifier_group_id)
+);
+CREATE TABLE IF NOT EXISTS menu_item_prices (
+  id BIGSERIAL PRIMARY KEY,
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  order_type TEXT NOT NULL DEFAULT 'all',
+  price NUMERIC(14,2) NOT NULL,
+  UNIQUE(menu_item_id,branch_id,order_type)
+);
+CREATE TABLE IF NOT EXISTS menu_item_schedules (
+  id BIGSERIAL PRIMARY KEY,
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE CASCADE,
+  day_of_week INT NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  CHECK(day_of_week BETWEEN 0 AND 6)
+);
+CREATE TABLE IF NOT EXISTS menu_combos (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,product_id)
+);
+CREATE TABLE IF NOT EXISTS menu_combo_items (
+  id BIGSERIAL PRIMARY KEY,
+  combo_id BIGINT REFERENCES menu_combos(id) ON DELETE CASCADE,
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE RESTRICT,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 1,
+  required BOOLEAN NOT NULL DEFAULT true,
+  UNIQUE(combo_id,menu_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_tables_area ON restaurant_tables(business_id,branch_id,area_id,status);
+CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(business_id,category_id,available,sold_out);
+CREATE INDEX IF NOT EXISTS idx_menu_prices_branch_type ON menu_item_prices(branch_id,order_type);
+CREATE INDEX IF NOT EXISTS idx_menu_schedules_item ON menu_item_schedules(menu_item_id,day_of_week);
+CREATE INDEX IF NOT EXISTS idx_modifier_groups_business ON modifier_groups(business_id,active);
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
