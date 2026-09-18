@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { WalletCards, BarChart3, Truck, ShieldCheck, Store, AlertTriangle, ReceiptText } from 'lucide-react'
+import { WalletCards, BarChart3, Truck, ShieldCheck, AlertTriangle, ReceiptText } from 'lucide-react'
 import { api, money } from '../api'
 import { PageHeading, Panel, Stat, DataTable, Badge, Loading } from '../components'
 import type { ViewKey } from '../App'
