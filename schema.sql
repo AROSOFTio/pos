@@ -1016,3 +1016,22 @@ ON CONFLICT(business_id,action_type) DO NOTHING;
 INSERT INTO approval_rules(business_id,section,action_type,approver_role)
 SELECT b.id,'Sales','sale_void','owner' FROM businesses b
 ON CONFLICT(business_id,action_type) DO NOTHING;
+
+
+ALTER TABLE refunds ADD COLUMN IF NOT EXISTS request_kind TEXT NOT NULL DEFAULT 'refund';
+ALTER TABLE refunds ADD COLUMN IF NOT EXISTS void_sale BOOLEAN NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS refund_tenders (
+  id BIGSERIAL PRIMARY KEY,
+  refund_id BIGINT REFERENCES refunds(id) ON DELETE CASCADE,
+  payment_method TEXT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,
+  reference TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_refund_tenders_refund ON refund_tenders(refund_id);
+
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'void','wrong_price','Wrong price / pricing error' FROM businesses b ON CONFLICT DO NOTHING;
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'void','wrong_product','Wrong product / item entry' FROM businesses b ON CONFLICT DO NOTHING;
