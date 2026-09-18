@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Clock3, ShoppingCart, SlidersHorizontal, UtensilsCrossed } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { Badge, Modal, PageHeading, Panel } from '../components'
