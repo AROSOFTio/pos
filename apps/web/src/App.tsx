@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LayoutDashboard, ShoppingCart, ClipboardList, ChefHat, UtensilsCrossed, Package, Truck, ReceiptText, ShieldCheck, Bell, Search, Menu as MenuIcon, LogOut, X, UserRound, Boxes, UsersRound, Building2, Settings as SettingsIcon, Banknote, Mail, LockKeyhole, Eye, EyeOff, ArrowRight } from 'lucide-react'
-import { api, nice, type User } from './api'\nimport { MauzoLogo, MauzoMark } from './Brand'
+import { api, nice, type User } from './api'
+import { MauzoLogo, MauzoMark } from './Brand'
 import Dashboard from './pages/Dashboard'
 import POS from './pages/POS'
 import Orders from './pages/Orders'
