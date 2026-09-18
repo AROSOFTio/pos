@@ -697,6 +697,54 @@ CREATE INDEX IF NOT EXISTS idx_restaurant_orders_table ON restaurant_orders(busi
 CREATE INDEX IF NOT EXISTS idx_restaurant_order_items_order ON restaurant_order_items(order_id,status);
 CREATE INDEX IF NOT EXISTS idx_restaurant_reservations_date ON restaurant_reservations(business_id,reserved_at,status);
 
+
+CREATE TABLE IF NOT EXISTS kitchen_tickets (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  station_id BIGINT REFERENCES kitchen_stations(id) ON DELETE SET NULL,
+  ticket_no TEXT NOT NULL,
+  batch_no INT NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'new',
+  priority TEXT NOT NULL DEFAULT 'normal',
+  printed_count INT NOT NULL DEFAULT 0,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  started_at TIMESTAMPTZ,
+  ready_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  UNIQUE(business_id,ticket_no)
+);
+CREATE TABLE IF NOT EXISTS kitchen_ticket_items (
+  id BIGSERIAL PRIMARY KEY,
+  ticket_id BIGINT REFERENCES kitchen_tickets(id) ON DELETE CASCADE,
+  order_item_id BIGINT REFERENCES restaurant_order_items(id) ON DELETE CASCADE,
+  product_name TEXT NOT NULL,
+  qty NUMERIC(14,3) NOT NULL,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  started_at TIMESTAMPTZ,
+  ready_at TIMESTAMPTZ,
+  served_at TIMESTAMPTZ,
+  UNIQUE(ticket_id,order_item_id)
+);
+CREATE TABLE IF NOT EXISTS kitchen_events (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  ticket_id BIGINT REFERENCES kitchen_tickets(id) ON DELETE CASCADE,
+  order_item_id BIGINT REFERENCES restaurant_order_items(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  notes TEXT,
+  changed_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_kitchen_tickets_station_status ON kitchen_tickets(business_id,station_id,status,created_at);
+CREATE INDEX IF NOT EXISTS idx_kitchen_ticket_items_status ON kitchen_ticket_items(ticket_id,status);
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
