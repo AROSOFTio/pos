@@ -1,4 +1,4 @@
-import { ArrowRight, BadgeCheck, BarChart3, Boxes, ChefHat, CreditCard, FileText, Layers3, ShieldCheck, ShoppingCart, Sparkles, Store, UsersRound, WifiOff } from 'lucide-react'
+import { ArrowRight, BadgeCheck, BarChart3, Boxes, ChefHat, CreditCard, FileText, ShieldCheck, ShoppingCart, Sparkles, Store, UsersRound } from 'lucide-react'
 import { MauzoLogo } from './Brand'
 
 export default function Marketing({navigate}:{navigate:(path:string)=>void}){
