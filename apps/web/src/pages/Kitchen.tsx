@@ -1,0 +1,13 @@
+import { useEffect, useState } from 'react'
+import { Flame } from 'lucide-react'
+import { api, nice } from '../api'
+import { PageHeading, Badge, Loading } from '../components'
+export default function Kitchen(){
+ const [rows,setRows]=useState<any[]|null>(null)
+ const load=()=>api('/kitchen/tickets?status=active').then(setRows)
+ useEffect(()=>{load();const t=setInterval(load,12000);return()=>clearInterval(t)},[])
+ async function move(id:number,status:string){await api('/kitchen/tickets/'+id+'/status',{method:'PUT',body:JSON.stringify({status})});load()}
+ async function rush(id:number,p:string){await api('/kitchen/tickets/'+id+'/priority',{method:'PUT',body:JSON.stringify({priority:p})});load()}
+ if(!rows)return <Loading/>
+ return <div><PageHeading eyebrow="Live kitchen" title="Kitchen Display System" sub="Station-routed KOTs with timers, rush priority and real-time preparation status."/><div className="grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">{rows.map(t=>{const mins=Math.floor(Number(t.elapsed_minutes||0));const next=t.status==='new'?'preparing':t.status==='preparing'?'ready':t.status==='ready'?'served':null;return <div key={t.id} className={'rounded-2xl bg-white border p-4 premium-shadow '+(t.priority==='rush'?'border-red-400':mins>=20?'border-amber-400':'border-slate-200')}><div className="flex justify-between"><div><b>{t.ticket_no}</b><div className="text-xs text-slate-400 mt-1">{t.station_name} · {t.order_no}</div></div><div className={'text-lg font-black '+(mins>=20?'text-amber-600':'')}>{mins}m</div></div><div className="mt-3 flex gap-2"><Badge>{t.table_name||nice(t.order_type)}</Badge>{t.priority==='rush'&&<Badge tone="red">RUSH</Badge>}</div><div className="mt-4 space-y-2">{(t.items||[]).map((i:any)=><div key={i.id} className="rounded-xl bg-slate-50 p-3 flex justify-between gap-3"><div><b className="text-sm">{Number(i.qty)} × {i.name}</b>{i.notes&&<div className="text-xs text-amber-700 mt-1">{i.notes}</div>}</div><Badge tone={i.status==='ready'?'green':'slate'}>{nice(i.status)}</Badge></div>)}</div><div className="mt-4 flex gap-2">{next&&<button onClick={()=>move(t.id,next)} className="flex-1 rounded-xl bg-slate-950 text-white py-2.5 text-sm font-bold">{next==='preparing'?'Start':next==='ready'?'Ready':'Served'}</button>}<button onClick={()=>rush(t.id,t.priority==='rush'?'normal':'rush')} className="rounded-xl border border-slate-200 px-3"><Flame size={16} className={t.priority==='rush'?'text-red-500':'text-slate-400'}/></button></div></div>})}</div></div>
+}
