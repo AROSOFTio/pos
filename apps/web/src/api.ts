@@ -18,3 +18,17 @@ export async function api(path:string, options:RequestInit = {}) {
 
 export const money = (value:any, currency='UGX') => currency + ' ' + Number(value || 0).toLocaleString()
 export const nice = (value:any) => String(value ?? '').replaceAll('_',' ').replace(/\b\w/g, s => s.toUpperCase())
+
+export async function openPdf(path:string) {
+  const token = localStorage.getItem('pos_token') || ''
+  const response = await fetch('/api' + path, { headers: { Authorization:'Bearer ' + token } })
+  if (!response.ok) {
+    const type=response.headers.get('content-type')||''
+    const body=type.includes('application/json')?await response.json():await response.text()
+    throw new Error(body?.error || body || 'Unable to open PDF')
+  }
+  const blob=await response.blob()
+  const url=URL.createObjectURL(blob)
+  window.open(url,'_blank','noopener,noreferrer')
+  window.setTimeout(()=>URL.revokeObjectURL(url),120000)
+}
