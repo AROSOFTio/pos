@@ -317,6 +317,69 @@ ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS from_location_id BIGINT REF
 ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS to_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE SET NULL;
 ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS reason TEXT;
 
+
+CREATE TABLE IF NOT EXISTS approval_rules (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  section TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  approver_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  approver_role TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,action_type)
+);
+CREATE TABLE IF NOT EXISTS approval_requests (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  section TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id BIGINT NOT NULL,
+  reference_no TEXT,
+  title TEXT NOT NULL,
+  amount NUMERIC(14,2),
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  requested_by_name TEXT,
+  approver_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  approver_role TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  request_comment TEXT,
+  decision_comment TEXT,
+  decided_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  decided_by_name TEXT,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at TIMESTAMPTZ,
+  UNIQUE(business_id,action_type,entity_type,entity_id,status)
+);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_business_status ON approval_requests(business_id,status,requested_at);
+CREATE INDEX IF NOT EXISTS idx_approval_requests_approver ON approval_requests(business_id,approver_user_id,status);
+
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft';
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approval_comment TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS rejected_by TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'posted';
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS requested_by TEXT;
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS decision_comment TEXT;
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS rejected_by TEXT;
+ALTER TABLE stock_adjustments ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Purchasing','purchase_order','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Inventory','inventory_wastage','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Inventory','inventory_spoilage','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
