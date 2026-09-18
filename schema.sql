@@ -381,6 +381,83 @@ INSERT INTO approval_rules(business_id,section,action_type,approver_role)
 SELECT b.id,'Inventory','inventory_spoilage','owner' FROM businesses b
 ON CONFLICT(business_id,action_type) DO NOTHING;
 
+
+CREATE TABLE IF NOT EXISTS units_of_measure (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  unit_type TEXT NOT NULL DEFAULT 'count',
+  base_factor NUMERIC(18,6) NOT NULL DEFAULT 1,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,symbol)
+);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'product';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sellable BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS base_unit_id BIGINT REFERENCES units_of_measure(id) ON DELETE SET NULL;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS yield_unit_cost NUMERIC(14,4);
+
+CREATE TABLE IF NOT EXISTS recipes (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  yield_qty NUMERIC(14,3) NOT NULL DEFAULT 1,
+  consumption_location_id BIGINT REFERENCES inventory_locations(id) ON DELETE SET NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,product_id)
+);
+CREATE TABLE IF NOT EXISTS recipe_lines (
+  id BIGSERIAL PRIMARY KEY,
+  recipe_id BIGINT REFERENCES recipes(id) ON DELETE CASCADE,
+  ingredient_product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  quantity NUMERIC(18,6) NOT NULL,
+  unit_id BIGINT REFERENCES units_of_measure(id) ON DELETE RESTRICT,
+  waste_percent NUMERIC(8,3) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(recipe_id,ingredient_product_id)
+);
+CREATE TABLE IF NOT EXISTS inventory_consumptions (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  consumption_type TEXT NOT NULL,
+  reference_no TEXT NOT NULL,
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,reference_no)
+);
+CREATE TABLE IF NOT EXISTS inventory_consumption_items (
+  id BIGSERIAL PRIMARY KEY,
+  consumption_id BIGINT REFERENCES inventory_consumptions(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  qty NUMERIC(18,6) NOT NULL,
+  unit_cost NUMERIC(14,4) NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_recipes_business_product ON recipes(business_id,product_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_lines_recipe ON recipe_lines(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_products_item_type ON products(business_id,item_type,active);
+
+INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
+SELECT b.id,'Piece','pc','count',1 FROM businesses b
+ON CONFLICT(business_id,symbol) DO NOTHING;
+INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
+SELECT b.id,'Kilogram','kg','weight',1 FROM businesses b
+ON CONFLICT(business_id,symbol) DO NOTHING;
+INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
+SELECT b.id,'Gram','g','weight',0.001 FROM businesses b
+ON CONFLICT(business_id,symbol) DO NOTHING;
+INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
+SELECT b.id,'Litre','L','volume',1 FROM businesses b
+ON CONFLICT(business_id,symbol) DO NOTHING;
+INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor)
+SELECT b.id,'Millilitre','ml','volume',0.001 FROM businesses b
+ON CONFLICT(business_id,symbol) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
