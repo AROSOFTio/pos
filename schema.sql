@@ -1035,3 +1035,6 @@ INSERT INTO reason_codes(business_id,category,code,label)
 SELECT b.id,'void','wrong_price','Wrong price / pricing error' FROM businesses b ON CONFLICT DO NOTHING;
 INSERT INTO reason_codes(business_id,category,code,label)
 SELECT b.id,'void','wrong_product','Wrong product / item entry' FROM businesses b ON CONFLICT DO NOTHING;
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS credit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS credit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
