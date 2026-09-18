@@ -175,7 +175,7 @@ async function ensureRestaurantSale(client,bid,order,userName){
 
 app.get('/api/sales',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.business_id=$1 ORDER BY s.id DESC LIMIT 200',[bid])).rows)});
 app.post('/api/sales',auth,tenant,async(req,res)=>{
-  const bid=await getBiz(req),{items=[],paymentMethod='cash',customerId=null,discount=0,tax=0,orderType='counter',branchId=null}=req.body||{};
+  const bid=await getBiz(req),{items=[],payments=null,paymentMethod='cash',tenderedAmount=null,customerId=null,discount=0,tax=0,orderType='counter',branchId=null}=req.body||{};
   if(!Array.isArray(items)||!items.length)return res.status(400).json({error:'Cart is empty'});
   const clean=items.map(x=>({productId:Number(x.productId),qty:Number(x.qty)})).filter(x=>x.productId&&x.qty>0);
   if(clean.length!==items.length)return res.status(400).json({error:'Invalid cart item'});
@@ -198,20 +198,32 @@ app.post('/api/sales',auth,tenant,async(req,res)=>{
     if(pr.menu_item_id&&(pr.available===false||pr.sold_out===true))return res.status(400).json({error:pr.name+' is currently unavailable'});
     subtotal+=Number(pr.sale_price)*i.qty;
   }
-  const total=Math.max(0,subtotal-Number(discount||0)+Number(tax||0)),receipt='R'+Date.now(),client=await pool.connect();
+  const total=Math.max(0,subtotal-Number(discount||0)+Number(tax||0)),receipt=makeDocNo('R'),client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const s=await client.query('INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier,order_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',[bid,branch,customerId,receipt,subtotal,discount,tax,total,paymentMethod,req.user.name,String(orderType||'counter')]);
+    const s=await client.query("INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier,order_type,payment_status,amount_paid,balance_due,tendered_amount,change_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,'unpaid',0,$8,0,0) RETURNING *",[bid,branch,customerId||null,receipt,subtotal,discount,tax,total,req.user.name,String(orderType||'counter')]);
     for(const i of clean){
       const pr=map.get(i.productId);
       const lineCost=await consumeSoldItem(client,{bid,productId:pr.id,qty:i.qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName:req.user.name});
       await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,pr.id,pr.name,i.qty,pr.sale_price,lineCost/i.qty,Number(pr.sale_price)*i.qty]);
     }
+    let lines=Array.isArray(payments)?payments:null;
+    if(lines===null){
+      if(paymentMethodName(paymentMethod)==='credit')lines=[];
+      else lines=[{method:paymentMethod,amount:total,tenderedAmount:tenderedAmount??total}];
+    }
+    const posted=await postPaymentLines(client,{bid,branchId:branch,customerId,sourceType:'sale',sourceId:Number(s.rows[0].id),total,lines,userName:req.user.name});
+    const tendered=posted.posted.reduce((n,x)=>n+Number(x.tendered_amount||0),0),change=posted.posted.reduce((n,x)=>n+Number(x.change_amount||0),0);
+    const method=posted.summaryMethod||(posted.status==='unpaid'?'credit':'pending');
+    const updated=await client.query('UPDATE sales SET payment_method=$1,payment_status=$2,amount_paid=$3,balance_due=$4,tendered_amount=$5,change_amount=$6 WHERE id=$7 RETURNING *',[method,posted.status,posted.paid,posted.balance,tendered,change,s.rows[0].id]);
     await client.query('COMMIT');
-    res.json({sale:s.rows[0],items:clean});
+    await audit(req.user,bid,'create','sale',s.rows[0].id,{receiptNo:receipt,total,paymentStatus:posted.status,amountPaid:posted.paid,balanceDue:posted.balance});
+    res.json({sale:updated.rows[0],items:clean,payments:posted.posted});
   }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
 });
 
+app.get('/api/sales/:id/payments',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const s=await pool.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2',[id,bid]);if(!s.rowCount)return res.status(404).json({error:'Sale not found'});const summary=await paymentSummaryForSource(pool,bid,'sale',id);res.json({sale:s.rows[0],payments:summary.payments,amountPaid:summary.total,balanceDue:Math.max(0,Number(s.rows[0].total)-summary.total)})});
+app.post('/api/sales/:id/payments',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id),lines=req.body?.payments||[],client=await pool.connect();try{await client.query('BEGIN');const s=await client.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2 FOR UPDATE',[id,bid]);if(!s.rowCount)throw new Error('Sale not found');if(s.rows[0].payment_status==='paid')throw new Error('Sale is already fully paid');const posted=await postPaymentLines(client,{bid,branchId:s.rows[0].branch_id,customerId:s.rows[0].customer_id,sourceType:'sale',sourceId:id,total:s.rows[0].total,lines,userName:req.user.name});const all=await paymentSummaryForSource(client,bid,'sale',id),methods=[...new Set(all.payments.filter(x=>x.status==='posted').map(x=>x.payment_method))],method=methods.length===1?methods[0]:methods.length>1?'split':'credit',tendered=all.payments.filter(x=>x.status==='posted').reduce((n,x)=>n+Number(x.tendered_amount||0),0),change=all.payments.filter(x=>x.status==='posted').reduce((n,x)=>n+Number(x.change_amount||0),0);const u=await client.query('UPDATE sales SET payment_method=$1,payment_status=$2,amount_paid=$3,balance_due=$4,tendered_amount=$5,change_amount=$6 WHERE id=$7 RETURNING *',[method,posted.status,posted.paid,posted.balance,tendered,change,id]);await client.query('COMMIT');await audit(req.user,bid,'payment','sale',id,{amount:posted.posted.reduce((n,x)=>n+Number(x.amount),0),status:posted.status});res.json({sale:u.rows[0],payments:all.payments})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
 
 async function recalcRestaurantOrder(client,orderId){
   const q=await client.query("SELECT coalesce(sum(oi.qty*oi.unit_price),0)::numeric base,coalesce(sum((SELECT coalesce(sum(m.line_total),0) FROM restaurant_order_item_modifiers m WHERE m.order_item_id=oi.id)),0)::numeric mods FROM restaurant_order_items oi WHERE oi.order_id=$1 AND oi.status<>'cancelled'",[orderId]);
