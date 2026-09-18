@@ -65,7 +65,7 @@ app.post('/api/register',async(req,res)=>{
     const b=await client.query("INSERT INTO businesses(name,country,currency,status,trial_ends_at) VALUES($1,$2,$3,'trial',now()+interval '14 days') RETURNING *",[businessName,country,currency]);
     await client.query('INSERT INTO user_businesses(user_id,business_id,role) VALUES($1,$2,$3)',[u.rows[0].id,b.rows[0].id,'owner']);
     await client.query("INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at) SELECT $1,code,true,(NOT core),CASE WHEN core THEN NULL ELSE now()+interval '14 days' END FROM module_catalog",[b.rows[0].id]);
-    await client.query('INSERT INTO branches(business_id,name,location) VALUES($1,$2,$3)',[b.rows[0].id,'Main Branch',country]);await client.query("INSERT INTO approval_rules(business_id,section,action_type,approver_role) VALUES($1,'Purchasing','purchase_order','owner'),($1,'Inventory','inventory_wastage','owner'),($1,'Inventory','inventory_spoilage','owner'),($1,'Restaurant','restaurant_order_cancel','owner'),($1,'Sales','transaction_discount','owner'),($1,'Sales','transaction_foc','owner') ON CONFLICT(business_id,action_type) DO NOTHING",[b.rows[0].id]);
+    await client.query('INSERT INTO branches(business_id,name,location) VALUES($1,$2,$3)',[b.rows[0].id,'Main Branch',country]);await client.query("INSERT INTO approval_rules(business_id,section,action_type,approver_role) VALUES($1,'Purchasing','purchase_order','owner'),($1,'Inventory','inventory_wastage','owner'),($1,'Inventory','inventory_spoilage','owner'),($1,'Restaurant','restaurant_order_cancel','owner'),($1,'Sales','transaction_discount','owner'),($1,'Sales','transaction_foc','owner'),($1,'Sales','sale_refund','owner'),($1,'Sales','sale_void','owner') ON CONFLICT(business_id,action_type) DO NOTHING",[b.rows[0].id]);
     await client.query('COMMIT');
     const token=jwt.sign({id:u.rows[0].id,email:u.rows[0].email,name:u.rows[0].name,role:u.rows[0].role,businessId:b.rows[0].id},secret,{expiresIn:'7d'});
     res.json({token,user:u.rows[0],business:b.rows[0],trialDays:14});
@@ -619,6 +619,38 @@ app.post('/api/transaction-adjustments/request',auth,tenant,async(req,res)=>{con
 app.get('/api/transaction-adjustments/:id',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const q=await pool.query('SELECT * FROM transaction_adjustment_requests WHERE id=$1 AND business_id=$2',[id,bid]);if(!q.rowCount)return res.status(404).json({error:'Adjustment request not found'});res.json(q.rows[0])});
 
 app.put('/api/restaurant/orders/:id/charges',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id),{taxRate=null,serviceRate=null,tip=0,taxInclusive=null}=req.body||{},client=await pool.connect();try{await client.query('BEGIN');const o=await client.query("SELECT * FROM restaurant_orders WHERE id=$1 AND business_id=$2 AND status NOT IN ('bill_requested','partially_paid','paid','closed','cancelled') FOR UPDATE",[id,bid]);if(!o.rowCount)throw new Error('Order charges can no longer be changed');const b=await client.query('SELECT default_tax_rate,tax_inclusive,default_service_charge_rate FROM businesses WHERE id=$1',[bid]);const tr=Math.max(0,Number(taxRate??b.rows[0]?.default_tax_rate??0)),sr=Math.max(0,Number(serviceRate??b.rows[0]?.default_service_charge_rate??0)),inclusive=taxInclusive===null||taxInclusive===undefined?!!b.rows[0]?.tax_inclusive:!!taxInclusive,base=Math.max(0,Number(o.rows[0].subtotal)-Number(o.rows[0].discount||0)),tax=tr>0?(inclusive?base-(base/(1+tr/100)):base*tr/100):0,service=base*sr/100,tipAmount=Math.max(0,Number(tip||0));await client.query('UPDATE restaurant_orders SET tax_rate=$1,service_charge_rate=$2,tip=$3,tax_inclusive=$4,updated_at=now() WHERE id=$5',[tr,sr,tipAmount,inclusive,id]);const totals=await recalcRestaurantOrder(client,id);await client.query('COMMIT');await audit(req.user,bid,'update_charges','restaurant_order',id,{taxRate:tr,taxInclusive:inclusive,serviceRate:sr,tip:tipAmount});res.json({...totals,taxRate:tr,serviceRate:sr,tip:tipAmount,taxInclusive:inclusive})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
+
+
+async function executeRefundApproval(client,req,bid,refundId,comment){
+  const rq=await client.query("SELECT * FROM refunds WHERE id=$1 AND business_id=$2 FOR UPDATE",[refundId,bid]);
+  if(!rq.rowCount||rq.rows[0].status!=='pending_approval')throw new Error('Refund/void request is no longer pending');
+  const refund=rq.rows[0],saleq=await client.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2 FOR UPDATE',[refund.sale_id,bid]);
+  if(!saleq.rowCount)throw new Error('Sale not found');
+  const sale=saleq.rows[0],remainingPaid=Math.max(0,Number(sale.amount_paid||0)-Number(sale.refunded_amount||0));
+  if(Number(refund.total)>remainingPaid+0.01)throw new Error('Refund exceeds the remaining collected amount');
+  const tenders=await allocateRefundTenders(client,{bid,saleId:Number(sale.id),refundId:Number(refund.id),amount:Number(refund.total)});
+  const methodNames=[...new Set(tenders.map(x=>x.paymentMethod))],refundMethod=methodNames.length===1?methodNames[0]:'split';
+  const items=await client.query('SELECT * FROM refund_items WHERE refund_id=$1 ORDER BY id',[refund.id]);
+  if(refund.restock){
+    for(const x of items.rows){
+      await restoreSoldItem(client,{bid,productId:Number(x.product_id),qty:Number(x.qty),referenceId:Number(refund.id),referenceNo:refund.refund_no,userName:req.user.name});
+    }
+  }
+  const newRefunded=Number(sale.refunded_amount||0)+Number(refund.total);
+  const refundStatus=newRefunded+0.01>=Number(sale.amount_paid||0)?'full':'partial';
+  let newBalance=Number(sale.balance_due||0);
+  if(refund.request_kind==='void_sale'){
+    if(sale.customer_id&&newBalance>0.005){
+      await customerLedgerEntry(client,{bid,customerId:Number(sale.customer_id),entryType:'sale_void',sourceType:'sale',sourceId:Number(sale.id),referenceNo:sale.receipt_no,credit:newBalance,notes:'Outstanding credit reversed by approved sale void',userName:req.user.name});
+      newBalance=0;
+    }
+    await client.query("UPDATE sales SET refunded_amount=$1,refund_status=$2,voided=true,voided_at=now(),voided_by=$3,payment_status='voided',balance_due=0 WHERE id=$4",[newRefunded,refundStatus,req.user.name,sale.id]);
+  }else{
+    await client.query('UPDATE sales SET refunded_amount=$1,refund_status=$2 WHERE id=$3',[newRefunded,refundStatus,sale.id]);
+  }
+  await client.query("UPDATE refunds SET status='approved',refund_method=$1,approved_by_user_id=$2,approved_by_name=$3,approved_at=now(),decision_comment=$4 WHERE id=$5",[refundMethod,req.user.id,req.user.name,comment,refund.id]);
+  return {refundId:refund.id,saleId:sale.id,total:Number(refund.total),refundMethod,voided:refund.request_kind==='void_sale'};
+}
 
 app.get('/api/approvals',auth,tenant,async(req,res)=>{const bid=await getBiz(req),status=req.query.status||'pending';const role=await getBusinessRole(req,bid);const p=[bid,status];let extra='';if(req.user.role!=='saas_admin'&&!['owner','admin'].includes(role||'')){p.push(req.user.id,role||'');extra=' AND (ar.approver_user_id=$3 OR (ar.approver_user_id IS NULL AND ar.approver_role=$4))'}const q=await pool.query("SELECT ar.*,u.email requested_by_email FROM approval_requests ar LEFT JOIN users u ON u.id=ar.requested_by_user_id WHERE ar.business_id=$1 AND ar.status=$2"+extra+" ORDER BY CASE WHEN ar.priority='urgent' THEN 0 ELSE 1 END,ar.requested_at DESC",p);res.json(q.rows)});
 app.get('/api/approval-rules',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const q=await pool.query("SELECT r.*,u.name approver_name,u.email approver_email FROM approval_rules r LEFT JOIN users u ON u.id=r.approver_user_id WHERE r.business_id=$1 ORDER BY r.section,r.action_type",[bid]);res.json(q.rows)});
