@@ -923,3 +923,96 @@ ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(8,4) NOT NULL DEFAUL
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS service_charge_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
 ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
 ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS service_charge_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(14,2) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS customer_ledger (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE CASCADE,
+  entry_type TEXT NOT NULL,
+  source_type TEXT,
+  source_id BIGINT,
+  reference_no TEXT,
+  debit NUMERIC(14,2) NOT NULL DEFAULT 0,
+  credit NUMERIC(14,2) NOT NULL DEFAULT 0,
+  balance_after NUMERIC(14,2) NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_customer_ledger_customer ON customer_ledger(business_id,customer_id,created_at,id);
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS refund_status TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS voided BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS voided_by TEXT;
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  sale_id BIGINT REFERENCES sales(id) ON DELETE RESTRICT,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  refund_no TEXT NOT NULL,
+  refund_method TEXT NOT NULL DEFAULT 'cash',
+  total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL,
+  restock BOOLEAN NOT NULL DEFAULT true,
+  status TEXT NOT NULL DEFAULT 'pending_approval',
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  requested_by_name TEXT,
+  approved_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  approved_by_name TEXT,
+  approved_at TIMESTAMPTZ,
+  rejected_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  rejected_by_name TEXT,
+  rejected_at TIMESTAMPTZ,
+  decision_comment TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,refund_no)
+);
+
+CREATE TABLE IF NOT EXISTS refund_items (
+  id BIGSERIAL PRIMARY KEY,
+  refund_id BIGINT REFERENCES refunds(id) ON DELETE CASCADE,
+  sale_item_id BIGINT REFERENCES sale_items(id) ON DELETE RESTRICT,
+  product_id BIGINT REFERENCES products(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  qty NUMERIC(14,3) NOT NULL,
+  unit_price NUMERIC(14,2) NOT NULL,
+  line_total NUMERIC(14,2) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_refunds_sale ON refunds(business_id,sale_id,status);
+CREATE INDEX IF NOT EXISTS idx_refund_items_sale_item ON refund_items(sale_item_id);
+
+CREATE TABLE IF NOT EXISTS reason_codes (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,category,code)
+);
+
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'refund','customer_return','Customer return' FROM businesses b ON CONFLICT DO NOTHING;
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'refund','wrong_item','Wrong item supplied' FROM businesses b ON CONFLICT DO NOTHING;
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'refund','quality_issue','Quality issue' FROM businesses b ON CONFLICT DO NOTHING;
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'void','entry_error','Entry / cashier error' FROM businesses b ON CONFLICT DO NOTHING;
+INSERT INTO reason_codes(business_id,category,code,label)
+SELECT b.id,'void','duplicate','Duplicate transaction' FROM businesses b ON CONFLICT DO NOTHING;
+
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Sales','sale_refund','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Sales','sale_void','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
