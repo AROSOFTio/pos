@@ -358,7 +358,12 @@ WHERE NOT EXISTS (
 INSERT INTO inventory_balances(business_id,location_id,product_id,qty,avg_cost)
 SELECT p.business_id,l.id,p.id,p.stock,p.cost
 FROM products p
-JOIN inventory_locations l ON l.business_id=p.business_id AND l.is_default=true
+JOIN LATERAL (
+  SELECT id FROM inventory_locations
+  WHERE business_id=p.business_id AND is_default=true
+  ORDER BY branch_id,id
+  LIMIT 1
+) l ON true
 WHERE NOT EXISTS (
   SELECT 1 FROM inventory_balances ib WHERE ib.business_id=p.business_id AND ib.product_id=p.id
 );
