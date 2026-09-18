@@ -14,6 +14,7 @@ export default function Orders({currency}:{currency:string}){
  const [menu,setMenu]=useState<any[]>([]),[mods,setMods]=useState<any[]>([]),[addOpen,setAddOpen]=useState(false),[selectedProduct,setSelectedProduct]=useState<number>(0),[menuDetail,setMenuDetail]=useState<any>(null),[variantId,setVariantId]=useState<number>(0),[modifierIds,setModifierIds]=useState<number[]>([]),[qty,setQty]=useState(1),[itemNotes,setItemNotes]=useState('')
  const [transferOpen,setTransferOpen]=useState(false),[cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false),[transferTable,setTransferTable]=useState(0)
  const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null)
+ const [depositOpen,setDepositOpen]=useState(false),[depositBusy,setDepositBusy]=useState(false)
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -53,6 +54,7 @@ export default function Orders({currency}:{currency:string}){
  async function requestBill(){await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'bill_requested',comment:'Bill requested from premium POS'})});await refreshDetail();await load()}
  async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
  async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const out=await api('/restaurant/orders/'+detail.order.id+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid')setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d)}finally{setPaymentBusy(false)}}
+ async function submitDeposit(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setDepositBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/deposits',{method:'POST',body:JSON.stringify({payments:lines})});setDepositOpen(false);await refreshDetail();await load()}finally{setDepositBusy(false)}}
  async function closePaidOrder(){if(!detail?.order?.id)return;await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'closed',comment:'Order closed after full settlement'})});setDetailOpen(false);await load()}
  async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
@@ -87,6 +89,7 @@ export default function Orders({currency}:{currency:string}){
       {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send Kitchen"/>}
       <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
       {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer"/>}
+      {['open','sent_to_kitchen','preparing','ready','served'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<Action onClick={()=>setDepositOpen(true)} icon={ReceiptIcon} label={Number(detail.order.amount_paid||0)>0?'Add Deposit':'Take Deposit'}/>}
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
       {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
@@ -103,6 +106,17 @@ export default function Orders({currency}:{currency:string}){
     <button onClick={addItem} disabled={!selectedProduct} className="mt-4 w-full rounded-xl bg-slate-950 text-white py-3 font-bold disabled:opacity-40">Add to Order</button>
   </Modal>}
 
+
+  <PaymentModal
+    open={depositOpen}
+    title={detail?.order?.order_no?'Take Deposit · '+detail.order.order_no:'Take Deposit'}
+    total={Number(detail?.order?.total??0)}
+    amountPaid={Number(detail?.order?.amount_paid||0)}
+    currency={currency}
+    busy={depositBusy}
+    onClose={()=>setDepositOpen(false)}
+    onSubmit={submitDeposit}
+  />
 
   <PaymentModal
     open={paymentOpen}
