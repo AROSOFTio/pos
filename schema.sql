@@ -383,6 +383,9 @@ ON CONFLICT(business_id,action_type) DO NOTHING;
 INSERT INTO approval_rules(business_id,section,action_type,approver_role)
 SELECT b.id,'Inventory','inventory_spoilage','owner' FROM businesses b
 ON CONFLICT(business_id,action_type) DO NOTHING;
+INSERT INTO approval_rules(business_id,section,action_type,approver_role)
+SELECT b.id,'Restaurant','restaurant_order_cancel','owner' FROM businesses b
+ON CONFLICT(business_id,action_type) DO NOTHING;
 
 
 CREATE TABLE IF NOT EXISTS units_of_measure (
