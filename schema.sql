@@ -602,6 +602,98 @@ CREATE INDEX IF NOT EXISTS idx_menu_prices_branch_type ON menu_item_prices(branc
 CREATE INDEX IF NOT EXISTS idx_menu_schedules_item ON menu_item_schedules(menu_item_id,day_of_week);
 CREATE INDEX IF NOT EXISTS idx_modifier_groups_business ON modifier_groups(business_id,active);
 
+
+CREATE TABLE IF NOT EXISTS restaurant_reservations (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  guest_name TEXT,
+  phone TEXT,
+  guest_count INT NOT NULL DEFAULT 1,
+  reserved_at TIMESTAMPTZ NOT NULL,
+  duration_minutes INT NOT NULL DEFAULT 120,
+  status TEXT NOT NULL DEFAULT 'reserved',
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS restaurant_orders (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  order_no TEXT NOT NULL,
+  order_type TEXT NOT NULL DEFAULT 'dine_in',
+  table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+  reservation_id BIGINT REFERENCES restaurant_reservations(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  guest_count INT NOT NULL DEFAULT 1,
+  waiter_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  waiter_name TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  held BOOLEAN NOT NULL DEFAULT false,
+  notes TEXT,
+  subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
+  discount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  tax NUMERIC(14,2) NOT NULL DEFAULT 0,
+  service_charge NUMERIC(14,2) NOT NULL DEFAULT 0,
+  total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  created_by TEXT,
+  opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at TIMESTAMPTZ,
+  UNIQUE(business_id,order_no)
+);
+CREATE TABLE IF NOT EXISTS restaurant_order_items (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  menu_item_id BIGINT REFERENCES menu_items(id) ON DELETE SET NULL,
+  variant_id BIGINT REFERENCES menu_variants(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  variant_name TEXT,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 1,
+  unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'new',
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS restaurant_order_item_modifiers (
+  id BIGSERIAL PRIMARY KEY,
+  order_item_id BIGINT REFERENCES restaurant_order_items(id) ON DELETE CASCADE,
+  modifier_id BIGINT REFERENCES modifiers(id) ON DELETE SET NULL,
+  modifier_name TEXT NOT NULL,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 1,
+  unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS restaurant_order_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  from_status TEXT,
+  to_status TEXT NOT NULL,
+  comment TEXT,
+  changed_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS restaurant_order_transfers (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  from_table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+  to_table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE SET NULL,
+  action_type TEXT NOT NULL DEFAULT 'transfer',
+  notes TEXT,
+  changed_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_orders_business_status ON restaurant_orders(business_id,status,opened_at);
+CREATE INDEX IF NOT EXISTS idx_restaurant_orders_table ON restaurant_orders(business_id,table_id,status);
+CREATE INDEX IF NOT EXISTS idx_restaurant_order_items_order ON restaurant_order_items(order_id,status);
+CREATE INDEX IF NOT EXISTS idx_restaurant_reservations_date ON restaurant_reservations(business_id,reserved_at,status);
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
