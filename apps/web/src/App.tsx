@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { LayoutDashboard, ShoppingCart, ClipboardList, ChefHat, UtensilsCrossed, Package, Truck, ReceiptText, ShieldCheck, Bell, Search, Menu as MenuIcon, LogOut, X, UserRound, Boxes, UsersRound, Building2, Settings as SettingsIcon, Banknote, Mail, LockKeyhole, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo } from './Brand'
+import Marketing from './Marketing'
+import Register from './Register'
 import Dashboard from './pages/Dashboard'
 import POS from './pages/POS'
 import Orders from './pages/Orders'
@@ -30,6 +32,9 @@ export default function App(){
   const [sidebar,setSidebar]=useState(false)
   const [currency,setCurrency]=useState('UGX')
   const [business,setBusiness]=useState('Your Business')
+  const [path,setPath]=useState(window.location.pathname)
+
+  useEffect(()=>{const onPop=()=>setPath(window.location.pathname);window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[])
 
   useEffect(()=>{
     const token=localStorage.getItem('pos_token')
@@ -42,8 +47,15 @@ export default function App(){
     api('/dashboard').then((d:any)=>{setCurrency(d.business?.currency||'UGX');setBusiness(d.business?.name||'Your Business')}).catch(()=>{})
   },[user])
 
+  const navigate=(next:string)=>{window.history.pushState({},'',next);setPath(next)}
+  const authenticated=(u:User)=>{window.history.replaceState({},'', '/app');setPath('/app');setUser(u)}
+
   if(loading)return <div className="min-h-screen grid place-items-center bg-slate-950 text-white">Loading MauzoPOS…</div>
-  if(!user)return <Login onLogin={setUser}/>
+  if(!user){
+    if(path==='/register')return <Register onLogin={authenticated} navigate={navigate}/>
+    if(path==='/login')return <Login onLogin={authenticated} navigate={navigate}/>
+    return <Marketing navigate={navigate}/>
+  }
 
   const go=(v:ViewKey)=>{setView(v);setSidebar(false)}
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900 flex">
@@ -79,7 +91,7 @@ export default function App(){
           <div className="ml-1 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-2 py-1.5">
             <div className="h-8 w-8 rounded-lg bg-slate-100 grid place-items-center"><UserRound size={16}/></div>
             <div className="hidden md:block max-w-36"><div className="text-xs font-bold truncate">{user.name}</div><div className="text-[10px] text-slate-500 truncate">{nice(user.role)}</div></div>
-            <button onClick={()=>{localStorage.removeItem('pos_token');location.reload()}} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16}/></button>
+            <button onClick={()=>{localStorage.removeItem('pos_token');window.history.replaceState({},'', '/login');location.reload()}} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16}/></button>
           </div>
         </div>
       </header>
@@ -112,7 +124,7 @@ function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [st
   </div>
 }
 
-function Login({onLogin}:{onLogin:(u:User)=>void}){
+function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [showPassword,setShowPassword]=useState(false)
@@ -122,70 +134,60 @@ function Login({onLogin}:{onLogin:(u:User)=>void}){
   async function submit(e:React.FormEvent){
     e.preventDefault();setBusy(true);setError('')
     try{
-      const j=await api('/login',{method:'POST',body:JSON.stringify({email,password})})
+      const j=await api('/login',{method:'POST',body:JSON.stringify({email:email.trim(),password})})
       localStorage.setItem('pos_token',j.token)
       onLogin(j.user)
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
 
-  return <div className="relative min-h-screen overflow-hidden bg-[#f4fff1] p-3 sm:p-5 lg:p-7">
-    <div className="pointer-events-none absolute -right-28 -top-28 h-[430px] w-[430px] rounded-full border-[54px] border-[#b9f89d]/45"/>
-    <div className="pointer-events-none absolute -bottom-36 -left-24 h-[360px] w-[360px] rounded-full border-[48px] border-[#b9f89d]/40"/>
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(255,255,255,.98),transparent_34%),radial-gradient(circle_at_88%_78%,rgba(187,247,208,.46),transparent_32%)]"/>
+  return <div className="min-h-screen bg-[linear-gradient(180deg,#f4fff1_0%,#ffffff_75%)] text-[#0F172A]">
+    <header className="mx-auto flex h-[78px] max-w-[1180px] items-center px-5 lg:px-8">
+      <button onClick={()=>navigate('/')} className="mr-4 text-sm font-bold text-slate-500 hover:text-slate-900">← Back</button>
+      <MauzoLogo compact/>
+      <button onClick={()=>navigate('/register')} className="ml-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700">Start Free Trial</button>
+    </header>
 
-    <div className="relative mx-auto grid min-h-[calc(100vh-24px)] max-w-[1460px] items-stretch gap-4 lg:min-h-[calc(100vh-56px)] lg:grid-cols-[1.08fr_.92fr]">
-      <section className="relative hidden overflow-hidden rounded-[32px] border border-white/90 bg-white shadow-[0_28px_90px_rgba(22,155,54,.13)] lg:block">
-        <div className="absolute inset-0 bg-[linear-gradient(145deg,#edffe8_0%,#dfffd5_45%,#f8fff6_100%)]"/>
-        <img
-          src="/brand/mauzopos-login-hero.webp"
-          alt="MauzoPOS business owner using the POS"
-          className="relative h-full w-full object-cover object-center"
-          onError={e=>{e.currentTarget.style.display='none'}}
-        />
-      </section>
-
-      <section className="flex items-center justify-center">
-        <form onSubmit={submit} className="w-full max-w-[620px] rounded-[32px] border border-white/90 bg-white/96 px-6 py-8 shadow-[0_30px_90px_rgba(22,155,54,.12)] backdrop-blur sm:px-10 sm:py-11 xl:px-14 xl:py-14">
-          <div className="mb-8 lg:hidden"><MauzoLogo/></div>
-          <div className="text-[11px] font-black uppercase tracking-[.2em] text-[#22A53A]">Secure workspace access</div>
-          <h2 className="mt-2 text-4xl font-black tracking-[-.045em] text-[#0F172A] sm:text-[48px]">Login</h2>
-          <p className="mt-2 text-base text-slate-500">Welcome back to <span className="font-bold text-slate-800">MauzoPOS</span></p>
-
-          <label className="mt-9 block text-sm font-bold text-[#0F172A]">Email address</label>
-          <div className="mt-2 flex h-14 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 transition focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100">
-            <Mail size={19} className="text-slate-400"/>
-            <input autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="you@example.com"/>
+    <main className="mx-auto flex max-w-[1180px] items-start justify-center px-5 pb-16 pt-7 lg:px-8">
+      <div className="grid w-full max-w-[980px] overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_30px_90px_rgba(15,23,42,.10)] lg:grid-cols-[.92fr_1.08fr]">
+        <section className="relative hidden min-h-[600px] bg-[#0f172a] lg:block">
+          <img src="/brand/mauzopos-login-hero.webp" alt="MauzoPOS" className="absolute inset-0 h-full w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 to-transparent p-7 pt-24">
+            <div className="text-xs font-black uppercase tracking-[.16em] text-emerald-300">Welcome back</div>
+            <div className="mt-2 text-2xl font-black text-white">Your business, one clean workspace.</div>
           </div>
+        </section>
 
-          <div className="mt-5 flex items-center justify-between">
-            <label className="text-sm font-bold text-[#0F172A]">Password</label>
-            <button type="button" className="text-xs font-bold text-[#169B36] hover:text-[#0F172A]">Forgot password?</button>
+        <section className="p-6 sm:p-10 lg:p-12">
+          <div className="text-xs font-black uppercase tracking-[.18em] text-[#22A53A]">Secure sign in</div>
+          <h1 className="mt-2 text-4xl font-black tracking-[-.045em]">Login to MauzoPOS</h1>
+          <p className="mt-2 text-sm text-slate-500">Access your sales, restaurant, stock and management workspace.</p>
+
+          <form onSubmit={submit} className="mt-8">
+            <label className="text-sm font-bold text-slate-700">Email address</label>
+            <div className="mt-2 flex h-14 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100">
+              <Mail size={18} className="text-slate-400"/>
+              <input autoFocus autoComplete="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} className="min-w-0 flex-1 outline-none" placeholder="you@example.com"/>
+            </div>
+
+            <label className="mt-5 block text-sm font-bold text-slate-700">Password</label>
+            <div className="mt-2 flex h-14 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100">
+              <LockKeyhole size={18} className="text-slate-400"/>
+              <input autoComplete="current-password" type={showPassword?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className="min-w-0 flex-1 outline-none" placeholder="Enter your password"/>
+              <button type="button" onClick={()=>setShowPassword(v=>!v)} className="text-slate-400 hover:text-slate-700">{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button>
+            </div>
+
+            {error&&<div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+
+            <button disabled={busy||!email.trim()||!password} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white shadow-[0_12px_28px_rgba(34,165,58,.20)] disabled:opacity-40">
+              {busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={18}/>}
+            </button>
+          </form>
+
+          <div className="mt-6 rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">
+            New to MauzoPOS? <button onClick={()=>navigate('/register')} className="font-black text-[#169B36]">Start a free trial</button> · No credit card required.
           </div>
-          <div className="mt-2 flex h-14 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 transition focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100">
-            <LockKeyhole size={19} className="text-slate-400"/>
-            <input autoComplete="current-password" type={showPassword?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Enter your password"/>
-            <button type="button" onClick={()=>setShowPassword(v=>!v)} className="text-slate-400 hover:text-slate-700" aria-label={showPassword?'Hide password':'Show password'}>{showPassword?<EyeOff size={19}/>:<Eye size={19}/>}</button>
-          </div>
-
-          {error&&<div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
-
-          <button disabled={busy} className="mt-7 flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-[linear-gradient(90deg,#37C516,#22A53A)] text-base font-black text-white shadow-[0_14px_30px_rgba(34,165,58,.22)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50">
-            {busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={19}/>}
-          </button>
-
-          <div className="mt-7 flex items-center gap-3 text-[11px] text-slate-400">
-            <div className="h-px flex-1 bg-slate-200"/><span>Protected business access</span><div className="h-px flex-1 bg-slate-200"/>
-          </div>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-slate-50 p-3 text-center"><div className="text-xs font-black text-slate-900">Fast Sales</div><div className="mt-1 text-[10px] text-slate-500">Counter & restaurant</div></div>
-            <div className="rounded-xl bg-slate-50 p-3 text-center"><div className="text-xs font-black text-slate-900">Live Stock</div><div className="mt-1 text-[10px] text-slate-500">Real-time control</div></div>
-            <div className="rounded-xl bg-slate-50 p-3 text-center"><div className="text-xs font-black text-slate-900">Managed Growth</div><div className="mt-1 text-[10px] text-slate-500">Branches & approvals</div></div>
-          </div>
-
-          <div className="mt-7 text-center text-[10px] font-medium text-slate-400">MauzoPOS · Sell smarter. Grow faster.</div>
-        </form>
-      </section>
-    </div>
+        </section>
+      </div>
+    </main>
   </div>
 }
