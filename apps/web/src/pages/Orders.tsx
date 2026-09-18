@@ -90,6 +90,7 @@ export default function Orders({currency}:{currency:string}){
    }finally{setChargesBusy(false)}
  }
  async function closePaidOrder(){if(!detail?.order?.id)return;await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'closed',comment:'Order closed after full settlement'})});setDetailOpen(false);await load()}
+ async function chargeBalanceToCredit(){if(!detail?.order?.id)return;setPaymentBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/credit',{method:'POST',body:'{}'});await refreshDetail();await load()}finally{setPaymentBusy(false)}}
  async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
 
@@ -139,6 +140,7 @@ export default function Orders({currency}:{currency:string}){
       {['open','sent_to_kitchen','preparing','ready','served'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<Action onClick={()=>setDepositOpen(true)} icon={ReceiptIcon} label={Number(detail.order.amount_paid||0)>0?'Add Deposit':'Take Deposit'}/>}
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
+      {['bill_requested','partially_paid'].includes(detail.order.status)&&detail.order.customer_id&&Number(detail.order.balance_due||0)>0.005&&<Action onClick={chargeBalanceToCredit} icon={CheckCircle2} label="Charge Balance to Credit"/>}
       {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
       {!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}
     </div>
