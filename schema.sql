@@ -745,6 +745,56 @@ CREATE TABLE IF NOT EXISTS kitchen_events (
 CREATE INDEX IF NOT EXISTS idx_kitchen_tickets_station_status ON kitchen_tickets(business_id,station_id,status,created_at);
 CREATE INDEX IF NOT EXISTS idx_kitchen_ticket_items_status ON kitchen_ticket_items(ticket_id,status);
 
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'paid';
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS balance_due NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tendered_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS change_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+UPDATE sales SET amount_paid=total,balance_due=0,payment_status='paid'
+WHERE amount_paid=0 AND total>0 AND payment_status='paid';
+
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS balance_due NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS sale_id BIGINT REFERENCES sales(id) ON DELETE SET NULL;
+UPDATE restaurant_orders SET balance_due=greatest(total-amount_paid,0)
+WHERE balance_due=0 AND total>amount_paid AND status NOT IN ('paid','closed','cancelled');
+
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  payment_no TEXT NOT NULL,
+  payment_method TEXT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,
+  tendered_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  change_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  reference TEXT,
+  status TEXT NOT NULL DEFAULT 'posted',
+  received_by TEXT,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reversed_at TIMESTAMPTZ,
+  reversal_reason TEXT,
+  UNIQUE(business_id,payment_no)
+);
+
+CREATE TABLE IF NOT EXISTS payment_allocations (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  payment_id BIGINT REFERENCES payments(id) ON DELETE CASCADE,
+  source_type TEXT NOT NULL,
+  source_id BIGINT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK(source_type IN ('sale','restaurant_order'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_business_date ON payments(business_id,received_at,status);
+CREATE INDEX IF NOT EXISTS idx_payments_method_date ON payments(business_id,payment_method,received_at);
+CREATE INDEX IF NOT EXISTS idx_payment_allocations_source ON payment_allocations(business_id,source_type,source_id);
+CREATE INDEX IF NOT EXISTS idx_restaurant_orders_sale ON restaurant_orders(business_id,sale_id);
+
 CREATE TABLE IF NOT EXISTS cash_sessions (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
