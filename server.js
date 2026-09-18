@@ -116,41 +116,42 @@ app.get('/api/expenses',auth,tenant,async(req,res)=>{const bid=await getBiz(req)
 app.post('/api/expenses',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const {category='General',description,amount,expenseDate=null}=req.body||{};if(!description?.trim()||!(Number(amount)>0))return res.status(400).json({error:'Description and a positive amount are required'});const ref=makeDocNo('EXP');const q=await pool.query("INSERT INTO expenses(business_id,category,description,amount,expense_date,reference_no,source_type,auto_generated,accounting_treatment,status) VALUES($1,$2,$3,$4,coalesce($5,current_date),$6,'manual',false,'operating_expense','posted') RETURNING *",[bid,category||'General',description.trim(),Number(amount),expenseDate,ref]);await audit(req.user,bid,'create','expense',q.rows[0].id,{referenceNo:ref,amount:Number(amount)});res.json(q.rows[0])});
 app.get('/api/sales',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.business_id=$1 ORDER BY s.id DESC LIMIT 200',[bid])).rows)});
 app.post('/api/sales',auth,tenant,async(req,res)=>{
-  const bid=await getBiz(req),{items=[],paymentMethod='cash',customerId=null,discount=0,tax=0}=req.body||{};
+  const bid=await getBiz(req),{items=[],paymentMethod='cash',customerId=null,discount=0,tax=0,orderType='counter',branchId=null}=req.body||{};
   if(!Array.isArray(items)||!items.length)return res.status(400).json({error:'Cart is empty'});
   const clean=items.map(x=>({productId:Number(x.productId),qty:Number(x.qty)})).filter(x=>x.productId&&x.qty>0);
   if(clean.length!==items.length)return res.status(400).json({error:'Invalid cart item'});
-  const ids=clean.map(x=>x.productId),p=await pool.query('SELECT * FROM products WHERE business_id=$1 AND active=true AND sellable=true AND id=ANY($2::bigint[])',[bid,ids]),map=new Map(p.rows.map(x=>[Number(x.id),x]));
+  let branch=Number(branchId||0);
+  if(branch){
+    const b=await pool.query('SELECT id FROM branches WHERE id=$1 AND business_id=$2 AND active=true',[branch,bid]);
+    if(!b.rowCount)return res.status(400).json({error:'Branch not found'});
+  }else{
+    const b=await pool.query('SELECT id FROM branches WHERE business_id=$1 AND active=true ORDER BY id LIMIT 1',[bid]);
+    branch=Number(b.rows[0]?.id||0);
+  }
+  if(!branch)return res.status(400).json({error:'No active branch found'});
+  const ids=clean.map(x=>x.productId);
+  const p=await pool.query("SELECT p.*,mi.id menu_item_id,mi.available,mi.sold_out,coalesce((SELECT mp.price FROM menu_item_prices mp WHERE mp.menu_item_id=mi.id AND mp.branch_id=$3 AND mp.order_type IN ($4,'all') ORDER BY CASE WHEN mp.order_type=$4 THEN 0 ELSE 1 END LIMIT 1),p.price)::numeric sale_price FROM products p LEFT JOIN menu_items mi ON mi.product_id=p.id AND mi.business_id=p.business_id WHERE p.business_id=$1 AND p.active=true AND p.sellable=true AND p.id=ANY($2::bigint[])",[bid,ids,branch,String(orderType||'counter')]);
+  const map=new Map(p.rows.map(x=>[Number(x.id),x]));
   let subtotal=0;
-  for(const i of clean){const pr=map.get(i.productId);if(!pr)return res.status(404).json({error:'Product not found or not sellable'});subtotal+=Number(pr.price)*i.qty}
+  for(const i of clean){
+    const pr=map.get(i.productId);
+    if(!pr)return res.status(404).json({error:'Product not found or not sellable'});
+    if(pr.menu_item_id&&(pr.available===false||pr.sold_out===true))return res.status(400).json({error:pr.name+' is currently unavailable'});
+    subtotal+=Number(pr.sale_price)*i.qty;
+  }
   const total=Math.max(0,subtotal-Number(discount||0)+Number(tax||0)),receipt='R'+Date.now(),client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const s=await client.query('INSERT INTO sales(business_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[bid,customerId,receipt,subtotal,discount,tax,total,paymentMethod,req.user.name]);
+    const s=await client.query('INSERT INTO sales(business_id,branch_id,customer_id,receipt_no,subtotal,discount,tax,total,payment_method,cashier,order_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',[bid,branch,customerId,receipt,subtotal,discount,tax,total,paymentMethod,req.user.name,String(orderType||'counter')]);
     for(const i of clean){
       const pr=map.get(i.productId);
       const lineCost=await consumeSoldItem(client,{bid,productId:pr.id,qty:i.qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName:req.user.name});
-      await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,pr.id,pr.name,i.qty,pr.price,lineCost/i.qty,Number(pr.price)*i.qty]);
+      await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,pr.id,pr.name,i.qty,pr.sale_price,lineCost/i.qty,Number(pr.sale_price)*i.qty]);
     }
     await client.query('COMMIT');
     res.json({sale:s.rows[0],items:clean});
   }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
 });
-
-async function ensureDefaultLocation(client,bid,branchId=null){
-  let branch=branchId?Number(branchId):null;
-  if(branch){
-    const b=await client.query('SELECT id FROM branches WHERE id=$1 AND business_id=$2 AND active=true',[branch,bid]);
-    if(!b.rowCount)throw new Error('Branch not found');
-  }else{
-    const b=await client.query('SELECT id FROM branches WHERE business_id=$1 AND active=true ORDER BY id LIMIT 1',[bid]);
-    branch=b.rows[0]?.id||null;
-  }
-  if(!branch)throw new Error('No active branch found');
-  let q=await client.query('SELECT id FROM inventory_locations WHERE business_id=$1 AND branch_id=$2 AND is_default=true AND active=true ORDER BY id LIMIT 1',[bid,branch]);
-  if(!q.rowCount)q=await client.query("INSERT INTO inventory_locations(business_id,branch_id,name,location_type,is_default) VALUES($1,$2,'Main Store','main',true) ON CONFLICT(business_id,branch_id,name) DO UPDATE SET active=true,is_default=true RETURNING id",[bid,branch]);
-  return Number(q.rows[0].id);
-}
 
 async function operationalStockLocation(client,bid,preferredId=null){
   if(preferredId){
