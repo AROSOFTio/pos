@@ -917,3 +917,9 @@ ON CONFLICT(business_id,action_type) DO NOTHING;
 INSERT INTO approval_rules(business_id,section,action_type,approver_role)
 SELECT b.id,'Sales','transaction_foc','owner' FROM businesses b
 ON CONFLICT(business_id,action_type) DO NOTHING;
+
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS service_charge_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS service_charge_rate NUMERIC(8,4) NOT NULL DEFAULT 0;
