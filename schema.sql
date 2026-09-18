@@ -13,7 +13,32 @@ CREATE TABLE IF NOT EXISTS businesses (
   country TEXT NOT NULL DEFAULT 'Uganda',
   currency TEXT NOT NULL DEFAULT 'UGX',
   status TEXT NOT NULL DEFAULT 'active',
+  trial_ends_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS user_businesses (
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'owner',
+  active BOOLEAN NOT NULL DEFAULT true,
+  PRIMARY KEY(user_id,business_id)
+);
+CREATE TABLE IF NOT EXISTS module_catalog (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  monthly_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+  core BOOLEAN NOT NULL DEFAULT false,
+  active BOOLEAN NOT NULL DEFAULT true
+);
+CREATE TABLE IF NOT EXISTS tenant_modules (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  module_code TEXT REFERENCES module_catalog(code) ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  trial BOOLEAN NOT NULL DEFAULT false,
+  price_override NUMERIC(14,2),
+  expires_at TIMESTAMPTZ,
+  PRIMARY KEY(business_id,module_code)
 );
 CREATE TABLE IF NOT EXISTS branches (
   id BIGSERIAL PRIMARY KEY,
@@ -26,9 +51,7 @@ CREATE TABLE IF NOT EXISTS branches (
 CREATE TABLE IF NOT EXISTS customers (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  phone TEXT,
-  email TEXT,
+  name TEXT NOT NULL, phone TEXT, email TEXT,
   balance NUMERIC(14,2) NOT NULL DEFAULT 0,
   loyalty_points INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -36,9 +59,7 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE TABLE IF NOT EXISTS suppliers (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  phone TEXT,
-  email TEXT,
+  name TEXT NOT NULL, phone TEXT, email TEXT,
   balance NUMERIC(14,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -46,8 +67,7 @@ CREATE TABLE IF NOT EXISTS products (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  sku TEXT,
-  barcode TEXT,
+  sku TEXT, barcode TEXT,
   category TEXT DEFAULT 'General',
   cost NUMERIC(14,2) NOT NULL DEFAULT 0,
   price NUMERIC(14,2) NOT NULL DEFAULT 0,
@@ -56,6 +76,11 @@ CREATE TABLE IF NOT EXISTS products (
   active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE products ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS cost NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS sales (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
@@ -69,6 +94,11 @@ CREATE TABLE IF NOT EXISTS sales (
   cashier TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS subtotal NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS tax NUMERIC(14,2) NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS sale_items (
   id BIGSERIAL PRIMARY KEY,
   sale_id BIGINT REFERENCES sales(id) ON DELETE CASCADE,
@@ -111,21 +141,42 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGSERIAL PRIMARY KEY,
   user_email TEXT,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE SET NULL,
   action TEXT NOT NULL,
   entity TEXT,
   entity_id TEXT,
   details JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS business_id BIGINT REFERENCES businesses(id) ON DELETE SET NULL;
 
-INSERT INTO businesses(name,country,currency)
-SELECT 'Demo Business','Uganda','UGX'
+INSERT INTO module_catalog(code,name,description,monthly_price,core) VALUES
+('pos','POS','Sales checkout, receipts and payments',0,true),
+('products','Products & Inventory','Products, barcode and stock',0,true),
+('customers','Customers','Customer accounts and loyalty',0,true),
+('expenses','Expenses','Expense tracking',0,true),
+('reports','Advanced Reports','Advanced reporting and analytics',30000,false),
+('purchasing','Purchasing','Suppliers, purchase orders and receiving',25000,false),
+('restaurant','Restaurant','Tables, reservations and kitchen workflows',50000,false),
+('pharmacy','Pharmacy','Batch, expiry and pharmacy controls',50000,false),
+('payroll','Payroll & HR','Staff, attendance and payroll',40000,false),
+('production','Production','Recipes, BOM and manufacturing',45000,false),
+('route_sales','Route Sales','Field sales agents and route stock',35000,false)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,monthly_price=EXCLUDED.monthly_price,core=EXCLUDED.core;
+
+INSERT INTO businesses(name,country,currency,trial_ends_at)
+SELECT 'Demo Business','Uganda','UGX',now()+interval '14 days'
 WHERE NOT EXISTS (SELECT 1 FROM businesses);
 
 INSERT INTO branches(business_id,name,location)
 SELECT b.id,'Main Branch','Kampala' FROM businesses b
-WHERE NOT EXISTS (SELECT 1 FROM branches);
+WHERE NOT EXISTS (SELECT 1 FROM branches WHERE business_id=b.id);
 
 INSERT INTO products(business_id,name,sku,barcode,category,cost,price,stock,reorder_level)
 SELECT b.id,'Demo Product','DEMO-001','1234567890123','General',3000,5000,25,5 FROM businesses b
-WHERE NOT EXISTS (SELECT 1 FROM products);
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE business_id=b.id);
+
+INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at)
+SELECT b.id,m.code,true,(NOT m.core),CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
+FROM businesses b CROSS JOIN module_catalog m
+ON CONFLICT(business_id,module_code) DO NOTHING;
