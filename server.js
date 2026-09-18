@@ -259,6 +259,41 @@ app.post('/api/sales',auth,tenant,async(req,res)=>{
 app.get('/api/sales/:id/payments',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const s=await pool.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2',[id,bid]);if(!s.rowCount)return res.status(404).json({error:'Sale not found'});const summary=await paymentSummaryForSource(pool,bid,'sale',id);res.json({sale:s.rows[0],payments:summary.payments,amountPaid:summary.total,balanceDue:Math.max(0,Number(s.rows[0].total)-summary.total)})});
 app.post('/api/sales/:id/payments',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id),lines=req.body?.payments||[],client=await pool.connect();try{await client.query('BEGIN');const s=await client.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2 FOR UPDATE',[id,bid]);if(!s.rowCount)throw new Error('Sale not found');if(s.rows[0].payment_status==='paid')throw new Error('Sale is already fully paid');const posted=await postPaymentLines(client,{bid,branchId:s.rows[0].branch_id,customerId:s.rows[0].customer_id,sourceType:'sale',sourceId:id,total:s.rows[0].total,lines,userName:req.user.name});const all=await paymentSummaryForSource(client,bid,'sale',id),methods=[...new Set(all.payments.filter(x=>x.status==='posted').map(x=>x.payment_method))],method=methods.length===1?methods[0]:methods.length>1?'split':'credit',tendered=all.payments.filter(x=>x.status==='posted').reduce((n,x)=>n+Number(x.tendered_amount||0),0),change=all.payments.filter(x=>x.status==='posted').reduce((n,x)=>n+Number(x.change_amount||0),0);const u=await client.query('UPDATE sales SET payment_method=$1,payment_status=$2,amount_paid=$3,balance_due=$4,tendered_amount=$5,change_amount=$6 WHERE id=$7 RETURNING *',[method,posted.status,posted.paid,posted.balance,tendered,change,id]);await client.query('COMMIT');await audit(req.user,bid,'payment','sale',id,{amount:posted.posted.reduce((n,x)=>n+Number(x.amount),0),status:posted.status});res.json({sale:u.rows[0],payments:all.payments})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
 
+
+async function customerLedgerEntry(client,{bid,customerId,entryType,sourceType=null,sourceId=null,referenceNo=null,debit=0,credit=0,notes=null,userName=null,enforceCredit=false}){
+  if(!customerId)return null;
+  const q=await client.query('SELECT * FROM customers WHERE id=$1 AND business_id=$2 FOR UPDATE',[customerId,bid]);
+  if(!q.rowCount)throw new Error('Customer not found');
+  const customer=q.rows[0],oldBalance=Number(customer.balance||0),d=Math.max(0,Number(debit||0)),c=Math.max(0,Number(credit||0)),next=oldBalance+d-c;
+  if(next < -0.005)throw new Error('Customer payment exceeds account balance');
+  if(enforceCredit&&d>0){
+    if(!customer.credit_enabled)throw new Error('Customer credit is not enabled');
+    const limit=Number(customer.credit_limit||0);
+    if(next>limit+0.005)throw new Error('Customer credit limit exceeded');
+  }
+  const balance=Math.max(0,next);
+  await client.query('UPDATE customers SET balance=$1 WHERE id=$2 AND business_id=$3',[balance,customerId,bid]);
+  const e=await client.query('INSERT INTO customer_ledger(business_id,customer_id,entry_type,source_type,source_id,reference_no,debit,credit,balance_after,notes,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *',[bid,customerId,entryType,sourceType,sourceId,referenceNo,d,c,balance,notes,userName]);
+  return e.rows[0];
+}
+async function restoreSoldItem(client,{bid,productId,qty,referenceId,referenceNo,userName}){
+  const recipe=await recipeRequirements(client,bid,productId,qty);
+  if(recipe){
+    const locationId=await operationalStockLocation(client,bid,recipe.locationId);
+    for(const line of recipe.lines){
+      const c=await client.query('SELECT avg_cost FROM inventory_balances WHERE location_id=$1 AND product_id=$2',[locationId,line.ingredientProductId]);
+      const unitCost=Number(c.rows[0]?.avg_cost||line.unitCost||0);
+      await inventoryBalanceChange(client,{bid,locationId,productId:line.ingredientProductId,delta:line.qty,unitCost,movementType:'refund_return',referenceType:'REFUND',referenceId,referenceNo,notes:'Refund recipe stock return',userName,toLocationId:locationId,reason:'Approved customer refund'});
+    }
+    return;
+  }
+  const locationId=await operationalStockLocation(client,bid,null);
+  const c=await client.query('SELECT avg_cost FROM inventory_balances WHERE location_id=$1 AND product_id=$2',[locationId,productId]);
+  const p=await client.query('SELECT cost FROM products WHERE id=$1 AND business_id=$2',[productId,bid]);
+  const unitCost=Number(c.rows[0]?.avg_cost||p.rows[0]?.cost||0);
+  await inventoryBalanceChange(client,{bid,locationId,productId,delta:Number(qty),unitCost,movementType:'refund_return',referenceType:'REFUND',referenceId,referenceNo,notes:'Approved refund stock return',userName,toLocationId:locationId,reason:'Approved customer refund'});
+}
+
 async function recalcRestaurantOrder(client,orderId){
   const q=await client.query("SELECT coalesce(sum(oi.qty*oi.unit_price),0)::numeric base,coalesce(sum((SELECT coalesce(sum(m.line_total),0) FROM restaurant_order_item_modifiers m WHERE m.order_item_id=oi.id)),0)::numeric mods FROM restaurant_order_items oi WHERE oi.order_id=$1 AND oi.status<>'cancelled'",[orderId]);
   const o=await client.query('SELECT discount,tip,tax_inclusive,tax_rate,service_charge_rate FROM restaurant_orders WHERE id=$1 FOR UPDATE',[orderId]);
