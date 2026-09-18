@@ -181,6 +181,16 @@ async function ensureRestaurantSale(client,bid,order,userName){
   return s.rows[0];
 }
 
+
+app.get('/api/reason-codes',auth,tenant,async(req,res)=>{const bid=await getBiz(req),category=String(req.query.category||'refund');const q=await pool.query('SELECT id,category,code,label FROM reason_codes WHERE business_id=$1 AND category=$2 AND active=true ORDER BY label',[bid,category]);res.json(q.rows)});
+
+app.get('/api/sales/:id',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const sale=await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.id=$1 AND s.business_id=$2',[id,bid]);if(!sale.rowCount)return res.status(404).json({error:'Sale not found'});const [items,payments,refunds]=await Promise.all([pool.query('SELECT * FROM sale_items WHERE sale_id=$1 ORDER BY id',[id]),paymentSummaryForSource(pool,bid,'sale',id),pool.query("SELECT r.*,coalesce(json_agg(json_build_object('payment_method',rt.payment_method,'amount',rt.amount)) FILTER (WHERE rt.id IS NOT NULL),'[]'::json) tenders FROM refunds r LEFT JOIN refund_tenders rt ON rt.refund_id=r.id WHERE r.business_id=$1 AND r.sale_id=$2 GROUP BY r.id ORDER BY r.id DESC",[bid,id])]);res.json({sale:sale.rows[0],items:items.rows,payments:payments.payments,refunds:refunds.rows})});
+
+app.post('/api/sales/:id/refunds/request',auth,tenant,async(req,res)=>{const bid=await getBiz(req),saleId=Number(req.params.id),{items=[],reason,restock=true,urgent=false,requestKind='refund'}=req.body||{};if(!['refund','void_item','void_sale'].includes(requestKind))return res.status(400).json({error:'Invalid refund/void request type'});if(!String(reason||'').trim())return res.status(400).json({error:'Reason is required'});const client=await pool.connect();try{await client.query('BEGIN');const sq=await client.query('SELECT * FROM sales WHERE id=$1 AND business_id=$2 AND voided=false FOR UPDATE',[saleId,bid]);if(!sq.rowCount)throw new Error('Sale not found or already voided');const sale=sq.rows[0];let selected=[];if(requestKind==='void_sale'){const all=await client.query('SELECT * FROM sale_items WHERE sale_id=$1 ORDER BY id',[saleId]);selected=all.rows.map(x=>({saleItemId:Number(x.id),qty:Number(x.qty)}));}else{selected=(Array.isArray(items)?items:[]).map(x=>({saleItemId:Number(x.saleItemId),qty:Number(x.qty)})).filter(x=>x.saleItemId&&x.qty>0);if(!selected.length)throw new Error('Select at least one sale item');}
+const ids=selected.map(x=>x.saleItemId),rows=await client.query('SELECT * FROM sale_items WHERE sale_id=$1 AND id=ANY($2::bigint[]) FOR UPDATE',[saleId,ids]);if(rows.rowCount!==new Set(ids).size)throw new Error('One or more sale items are invalid');const byId=new Map(rows.rows.map(x=>[Number(x.id),x]));const prior=await client.query("SELECT ri.sale_item_id,coalesce(sum(ri.qty),0)::numeric qty FROM refund_items ri JOIN refunds r ON r.id=ri.refund_id WHERE r.business_id=$1 AND r.sale_id=$2 AND r.status IN ('pending_approval','approved') GROUP BY ri.sale_item_id",[bid,saleId]);const used=new Map(prior.rows.map(x=>[Number(x.sale_item_id),Number(x.qty||0)]));const refundablePaid=Math.max(0,Number(sale.amount_paid||0)-Number(sale.refunded_amount||0));if(refundablePaid<=0.005)throw new Error('This sale has no collected amount available to refund');const merchandiseBase=Math.max(0,Number(sale.subtotal||0));const refundableGross=Math.max(0,Number(sale.total||0)-Number(sale.tip||0));const factor=merchandiseBase>0?refundableGross/merchandiseBase:1;let total=0;const clean=[];for(const x of selected){const item=byId.get(x.saleItemId),available=Number(item.qty||0)-Number(used.get(x.saleItemId)||0);if(x.qty>available+0.0001)throw new Error('Refund/void quantity exceeds the remaining sold quantity for '+item.product_name);const lineBase=Number(item.unit_price||0)*x.qty,lineTotal=lineBase*factor;total+=lineTotal;clean.push({item,qty:x.qty,lineTotal})}if(total>refundablePaid+0.01)throw new Error('Requested refund exceeds the remaining amount actually paid');const refundNo=makeDocNo(requestKind==='refund'?'RF':'VOID');const r=await client.query("INSERT INTO refunds(business_id,sale_id,customer_id,refund_no,refund_method,total,reason,restock,status,requested_by_user_id,requested_by_name,request_kind,void_sale) VALUES($1,$2,$3,$4,'pending',$5,$6,$7,'pending_approval',$8,$9,$10,$11) RETURNING *",[bid,saleId,sale.customer_id||null,refundNo,total,String(reason).trim(),!!restock,req.user.id,req.user.name,requestKind,requestKind==='void_sale']);for(const x of clean)await client.query('INSERT INTO refund_items(refund_id,sale_item_id,product_id,product_name,qty,unit_price,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[r.rows[0].id,x.item.id,x.item.product_id,x.item.product_name,x.qty,x.item.unit_price,x.lineTotal]);const action=requestKind==='void_sale'?'sale_void':'sale_refund',target=await approvalTarget(client,bid,action),title=(requestKind==='void_sale'?'Sale Void · ':requestKind==='void_item'?'Item Void · ':'Refund · ')+sale.receipt_no;const ar=await client.query("INSERT INTO approval_requests(business_id,section,action_type,entity_type,entity_id,reference_no,title,amount,requested_by_user_id,requested_by_name,approver_user_id,approver_role,status,request_comment,priority) VALUES($1,'Sales',$2,'refund',$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12) RETURNING *",[bid,action,r.rows[0].id,refundNo,title,total,req.user.id,req.user.name,target.approverUserId,target.approverRole,String(reason).trim(),urgent?'urgent':'normal']);await client.query('COMMIT');await audit(req.user,bid,'request_approval','refund',r.rows[0].id,{approvalRequestId:ar.rows[0].id,saleId,requestKind,total});res.json({refund:r.rows[0],approval:ar.rows[0]})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
+
+app.get('/api/refunds/reconciliation',auth,tenant,async(req,res)=>{const bid=await getBiz(req),from=req.query.from||null,to=req.query.to||null;const q=await pool.query("SELECT rt.payment_method,count(DISTINCT r.id)::int refunds,coalesce(sum(rt.amount),0)::numeric amount FROM refund_tenders rt JOIN refunds r ON r.id=rt.refund_id WHERE r.business_id=$1 AND r.status='approved' AND ($2::date IS NULL OR r.approved_at::date >= $2::date) AND ($3::date IS NULL OR r.approved_at::date <= $3::date) GROUP BY rt.payment_method ORDER BY amount DESC",[bid,from,to]);const total=q.rows.reduce((n,x)=>n+Number(x.amount||0),0);res.json({methods:q.rows,total})});
+
 app.get('/api/sales',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT s.*,c.name customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.business_id=$1 ORDER BY s.id DESC LIMIT 200',[bid])).rows)});
 app.post('/api/sales',auth,tenant,async(req,res)=>{
   const bid=await getBiz(req),{
@@ -304,6 +314,27 @@ async function restoreSoldItem(client,{bid,productId,qty,referenceId,referenceNo
   const p=await client.query('SELECT cost FROM products WHERE id=$1 AND business_id=$2',[productId,bid]);
   const unitCost=Number(c.rows[0]?.avg_cost||p.rows[0]?.cost||0);
   await inventoryBalanceChange(client,{bid,locationId,productId,delta:Number(qty),unitCost,movementType:'refund_return',referenceType:'REFUND',referenceId,referenceNo,notes:'Approved refund stock return',userName,toLocationId:locationId,reason:'Approved customer refund'});
+}
+
+
+async function allocateRefundTenders(client,{bid,saleId,refundId,amount}){
+  let remaining=Number(amount||0);
+  if(!(remaining>0))return [];
+  const paid=await client.query("SELECT p.payment_method,coalesce(sum(pa.amount),0)::numeric paid FROM payment_allocations pa JOIN payments p ON p.id=pa.payment_id WHERE pa.business_id=$1 AND pa.source_type='sale' AND pa.source_id=$2 AND p.status='posted' GROUP BY p.payment_method ORDER BY paid DESC",[bid,saleId]);
+  const prior=await client.query("SELECT rt.payment_method,coalesce(sum(rt.amount),0)::numeric refunded FROM refund_tenders rt JOIN refunds r ON r.id=rt.refund_id WHERE r.business_id=$1 AND r.sale_id=$2 AND r.status='approved' GROUP BY rt.payment_method",[bid,saleId]);
+  const used=new Map(prior.rows.map(x=>[x.payment_method,Number(x.refunded||0)]));
+  const rows=[];
+  for(const p of paid.rows){
+    if(remaining<=0.005)break;
+    const available=Math.max(0,Number(p.paid||0)-Number(used.get(p.payment_method)||0));
+    if(available<=0.005)continue;
+    const part=Math.min(available,remaining);
+    await client.query('INSERT INTO refund_tenders(refund_id,payment_method,amount) VALUES($1,$2,$3)',[refundId,p.payment_method,part]);
+    rows.push({paymentMethod:p.payment_method,amount:part});
+    remaining-=part;
+  }
+  if(remaining>0.005)throw new Error('Refund exceeds remaining collected payments');
+  return rows;
 }
 
 async function recalcRestaurantOrder(client,orderId){
