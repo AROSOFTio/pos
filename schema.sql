@@ -1086,7 +1086,7 @@ UPDATE module_catalog SET sector='distribution',sort_order=500,maturity='planned
 
 INSERT INTO module_catalog(code,name,description,monthly_price,core,active,sector,maturity,sort_order)
 VALUES
-('retail','Supermarket / Retail','Retail checkout, barcode-led supermarket operations and fast-moving stock workflows',0,false,true,'retail','planned',150)
+('retail','Supermarket / Retail','Retail checkout, barcode-led supermarket operations and fast-moving stock workflows',0,false,true,'retail','live',150)
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,sector=EXCLUDED.sector,maturity=EXCLUDED.maturity,sort_order=EXCLUDED.sort_order;
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
