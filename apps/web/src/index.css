@@ -96,3 +96,11 @@ button:disabled{cursor:not-allowed}
 @media (min-width:768px){.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .control{min-width:0}
 input.control,select.control,textarea.control{max-width:100%}
+
+
+.modal-backdrop{animation:modalFade .18s ease-out both}
+.modal-surface{animation:modalRise .22s cubic-bezier(.2,.8,.2,1) both;transform-origin:center}
+@keyframes modalFade{from{opacity:0}to{opacity:1}}
+@keyframes modalRise{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+button,.control,.field{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background-color .15s ease,color .15s ease}
+button:active:not(:disabled){transform:translateY(1px) scale(.995)}
