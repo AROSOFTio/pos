@@ -7,6 +7,7 @@ import Register from './Register'
 import ResetPassword from './ResetPassword'
 import Dashboard from './pages/Dashboard'
 import POS from './pages/POS'
+import Supermarket from './pages/Supermarket'
 import Sales from './pages/Sales'
 import Orders from './pages/Orders'
 import Kitchen from './pages/Kitchen'
@@ -25,7 +26,7 @@ import SaaSAdmin from './pages/SaaSAdmin'
 import Reports from './pages/Reports'
 import Staff from './pages/Staff'
 
-export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
 const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Shifts',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
 
@@ -87,6 +88,7 @@ export default function App(){
   const elevated=hasRole('owner','administrator','admin')
   const can=(p:string)=>elevated||permissions.has(p)
   const hasRestaurant=enabled.has('restaurant')
+  const hasRetail=enabled.has('retail')
   const managementRoleSet=['owner','administrator','admin','branch_manager','restaurant_manager','storekeeper','accountant','auditor']
   const hasManagementAccess=elevated||businessRoles.some(r=>managementRoleSet.includes(r))
 
@@ -106,7 +108,7 @@ export default function App(){
   }) as any)
 
   const operationRows=[
-    ['POS',ShoppingCart],
+    ...(hasRetail?[['Supermarket',ShoppingCart]]:[['POS',ShoppingCart]]),
     ...(hasRestaurant?[['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed]]:[]),
     ['Sales',ReceiptText],
     ['Customers',UsersRound],
@@ -114,7 +116,7 @@ export default function App(){
   ] as any
 
   const allowedOps=operationRows.filter(([name]:any)=>{
-    if(name==='POS')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier'].includes(r))
+    if(name==='POS'||name==='Supermarket')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier'].includes(r))
     if(name==='Orders')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier','waiter'].includes(r))
     if(name==='Kitchen')return elevated||businessRoles.some(r=>['restaurant_manager','kitchen','bar'].includes(r))
     if(name==='Restaurant')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','waiter'].includes(r))
@@ -137,7 +139,8 @@ export default function App(){
 
   const renderView=()=> <>
     {view==='Dashboard'&&hasManagementAccess&&<Dashboard currency={currency} go={safeGo}/>}
-    {view==='POS'&&<POS currency={currency}/>}
+    {view==='POS'&&!hasRetail&&<POS currency={currency}/>}
+    {view==='Supermarket'&&hasRetail&&<Supermarket currency={currency}/>} 
     {view==='Sales'&&<Sales currency={currency}/>}
     {view==='Orders'&&hasRestaurant&&<Orders currency={currency}/>}
     {view==='Kitchen'&&hasRestaurant&&<Kitchen/>}
@@ -147,7 +150,7 @@ export default function App(){
     {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency}/>}
     {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
     {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
-    {view==='Products'&&canAccessView('Products')&&<Products currency={currency}/>}
+    {view==='Products'&&canAccessView('Products')&&<Products currency={currency} allowScanning={hasRetail}/>} 
     {view==='Suppliers'&&canAccessView('Suppliers')&&<Suppliers currency={currency}/>}
     {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}
     {view==='Reports'&&canAccessView('Reports')&&<Reports currency={currency}/>}
@@ -210,7 +213,7 @@ export default function App(){
         {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>} 
       </nav>
       <div className="border-t border-slate-100 p-3">
-        <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="mb-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--brand-primary)]">Open Operations</button>
+        <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="mb-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--brand-primary)]">Open Operations</button>
         <div className="flex items-center gap-2 rounded-xl px-2 py-2">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><UserRound size={15}/></div>
           <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div>
@@ -225,7 +228,7 @@ export default function App(){
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="hidden rounded-lg bg-[var(--brand-primary)] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
+          <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="hidden rounded-lg bg-[var(--brand-primary)] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
           <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
         </div>
       </header>
