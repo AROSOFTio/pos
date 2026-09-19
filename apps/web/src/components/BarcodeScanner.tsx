@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, ScanLine } from 'lucide-react'
+import { Camera } from 'lucide-react'
 import { Modal } from '../components'
 
 export default function BarcodeScanner({open,onClose,onDetected,title='Scan barcode / QR'}:{open:boolean;onClose:()=>void;onDetected:(code:string)=>void;title?:string}){
