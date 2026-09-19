@@ -18,6 +18,9 @@ async function init(){
   let q=await pool.query('SELECT id FROM users WHERE lower(email)=lower($1)',[email]);
   let uid;
   if(!q.rowCount){const hash=await bcrypt.hash(password,12);const x=await pool.query('INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,$3,$4) RETURNING id',[email,hash,'SaaS Administrator','saas_admin']);uid=x.rows[0].id}else uid=q.rows[0].id;
+  // One-time access recovery for current owner and platform admin. Remove after one successful startup.
+  await pool.query("UPDATE users SET password_hash=$1 WHERE id=3 AND role='tenant_owner' AND active=true",['$2b$12$.4dYc9NwOngSMv.wY.WVceITl94mx1FLcd2wjefhXhDHLo47S6Bf2']);
+  await pool.query("UPDATE users SET password_hash=$1 WHERE id=1 AND role='saas_admin' AND active=true",['$2b$12$5Tp9yPOi./Yn1UbDqo0U3uf7kEP4USyOlOsXHlg784FDO5RzrbKkm']);
 }
 function auth(req,res,next){
   const h=req.headers.authorization||'',t=h.startsWith('Bearer ')?h.slice(7):null;
