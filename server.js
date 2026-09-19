@@ -18,15 +18,6 @@ async function init(){
   let q=await pool.query('SELECT id FROM users WHERE lower(email)=lower($1)',[email]);
   let uid;
   if(!q.rowCount){const hash=await bcrypt.hash(password,12);const x=await pool.query('INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,$3,$4) RETURNING id',[email,hash,'SaaS Administrator','saas_admin']);uid=x.rows[0].id}else uid=q.rows[0].id;
-  // one-time verified demo credential reset; remove after live verification
-  const adminPw=Buffer.from('TWF1em84MjY0IQ==','base64').toString('utf8');
-  const ownerPw=Buffer.from('TWF1em9Pd25lcjgyNjQh','base64').toString('utf8');
-  await pool.query("UPDATE users SET password_hash=$1 WHERE id=1 AND role='saas_admin' AND active=true",[await bcrypt.hash(adminPw,12)]);
-  await pool.query("UPDATE users SET password_hash=$1 WHERE id=3 AND role='tenant_owner' AND active=true",[await bcrypt.hash(ownerPw,12)]);
-  const demoCheck=await pool.query("SELECT id,password_hash FROM users WHERE id IN (1,3) ORDER BY id");
-  const adminOk=await bcrypt.compare(adminPw,demoCheck.rows.find(r=>Number(r.id)===1).password_hash);
-  const ownerOk=await bcrypt.compare(ownerPw,demoCheck.rows.find(r=>Number(r.id)===3).password_hash);
-  console.log('DEMO_AUTH_CHECK admin='+adminOk+' owner='+ownerOk);
 
 }
 function auth(req,res,next){
