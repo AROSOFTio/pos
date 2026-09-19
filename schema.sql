@@ -1293,8 +1293,6 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_show_business_name BOOLE
 
 ALTER TABLE products ADD COLUMN IF NOT EXISTS product_code TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_product_code ON products(business_id,product_code) WHERE product_code IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_barcode ON products(business_id,barcode) WHERE barcode IS NOT NULL AND barcode <> '';
-CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_sku ON products(business_id,sku) WHERE sku IS NOT NULL AND sku <> '';
 
 DO $$
 BEGIN
@@ -1305,3 +1303,5 @@ END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_business_receipt_no ON sales(business_id,receipt_no);
 
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Africa/Kampala';
+CREATE INDEX IF NOT EXISTS idx_products_business_barcode ON products(business_id,barcode);
+CREATE INDEX IF NOT EXISTS idx_products_business_sku ON products(business_id,sku);
