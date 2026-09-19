@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Building2, Copy, Eye, Layers3, RefreshCcw, ShieldCheck, UsersRound } from 'lucide-react'
-import { api, money, nice } from '../api'
+import { api, nice } from '../api'
 import { Badge, DataTable, Loading, Modal, PageHeading, Panel } from '../components'
 
 const sectorNames:Record<string,string>={
@@ -41,7 +41,7 @@ export default function SaaSAdmin(){
   async function updateTenant(patch:any){
     const next=await api('/saas/tenants/'+selected.id,{method:'PUT',body:JSON.stringify(patch)})
     setSelected({...selected,...next})
-    setTenants((rows:any[])=>rows.map(x=>x.id===next.id?{...x,...next}:x))
+    setTenants(rows=>(rows||[]).map(x=>x.id===next.id?{...x,...next}:x))
   }
 
   async function toggleModule(m:any){
