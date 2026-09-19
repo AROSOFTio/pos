@@ -130,7 +130,7 @@ export default function App(){
     {view==='Expenses'&&<Expenses currency={currency}/>}
     {view==='Products'&&<Products currency={currency}/>}
     {view==='Suppliers'&&<Suppliers currency={currency}/>}
-    {view==='Shifts'&&<CashDrawer currency={currency}/>}
+    {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}
     {view==='Reports'&&<Reports currency={currency}/>}
     {view==='Staff'&&<Staff/>}
     {view==='Branches'&&<Branches/>}
