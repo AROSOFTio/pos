@@ -153,8 +153,6 @@ ALTER TABLE expenses ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN NOT NULL DE
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS accounting_treatment TEXT NOT NULL DEFAULT 'operating_expense';
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'posted';
 ALTER TABLE expenses ADD COLUMN IF NOT EXISTS supplier_id BIGINT REFERENCES suppliers(id) ON DELETE SET NULL;
-ALTER TABLE expenses ADD COLUMN IF NOT EXISTS purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE SET NULL;
-ALTER TABLE expenses ADD COLUMN IF NOT EXISTS grn_id BIGINT REFERENCES goods_receipts(id) ON DELETE SET NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_expense_source_unique ON expenses(business_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS purchases (
@@ -206,6 +204,9 @@ CREATE TABLE IF NOT EXISTS goods_receipts (
   received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(business_id,grn_no)
 );
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS grn_id BIGINT REFERENCES goods_receipts(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS goods_receipt_items (
   id BIGSERIAL PRIMARY KEY,
   goods_receipt_id BIGINT REFERENCES goods_receipts(id) ON DELETE CASCADE,
