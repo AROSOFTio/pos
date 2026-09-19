@@ -52,3 +52,36 @@ export default function BarcodeScanner({open,onClose,onDetected,title='Scan barc
   </div>
  </Modal>
 }
+
+
+export function useHardwareScanner(onScan:(code:string)=>void,enabled=true){
+ const handlerRef=useRef(onScan)
+ const bufferRef=useRef('')
+ const lastRef=useRef(0)
+ const firstRef=useRef(0)
+ useEffect(()=>{handlerRef.current=onScan},[onScan])
+ useEffect(()=>{
+  if(!enabled)return
+  const reset=()=>{bufferRef.current='';lastRef.current=0;firstRef.current=0}
+  const key=(e:KeyboardEvent)=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return
+    const target=e.target as HTMLElement|null
+    const tag=target?.tagName?.toLowerCase()
+    if(tag==='input'||tag==='textarea'||tag==='select'||target?.isContentEditable)return
+    const now=performance.now()
+    if(e.key==='Enter'||e.key==='Tab'){
+      const code=bufferRef.current.trim(),duration=firstRef.current?now-firstRef.current:9999
+      if(code.length>=3&&duration<=Math.max(900,code.length*90)){e.preventDefault();handlerRef.current(code)}
+      reset();return
+    }
+    if(e.key.length!==1)return
+    if(lastRef.current&&now-lastRef.current>120)reset()
+    if(!firstRef.current)firstRef.current=now
+    bufferRef.current+=e.key
+    lastRef.current=now
+    if(bufferRef.current.length>128)reset()
+  }
+  window.addEventListener('keydown',key,true)
+  return()=>window.removeEventListener('keydown',key,true)
+ },[enabled])
+}
