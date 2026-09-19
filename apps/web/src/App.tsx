@@ -39,15 +39,18 @@ export default function App(){
   const [currency,setCurrency]=useState('UGX')
   const [business,setBusiness]=useState('Your Business')
   const [enabled,setEnabled]=useState<Set<string>>(new Set())
+  const [businessRole,setBusinessRole]=useState('')
+  const [permissions,setPermissions]=useState<Set<string>>(new Set())
   const [path,setPath]=useState(window.location.pathname)
 
   useEffect(()=>{const onPop=()=>setPath(window.location.pathname);window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[])
   useEffect(()=>{const token=localStorage.getItem('pos_token');if(!token){setLoading(false);return}api('/me').then(setUser).catch(()=>localStorage.removeItem('pos_token')).finally(()=>setLoading(false))},[])
   useEffect(()=>{
     if(!user||user.role==='saas_admin')return
-    Promise.all([api('/dashboard'),api('/modules')]).then(([d,m]:any[])=>{
+    Promise.all([api('/dashboard'),api('/modules'),api('/me/access')]).then(([d,m,a]:any[])=>{
       setCurrency(d.business?.currency||'UGX');setBusiness(d.business?.name||'Your Business')
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
+      setBusinessRole(a.businessRole||user.role);setPermissions(new Set(a.permissions||[]))
     }).catch(()=>{})
   },[user])
 
@@ -69,16 +72,43 @@ export default function App(){
   </div>
 
   const go=(v:ViewKey)=>{setView(v);setSidebar(false)}
-  const sharedAdmin=administration.filter(([name])=>name!=='Purchasing'||enabled.has('purchasing'))
+  const elevated=['owner','administrator','admin'].includes(businessRole)
+  const can=(p:string)=>elevated||permissions.has(p)
+  const roleHas=(roles:string[])=>elevated||roles.includes(businessRole)
+  const visibleCore=coreOperations.filter(([name])=>{
+    if(name==='Dashboard')return true
+    if(name==='POS')return roleHas(['branch_manager','restaurant_manager','cashier'])
+    if(name==='Sales')return roleHas(['branch_manager','restaurant_manager','cashier','accountant','auditor'])
+    if(name==='Customers')return roleHas(['branch_manager','restaurant_manager','cashier','waiter','accountant'])
+    return true
+  })
   const hasRestaurant=enabled.has('restaurant')
+  const visibleRestaurant=restaurantOperations.filter(([name])=>{
+    if(name==='Orders')return roleHas(['branch_manager','restaurant_manager','cashier','waiter'])
+    if(name==='Kitchen')return roleHas(['restaurant_manager','kitchen','bar'])
+    if(name==='Restaurant')return roleHas(['branch_manager','restaurant_manager','waiter'])
+    return true
+  })
+  const sharedAdmin=administration.filter(([name])=>{
+    if(name==='Purchasing'&&!enabled.has('purchasing'))return false
+    if(name==='Approvals')return roleHas(['branch_manager','restaurant_manager'])
+    if(name==='Products'||name==='Inventory')return roleHas(['branch_manager','storekeeper'])
+    if(name==='Suppliers'||name==='Purchasing')return roleHas(['branch_manager','storekeeper','accountant'])
+    if(name==='Expenses')return roleHas(['branch_manager','accountant'])
+    if(name==='Cash Drawer')return roleHas(['branch_manager','cashier','accountant'])
+    if(name==='Reports')return can('reports.profit')
+    if(name==='Staff')return can('staff.manage')
+    if(name==='Branches'||name==='Settings')return can('settings.manage')
+    return true
+  })
 
   return <div className="min-h-screen bg-[#f4f7fb] text-slate-900 flex">
     {sidebar&&<div onClick={()=>setSidebar(false)} className="fixed inset-0 bg-slate-950/50 z-40 lg:hidden"/>}
     <aside className={'fixed inset-y-0 left-0 z-50 w-[270px] bg-[#0b1220] text-white px-3 py-4 flex flex-col transition-transform lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
       <div className="px-3 py-2"><div className="flex items-center gap-3"><MauzoLogo compact light/><button onClick={()=>setSidebar(false)} className="ml-auto lg:hidden text-slate-400"><X size={20}/></button></div><div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">Workspace</div><div className="mt-1 truncate text-xs font-semibold text-slate-200">{business}</div></div></div>
       <nav className="overflow-y-auto flex-1 px-1">
-        <NavGroup title="Business Operations" rows={coreOperations} view={view} go={go}/>
-        {hasRestaurant&&<NavGroup title="Restaurant Operations" rows={restaurantOperations} view={view} go={go}/>}
+        <NavGroup title="Business Operations" rows={visibleCore} view={view} go={go}/>
+        {hasRestaurant&&visibleRestaurant.length>0&&<NavGroup title="Restaurant Operations" rows={visibleRestaurant} view={view} go={go}/>}
         <NavGroup title="Administration" rows={sharedAdmin} view={view} go={go}/>
       </nav>
       <div className="m-2 rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-emerald-400"/>Protected workspace</div><div className="mt-1 text-xs text-slate-500">{hasRestaurant?'Restaurant module active':'Core POS modules active'}</div></div>
@@ -88,7 +118,7 @@ export default function App(){
       <header className="sticky top-0 z-30 glass border-b border-slate-200/70 px-4 sm:px-6 lg:px-8 h-[74px] flex items-center gap-4">
         <button onClick={()=>setSidebar(true)} className="lg:hidden h-10 w-10 rounded-xl border border-slate-200 grid place-items-center"><MenuIcon size={19}/></button>
         <div><div className="text-xs text-slate-500">{business}</div><h1 className="font-black text-lg tracking-tight">{view}</h1></div>
-        <div className="ml-auto flex items-center gap-2"><button className="hidden sm:grid h-10 w-10 rounded-xl border border-slate-200 bg-white place-items-center text-slate-500"><Search size={17}/></button><button className="h-10 w-10 rounded-xl border border-slate-200 bg-white grid place-items-center text-slate-500 relative"><Bell size={17}/><span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500"/></button><div className="ml-1 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-2 py-1.5"><div className="h-8 w-8 rounded-lg bg-slate-100 grid place-items-center"><UserRound size={16}/></div><div className="hidden md:block max-w-36"><div className="text-xs font-bold truncate">{user.name}</div><div className="text-[10px] text-slate-500 truncate">{nice(user.role)}</div></div><button onClick={logout} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16}/></button></div></div>
+        <div className="ml-auto flex items-center gap-2"><button className="hidden sm:grid h-10 w-10 rounded-xl border border-slate-200 bg-white place-items-center text-slate-500"><Search size={17}/></button><button className="h-10 w-10 rounded-xl border border-slate-200 bg-white grid place-items-center text-slate-500 relative"><Bell size={17}/><span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500"/></button><div className="ml-1 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-2 py-1.5"><div className="h-8 w-8 rounded-lg bg-slate-100 grid place-items-center"><UserRound size={16}/></div><div className="hidden md:block max-w-36"><div className="text-xs font-bold truncate">{user.name}</div><div className="text-[10px] text-slate-500 truncate">{nice(businessRole||user.role)}</div></div><button onClick={logout} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16}/></button></div></div>
       </header>
       <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
         {view==='Dashboard'&&<Dashboard currency={currency} go={go}/>}
