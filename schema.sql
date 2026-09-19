@@ -1083,3 +1083,107 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id,created_at DESC);
+
+-- Phase 8: document / printer engine
+CREATE TABLE IF NOT EXISTS print_profiles (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  document_type TEXT NOT NULL DEFAULT 'receipt',
+  paper_size TEXT NOT NULL DEFAULT '80mm',
+  printer_name TEXT,
+  station_id BIGINT REFERENCES kitchen_stations(id) ON DELETE SET NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,name)
+);
+CREATE TABLE IF NOT EXISTS print_logs (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  document_type TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id BIGINT NOT NULL,
+  document_no TEXT,
+  paper_size TEXT,
+  printed_by TEXT,
+  reprint BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_print_logs_business_date ON print_logs(business_id,created_at DESC);
+INSERT INTO print_profiles(business_id,name,document_type,paper_size)
+SELECT id,'Customer Receipt','receipt','80mm' FROM businesses
+ON CONFLICT(business_id,name) DO NOTHING;
+INSERT INTO print_profiles(business_id,name,document_type,paper_size)
+SELECT id,'Kitchen Ticket','kot','80mm' FROM businesses
+ON CONFLICT(business_id,name) DO NOTHING;
+
+-- Phase 9: shifts / cash reconciliation
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS terminal_id BIGINT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS opened_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS closed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS variance NUMERIC(14,2);
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS denomination_count JSONB;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS manager_confirmed_by TEXT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS manager_confirmed_at TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS cash_movements (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  session_id BIGINT REFERENCES cash_sessions(id) ON DELETE CASCADE,
+  movement_type TEXT NOT NULL CHECK(movement_type IN ('cash_in','cash_out')),
+  amount NUMERIC(14,2) NOT NULL CHECK(amount>0),
+  reason TEXT NOT NULL,
+  reference TEXT,
+  created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cash_movements_session ON cash_movements(session_id,created_at);
+
+-- Phase 11: branch / terminal / role governance
+CREATE TABLE IF NOT EXISTS terminals (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,code)
+);
+ALTER TABLE cash_sessions DROP CONSTRAINT IF EXISTS cash_sessions_terminal_id_fkey;
+ALTER TABLE cash_sessions ADD CONSTRAINT cash_sessions_terminal_id_fkey FOREIGN KEY(terminal_id) REFERENCES terminals(id) ON DELETE SET NULL;
+CREATE TABLE IF NOT EXISTS permission_catalog (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  section TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS role_permissions (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  permission_code TEXT REFERENCES permission_catalog(code) ON DELETE CASCADE,
+  allowed BOOLEAN NOT NULL DEFAULT true,
+  PRIMARY KEY(business_id,role,permission_code)
+);
+CREATE TABLE IF NOT EXISTS user_branch_assignments (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id,branch_id)
+);
+INSERT INTO permission_catalog(code,name,section) VALUES
+('sales.discount','Approve discounts','Sales'),
+('sales.refund','Approve refunds','Sales'),
+('sales.void','Approve voids','Sales'),
+('sales.reopen','Reopen closed sales','Sales'),
+('inventory.adjust','Approve stock adjustments','Inventory'),
+('inventory.cost','View product costs','Inventory'),
+('reports.profit','View profit reports','Reports'),
+('reports.export','Export reports','Reports'),
+('shift.close','Close cash shifts','Cash'),
+('branch.all','View all branches','Branches'),
+('settings.manage','Manage organisation settings','Settings')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+INSERT INTO terminals(business_id,branch_id,name,code)
+SELECT b.business_id,b.id,'Front Counter','MAIN-'||b.id FROM branches b
+ON CONFLICT(business_id,code) DO NOTHING;
