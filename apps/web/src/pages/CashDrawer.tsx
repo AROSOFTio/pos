@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, Banknote, Clock3, LockKeyhole, Plus, Printer, RefreshCw, UnlockKeyhole } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Banknote, LockKeyhole, Plus, Printer, RefreshCw, UnlockKeyhole } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
 import { PageHeading, Panel, Stat, Loading, Modal, DataTable, Badge } from '../components'
 
@@ -10,7 +10,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  const [openModal,setOpenModal]=useState(false),[closeModal,setCloseModal]=useState(false),[moveModal,setMoveModal]=useState(false)
  const [opening,setOpening]=useState(''),[actual,setActual]=useState(''),[branchId,setBranchId]=useState<number|''>(''),[terminalId,setTerminalId]=useState<number|''>('')
  const [movementType,setMovementType]=useState<'cash_in'|'cash_out'>('cash_out'),[amount,setAmount]=useState(''),[reason,setReason]=useState('')
- const [denoms,setDenoms]=useState<{value:string;count:string}[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
+ const [denoms,setDenoms]=useState<{value:string;count:string}[]>([]),[varianceReason,setVarianceReason]=useState(''),[closingNote,setClosingNote]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
 
  const load=async()=>{
    const [s,b,t,h]=await Promise.all([api('/cash/current'),api('/branches').catch(()=>[]),api('/terminals').catch(()=>[]),api('/cash/history').catch(()=>[])])
@@ -46,10 +46,11 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
    setError('')
    if(actual===''&&!denoms.length){setError('Enter the physical cash counted before closing the shift.');return}
    if(physical<0){setError('Physical cash cannot be negative.');return}
+   if(Math.abs(variance)>0.005&&!varianceReason.trim()){setError('Enter a reason for the cash shortage or overage.');return}
    setBusy(true)
    try{
-     const out=await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:physical,managerConfirmed:false,denominations:denoms.map(d=>({value:Number(d.value||0),count:Number(d.count||0)}))})})
-     setCloseModal(false);setDenoms([]);setActual('');await load();setMessage('Shift closed and reconciled successfully.')
+     const out=await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:physical,denominations:denoms.map(d=>({value:Number(d.value||0),count:Number(d.count||0)})).filter(d=>d.value>0&&d.count>0),varianceReason:varianceReason.trim()||null,closingNote:closingNote.trim()||null})})
+     setCloseModal(false);setDenoms([]);setActual('');setVarianceReason('');setClosingNote('');await load();setMessage('Shift closed and reconciled successfully.')
      await openPdf('/documents/cash-session/'+out.id+'/pdf')
    }catch(e:any){setError(e.message||'Shift could not be closed.')}finally{setBusy(false)}
  }
@@ -81,11 +82,11 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
       </div>
     </Panel>
     <Panel title="Recent Shifts" sub="Your latest completed cashier shifts.">
-      {history.length?<DataTable head={['Shift','Opened','Variance','Status']} rows={history.slice(0,7).map(x=>['#'+x.id,new Date(x.opened_at).toLocaleString(),x.status==='closed'?money(x.variance||0,currency):'-',<Badge tone={x.status==='closed'?'slate':'green'}>{nice(x.status)}</Badge>])}/>:<div className="py-8 text-center text-[11px] text-slate-400">No previous shifts yet.</div>}
+      {history.length?<DataTable head={['Shift','Opened','Variance','Status']} rows={history.slice(0,7).map(x=>[x.shift_no||('#'+x.id),new Date(x.opened_at).toLocaleString(),x.status==='closed'?money(x.variance||0,currency):'-',<Badge tone={x.status==='closed'?'slate':'green'}>{nice(x.status)}</Badge>])}/>:<div className="py-8 text-center text-[11px] text-slate-400">No previous shifts yet.</div>}
     </Panel>
   </div>:<>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Stat label="Shift" value={'#'+session.id} sub={(session.branch_name||'Branch')+' · '+(session.terminal_name||'No terminal')} icon={UnlockKeyhole}/>
+      <Stat label="Shift" value={session.shift_no||('#'+session.id)} sub={(session.branch_name||'Branch')+' · '+(session.terminal_name||'No terminal')} icon={UnlockKeyhole}/>
       <Stat label="Opening Float" value={money(session.opening_cash||0,currency)} sub={'Opened '+new Date(session.opened_at).toLocaleTimeString()} icon={Banknote} tone="blue"/>
       <Stat label="Expected Cash" value={money(session.expectedCash||0,currency)} sub="Live calculated cash" icon={Banknote} tone="violet"/>
       <Stat label="Cash Sales" value={money(session.cashSales||0,currency)} sub={'Cash refunds '+money(session.refunds||0,currency)} icon={Banknote} tone="amber"/>
@@ -101,7 +102,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button onClick={()=>{setError('');setAmount('');setReason('');setMovementType('cash_out');setMoveModal(true)}} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"><Plus size={14}/>Cash In / Out</button>
           <button onClick={()=>openPdf('/documents/cash-session/'+session.id+'/pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"><Printer size={14}/>Shift Report Preview</button>
-          <button onClick={()=>{setError('');setActual('');setDenoms([]);setCloseModal(true)}} className="sm:ml-auto rounded-lg bg-red-600 px-5 py-2.5 text-[11px] font-semibold text-white hover:bg-red-700">Close & Reconcile</button>
+          <button onClick={()=>{setError('');setActual('');setDenoms([]);setVarianceReason('');setClosingNote('');setCloseModal(true)}} className="sm:ml-auto rounded-lg bg-red-600 px-5 py-2.5 text-[11px] font-semibold text-white hover:bg-red-700">Close & Reconcile</button>
         </div>
       </Panel>
 
@@ -122,7 +123,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     </Panel></div>
   </>}
 
-  {history.length>0&&session&&<div className="mt-4"><Panel title="Recent Shift History" sub="Previous shifts remain immutable and available for review."><DataTable head={['Shift','Branch','Opened','Closed','Actual','Variance']} rows={history.filter(x=>Number(x.id)!==Number(session.id)).slice(0,10).map(x=>['#'+x.id,x.branch_name||'-',new Date(x.opened_at).toLocaleString(),x.closed_at?new Date(x.closed_at).toLocaleString():'-',money(x.closing_cash||0,currency),money(x.variance||0,currency)])}/></Panel></div>}
+  {history.length>0&&session&&<div className="mt-4"><Panel title="Recent Shift History" sub="Previous shifts remain immutable and available for review."><DataTable head={['Shift','Branch','Opened','Closed','Actual','Variance']} rows={history.filter(x=>Number(x.id)!==Number(session.id)).slice(0,10).map(x=>[x.shift_no||('#'+x.id),x.branch_name||'-',new Date(x.opened_at).toLocaleString(),x.closed_at?new Date(x.closed_at).toLocaleString():'-',money(x.closing_cash||0,currency),money(x.variance||0,currency)])}/></Panel></div>}
 
   {openModal&&<Modal title="Open Cashier Shift" onClose={()=>!busy&&setOpenModal(false)} size="md">
     <div className="grid gap-4">
@@ -155,8 +156,10 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
       {denoms.length>0&&<div className="mt-3 space-y-2">{denoms.map((d,i)=><div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2"><input className="control mt-0" inputMode="decimal" placeholder="Note value" value={d.value} onChange={e=>setDenoms(denoms.map((x,k)=>k===i?{...x,value:e.target.value.replace(/[^0-9.]/g,'')}:x))}/><input className="control mt-0" inputMode="numeric" placeholder="Count" value={d.count} onChange={e=>setDenoms(denoms.map((x,k)=>k===i?{...x,count:e.target.value.replace(/[^0-9]/g,'')}:x))}/><button onClick={()=>setDenoms(denoms.filter((_,k)=>k!==i))} className="px-2 text-slate-400">×</button></div>)}</div>}
       {denoms.length>0&&<div className="mt-3 text-right text-[11px] font-semibold text-slate-700">Denomination total: {money(denominationTotal,currency)}</div>}
     </div>
-    {Math.abs(variance)>0.005&&<div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">This shift has a cash variance of <b>{money(variance,currency)}</b>. Confirm the physical count before closing. The variance will be stored permanently in the shift record.</div>}
-    <button onClick={close} disabled={busy||(actual===''&&!denoms.length)} className="mt-4 w-full rounded-lg bg-red-600 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing Shift…':'Close Shift & Print Z-Report'}</button>
+    {Math.abs(variance)>0.005&&<div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">This shift has a cash variance of <b>{money(variance,currency)}</b>. Explain the shortage or overage before closing.</div>}
+    {Math.abs(variance)>0.005&&<div className="mt-4"><Field label="Variance reason" required><textarea className="control min-h-20" value={varianceReason} onChange={e=>setVarianceReason(e.target.value)} placeholder="Explain why the cash is short or over…"/></Field></div>}
+    <div className="mt-4"><Field label="Closing / handover note"><textarea className="control min-h-20" value={closingNote} onChange={e=>setClosingNote(e.target.value)} placeholder="Optional note for the next shift or manager…"/></Field></div>
+    <button onClick={close} disabled={busy||(actual===''&&!denoms.length)||(Math.abs(variance)>0.005&&!varianceReason.trim())} className="mt-4 w-full rounded-lg bg-red-600 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing Shift…':'Close Shift & Print Z-Report'}</button>
   </Modal>}
  </div>
 }
