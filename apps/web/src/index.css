@@ -18,3 +18,9 @@ button { cursor:pointer; }
 .field { margin-top:.5rem; height:3.25rem; display:flex; align-items:center; gap:.75rem; border:1px solid #e2e8f0; border-radius:.75rem; background:#fff; padding:0 .9rem; color:#94a3b8; transition:.18s ease; }
 .field:focus-within { border-color:#22A53A; box-shadow:0 0 0 4px rgba(34,165,58,.10); color:#64748b; }
 .field input { min-width:0; flex:1; border:0; outline:none; background:transparent; color:#0f172a; }
+
+.scroll-reveal { opacity:0; transform:translateY(34px) scale(.985); transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1); }
+.scroll-reveal.is-visible { opacity:1; transform:translateY(0) scale(1); }
+.hero-float { animation:heroFloat 5.5s ease-in-out infinite; }
+@keyframes heroFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+@media (prefers-reduced-motion:reduce){ .scroll-reveal,.hero-float{animation:none;transition:none;transform:none;opacity:1} }
