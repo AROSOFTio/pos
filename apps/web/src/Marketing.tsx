@@ -1,75 +1,105 @@
 import { useEffect, useRef } from 'react'
-import { ArrowRight, BarChart3, Boxes, CreditCard, ShoppingCart, Store, UsersRound } from 'lucide-react'
+import { ArrowRight, BarChart3, Boxes, CreditCard, ShoppingCart, Store, UsersRound, CheckCircle2, UtensilsCrossed, Pill, Factory, Sparkles } from 'lucide-react'
 import { MauzoLogo } from './Brand'
 
 const modules=[
-  {name:'Restaurant',tag:'Restaurant',line:'Tables · Kitchen · Orders',img:'/brand/restaurant.webp'},
-  {name:'Supermarket',tag:'Retail',line:'Barcode · Stock · Checkout',img:'/brand/supermarket.webp'},
-  {name:'Pharmacy',tag:'Pharmacy',line:'Medicines · Inventory · Sales',img:'/brand/pharmacy.webp'},
-  {name:'Boutique',tag:'Fashion',line:'Products · Customers · Checkout',img:'/brand/boutique.webp'},
-  {name:'Analytics',tag:'Reports',line:'Sales · Profit · Trends',img:'/brand/analytics.webp'},
+  {name:'Restaurant',tag:'Restaurant',line:'Tables, kitchen, orders and billing.',img:'/brand/restaurant.webp',icon:UtensilsCrossed},
+  {name:'Supermarket',tag:'Retail',line:'Fast barcode checkout and live stock.',img:'/brand/supermarket.webp',icon:Store},
+  {name:'Pharmacy',tag:'Pharmacy',line:'Medicines, batches, customers and sales.',img:'/brand/pharmacy.webp',icon:Pill},
+  {name:'Boutique',tag:'Fashion',line:'Products, customers and checkout.',img:'/brand/boutique.webp',icon:ShoppingCart},
+  {name:'Analytics',tag:'Reports',line:'Sales, profit, payments and trends.',img:'/brand/analytics.webp',icon:BarChart3},
 ]
 
 export default function Marketing({navigate}:{navigate:(path:string)=>void}){
-  return <div className="min-h-screen bg-white text-[#0f172a]">
-    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-[70px] max-w-[1320px] items-center px-5 lg:px-8">
+  return <div className="min-h-screen bg-white text-[#172033]">
+    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur-sm">
+      <div className="mx-auto flex h-[64px] max-w-[1240px] items-center px-4 sm:px-6">
         <MauzoLogo compact/>
-        <nav className="ml-auto hidden gap-7 text-sm font-semibold text-slate-500 md:flex"><a href="#modules">Modules</a><a href="#features">Features</a></nav>
-        <div className="ml-auto flex gap-2 md:ml-7"><button onClick={()=>navigate('/login')} className="rounded-xl px-4 py-2.5 text-sm font-bold">Login</button><button onClick={()=>navigate('/register')} className="rounded-xl bg-[#22A53A] px-4 py-2.5 text-sm font-black text-white">Start Free Trial</button></div>
+        <nav className="ml-auto hidden items-center gap-6 text-[13px] text-slate-500 md:flex">
+          <a className="hover:text-slate-900" href="#modules">Solutions</a>
+          <a className="hover:text-slate-900" href="#features">Features</a>
+        </nav>
+        <div className="ml-auto flex items-center gap-1.5 md:ml-6">
+          <button onClick={()=>navigate('/login')} className="rounded-lg px-3 py-2 text-[13px] font-medium text-slate-600 hover:bg-slate-50">Login</button>
+          <button onClick={()=>navigate('/register')} className="rounded-lg bg-[#22A53A] px-3.5 py-2 text-[13px] font-medium text-white">Start Free Trial</button>
+        </div>
       </div>
     </header>
 
     <main>
-      <section className="overflow-hidden bg-[radial-gradient(circle_at_80%_12%,rgba(34,165,58,.12),transparent_26%),linear-gradient(180deg,#fbfffb,#fff)]">
-        <div className="mx-auto grid max-w-[1320px] items-center gap-10 px-5 py-14 lg:grid-cols-[.92fr_1.08fr] lg:px-8 lg:py-20">
-          <div>
-            <div className="w-fit rounded-full border border-green-100 bg-green-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[.16em] text-[#169B36]">One POS · Every business</div>
-            <h1 className="mt-5 text-5xl font-black tracking-[-.055em] sm:text-6xl lg:text-[72px] lg:leading-[.96]">One POS.<br/><span className="text-[#22A53A]">Multiple Industries.</span></h1>
-            <div className="mt-5 text-lg font-medium text-slate-500">Restaurant · Retail · Pharmacy · More</div>
-            <div className="mt-8 flex flex-wrap gap-3"><button onClick={()=>navigate('/register')} className="inline-flex items-center gap-2 rounded-2xl bg-[#22A53A] px-6 py-4 font-black text-white shadow-[0_16px_34px_rgba(34,165,58,.18)]">Start Free Trial <ArrowRight size={18}/></button><button onClick={()=>navigate('/login')} className="rounded-2xl border border-slate-200 bg-white px-6 py-4 font-black">Login</button></div>
-            <div className="mt-4 text-sm font-semibold text-slate-400">No credit card required</div>
-          </div>
-          <div className="hero-float overflow-hidden rounded-[32px] border border-slate-100 bg-white shadow-[0_28px_80px_rgba(15,23,42,.10)]">
-            <img src="/brand/retail.webp" alt="MauzoPOS" className="aspect-[4/3] h-full w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
-          </div>
-        </div>
-      </section>
-
-      <section id="modules" className="mx-auto max-w-[1320px] px-5 py-14 lg:px-8">
-        <div className="text-xs font-black uppercase tracking-[.16em] text-[#22A53A]">Modules</div>
-        <h2 className="mt-2 text-3xl font-black tracking-[-.035em]">Built around your business</h2>
-        <div className="mt-8 space-y-8 lg:space-y-12">
-          {modules.map((m,i)=><Reveal key={m.name}><div className={'grid items-center gap-7 rounded-[30px] border border-slate-100 bg-[#fbfcfb] p-4 sm:p-6 lg:grid-cols-2 lg:p-8 '+(i%2?'lg:[&>div:first-child]:order-2':'')}>
-            <div className="overflow-hidden rounded-[24px] bg-white shadow-[0_18px_45px_rgba(15,23,42,.08)]"><img src={m.img} alt={m.name} className="aspect-[16/10] h-full w-full object-cover transition duration-700 hover:scale-[1.025]" onError={e=>{e.currentTarget.style.display='none'}}/></div>
-            <div className="px-2 py-3 lg:px-8">
-              <div className="text-xs font-black uppercase tracking-[.16em] text-[#22A53A]">{m.tag}</div>
-              <h3 className="mt-2 text-4xl font-black tracking-[-.04em]">{m.name}</h3>
-              <div className="mt-3 text-lg font-medium text-slate-400">{m.line}</div>
+      <section className="border-b border-slate-100 bg-[linear-gradient(180deg,#fbfefb_0%,#fff_100%)]">
+        <div className="mx-auto grid max-w-[1240px] items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[.82fr_1.18fr] lg:py-18">
+          <div className="max-w-xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-medium text-emerald-700"><Sparkles size={13}/>One POS for every business</div>
+            <h1 className="mt-5 text-[42px] font-semibold leading-[1.02] tracking-[-.045em] text-slate-950 sm:text-[56px] lg:text-[64px]">Sell simply.<br/><span className="text-[#22A53A]">Run everything.</span></h1>
+            <p className="mt-5 max-w-lg text-[16px] leading-7 text-slate-500">Sales, restaurant operations, stock, purchases, staff and reports in one clean workspace.</p>
+            <div className="mt-7 flex flex-wrap gap-2.5">
+              <button onClick={()=>navigate('/register')} className="inline-flex items-center gap-2 rounded-lg bg-[#22A53A] px-5 py-3 text-[14px] font-medium text-white">Start Free Trial <ArrowRight size={16}/></button>
+              <button onClick={()=>navigate('/login')} className="rounded-lg border border-slate-200 bg-white px-5 py-3 text-[14px] font-medium text-slate-700">Login</button>
             </div>
-          </div></Reveal>)}
+            <div className="mt-3 flex items-center gap-2 text-[12px] text-slate-400"><CheckCircle2 size={14} className="text-[#22A53A]"/>14 days free · No credit card</div>
+          </div>
+
+          <Reveal>
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white premium-shadow">
+              <img src="/brand/retail.webp" alt="MauzoPOS point of sale" className="aspect-[16/11] w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      <section id="features" className="border-y border-slate-100 bg-[#fafcf9]">
-        <div className="mx-auto grid max-w-[1320px] grid-cols-2 gap-3 px-5 py-9 sm:grid-cols-3 lg:grid-cols-6 lg:px-8">
-          <Feature icon={ShoppingCart} text="Fast Checkout"/><Feature icon={Boxes} text="Inventory"/><Feature icon={CreditCard} text="Payments"/><Feature icon={BarChart3} text="Reports"/><Feature icon={Store} text="Multi-branch"/><Feature icon={UsersRound} text="Staff Control"/>
+      <section id="modules" className="mx-auto max-w-[1240px] px-4 py-14 sm:px-6 lg:py-18">
+        <div className="max-w-xl">
+          <div className="text-[10px] font-medium uppercase tracking-[.16em] text-[#22A53A]">Solutions</div>
+          <h2 className="mt-2 text-[30px] font-semibold tracking-[-.035em] text-slate-950 sm:text-[36px]">Built around your business</h2>
+          <p className="mt-2 text-[14px] leading-6 text-slate-500">Activate only the modules you need.</p>
+        </div>
+
+        <div className="mt-9 space-y-6">
+          {modules.map((m,i)=><Reveal key={m.name}>
+            <article className="grid items-center overflow-hidden rounded-2xl border border-slate-200 bg-[#fbfcfc] lg:grid-cols-2">
+              <div className={i%2?'lg:order-2':''}><img src={m.img} alt={m.name} className="aspect-[16/10] w-full object-cover" loading="lazy" onError={e=>{e.currentTarget.style.display='none'}}/></div>
+              <div className={'p-6 sm:p-8 lg:p-10 '+(i%2?'lg:order-1':'')}>
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-50 text-[#22A53A]"><m.icon size={18}/></div>
+                <div className="mt-5 text-[10px] font-medium uppercase tracking-[.14em] text-[#22A53A]">{m.tag}</div>
+                <h3 className="mt-1 text-[28px] font-semibold tracking-[-.03em] text-slate-950">{m.name}</h3>
+                <p className="mt-2 text-[14px] leading-6 text-slate-500">{m.line}</p>
+              </div>
+            </article>
+          </Reveal>)}
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1320px] px-5 py-14 lg:px-8">
-        <div className="flex flex-col items-center justify-between gap-4 rounded-[28px] bg-[linear-gradient(120deg,#efffec,#fff)] p-7 text-center sm:flex-row sm:text-left lg:p-10">
-          <div><h3 className="text-2xl font-black">Ready?</h3><div className="mt-1 text-sm text-slate-400">14-day free trial · No card</div></div>
-          <div className="flex gap-3"><button onClick={()=>navigate('/register')} className="rounded-xl bg-[#22A53A] px-5 py-3 font-black text-white">Start Free Trial</button><button onClick={()=>navigate('/login')} className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-black">Login</button></div>
+      <section id="features" className="border-y border-slate-100 bg-[#f8faf9]">
+        <div className="mx-auto max-w-[1240px] px-4 py-12 sm:px-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Feature icon={ShoppingCart} text="Checkout"/>
+            <Feature icon={Boxes} text="Inventory"/>
+            <Feature icon={CreditCard} text="Payments"/>
+            <Feature icon={BarChart3} text="Reports"/>
+            <Feature icon={Store} text="Multi-branch"/>
+            <Feature icon={UsersRound} text="Staff"/>
+          </div>
         </div>
       </section>
+
+      <section className="mx-auto max-w-[1240px] px-4 py-14 sm:px-6">
+        <div className="flex flex-col items-start justify-between gap-5 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-6 sm:flex-row sm:items-center sm:p-8">
+          <div><h3 className="text-[24px] font-semibold tracking-[-.03em] text-slate-950">Ready to try MauzoPOS?</h3><p className="mt-1 text-[13px] text-slate-500">Create your workspace in minutes.</p></div>
+          <button onClick={()=>navigate('/register')} className="inline-flex items-center gap-2 rounded-lg bg-[#22A53A] px-5 py-3 text-[14px] font-medium text-white">Start Free Trial <ArrowRight size={16}/></button>
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-100 py-7">
+        <div className="mx-auto flex max-w-[1240px] flex-col gap-3 px-4 text-[12px] text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6"><MauzoLogo compact/><span>Sales · Operations · Reporting</span></div>
+      </footer>
     </main>
   </div>
 }
 
 function Reveal({children}:{children:any}){
   const ref=useRef<HTMLDivElement|null>(null)
-  useEffect(()=>{const el=ref.current;if(!el)return;const io=new IntersectionObserver(([entry])=>{if(entry.isIntersecting){el.classList.add('is-visible');io.unobserve(el)}},{threshold:.16});io.observe(el);return()=>io.disconnect()},[])
+  useEffect(()=>{const el=ref.current;if(!el)return;const io=new IntersectionObserver(([entry])=>{if(entry.isIntersecting){el.classList.add('is-visible');io.unobserve(el)}},{rootMargin:'0px 0px -8% 0px',threshold:.08});io.observe(el);return()=>io.disconnect()},[])
   return <div ref={ref} className="scroll-reveal">{children}</div>
 }
-function Feature({icon:Icon,text}:{icon:any;text:string}){return <div className="flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-sm font-bold shadow-sm"><Icon size={17} className="text-[#22A53A]"/>{text}</div>}
+function Feature({icon:Icon,text}:{icon:any;text:string}){return <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-[12px] font-medium text-slate-700"><div className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-[#22A53A]"><Icon size={15}/></div>{text}</div>}
