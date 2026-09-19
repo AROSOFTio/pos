@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Clock3, Printer, Search, ScanLine, Share2, ShoppingCart, SlidersHorizontal, UtensilsCrossed } from 'lucide-react'
+import { CheckCircle2, Clock3, Printer, ScanLine, Share2, ShoppingCart, SlidersHorizontal } from 'lucide-react'
 import { api, money, nice, printPdf, sharePdf } from '../api'
 import { Badge, Modal, PageHeading, Panel } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
@@ -132,7 +132,7 @@ export default function POS({currency}:{currency:string}){
   <div className="grid xl:grid-cols-[1fr_410px] gap-3">
     <Panel title="Menu" sub={shown.length+' items available'}>
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&query.trim())useScannedCode(query)}} placeholder="Search name, SKU or barcode" className="control mt-0 pl-9"/></div>
+        <div className="flex-1"><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&query.trim())useScannedCode(query)}} placeholder="Search products by name, SKU or barcode" className="control mt-0"/></div>
         <button onClick={()=>setScannerOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-semibold text-slate-700"><ScanLine size={15}/>Scan Item</button>
       </div>
       <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
@@ -140,7 +140,7 @@ export default function POS({currency}:{currency:string}){
         {scanMessage&&<div className="truncate text-[10px] font-medium text-slate-600">{scanMessage}</div>}
       </div>
       <div className="flex gap-2 overflow-x-auto pb-3">{cats.map(c=><button key={c} onClick={()=>setCategory(c)} className={'whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium '+(category===c?'bg-slate-900 text-white':'bg-slate-100 text-slate-600')}>{c}</button>)}</div>
-      <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">{shown.map(p=><button key={p.id} onClick={()=>add(p)} className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-[var(--brand-border)] hover:shadow-sm"><div className="h-28 bg-slate-50">{p.image_url?<img src={p.image_url} alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center"><UtensilsCrossed className="text-slate-300" size={26}/></div>}</div><div className="p-3"><div className="line-clamp-2 text-[13px] font-medium text-slate-800">{p.name}</div><div className="mt-0.5 text-[10px] text-slate-400">{p.category_name||'Other'}</div><div className="mt-2 text-[13px] font-semibold text-[var(--brand-primary)]">{money(p.resolved_price,currency)}</div></div></button>)}</div>
+      <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">{shown.map(p=><button key={p.id} onClick={()=>add(p)} className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-[var(--brand-border)] hover:shadow-sm"><div className="h-28 bg-slate-50">{p.image_url?<img src={p.image_url} alt={p.name} className="h-full w-full object-contain p-2.5"/>:<div className="grid h-full place-items-center text-[10px] font-medium text-slate-300">No image</div>}</div><div className="p-3"><div className="line-clamp-2 text-[13px] font-medium text-slate-800">{p.name}</div><div className="mt-0.5 text-[10px] text-slate-400">{p.category_name||'Other'}</div><div className="mt-2 text-[13px] font-semibold text-[var(--brand-primary)]">{money(p.resolved_price,currency)}</div></div></button>)}</div>
     </Panel>
 
     <Panel title="Current sale" sub={cart.reduce((n,x)=>n+x.qty,0)+' item(s)'} action={<button onClick={()=>setChargesOpen(true)} disabled={!cart.length} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium disabled:opacity-40"><SlidersHorizontal size={14}/>Charges</button>}>
