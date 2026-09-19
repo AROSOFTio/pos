@@ -1251,3 +1251,55 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_sessions_business_shift_no ON cash_ses
 
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_key TEXT NOT NULL DEFAULT 'green';
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_mode TEXT NOT NULL DEFAULT 'light';
+
+
+-- Automated master data and document numbering
+CREATE TABLE IF NOT EXISTS daily_document_sequences (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  document_type TEXT NOT NULL,
+  business_date DATE NOT NULL,
+  last_number INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (business_id, document_type, business_date)
+);
+
+CREATE TABLE IF NOT EXISTS product_categories (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (business_id, name)
+);
+INSERT INTO product_categories(business_id,name)
+SELECT DISTINCT business_id,coalesce(nullif(trim(category),''),'General') FROM products
+ON CONFLICT(business_id,name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS product_requests (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  requested_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  requested_by_name TEXT,
+  name TEXT,
+  scanned_code TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_by_name TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_show_business_name BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS product_code TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_product_code ON products(business_id,product_code) WHERE product_code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_barcode ON products(business_id,barcode) WHERE barcode IS NOT NULL AND barcode <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_products_business_sku ON products(business_id,sku) WHERE sku IS NOT NULL AND sku <> '';
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname='sales_receipt_no_key') THEN
+    ALTER TABLE sales DROP CONSTRAINT sales_receipt_no_key;
+  END IF;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_business_receipt_no ON sales(business_id,receipt_no);
