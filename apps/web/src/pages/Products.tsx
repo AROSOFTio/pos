@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, ImagePlus, Package, Pencil, Plus, Search, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ImagePlus, Package, Pencil, Plus, ScanLine, Search, X } from 'lucide-react'
 import { api, money } from '../api'
 import { PageHeading, Panel, DataTable, Loading, Modal, Badge } from '../components'
+import BarcodeScanner from '../components/BarcodeScanner'
 
 const blank={name:'',sku:'',barcode:'',category:'',cost:'',price:'',stock:'',reorderLevel:'',supplierIds:[] as number[]}
 
@@ -9,18 +10,19 @@ export default function Products({currency}:{currency:string}){
  const [rows,setRows]=useState<any[]|null>(null),[suppliers,setSuppliers]=useState<any[]>([]),[open,setOpen]=useState(false),[form,setForm]=useState(blank)
  const [image,setImage]=useState<File|null>(null),[preview,setPreview]=useState(''),[saving,setSaving]=useState(false),[query,setQuery]=useState('')
  const [error,setError]=useState(''),[success,setSuccess]=useState(''),[createdId,setCreatedId]=useState<number|null>(null),[editing,setEditing]=useState<any>(null)
- const load=()=>api('/products').then(setRows)
+ const [categories,setCategories]=useState<any[]>([]),[scannerOpen,setScannerOpen]=useState(false),[categoryOpen,setCategoryOpen]=useState(false),[newCategory,setNewCategory]=useState('')
+ const load=()=>Promise.all([api('/products'),api('/product-categories').catch(()=>[])]).then(([r,c])=>{setRows(Array.isArray(r)?r:[]);setCategories(Array.isArray(c)?c:[])})
  useEffect(()=>{load()},[])
  useEffect(()=>()=>{if(preview.startsWith('blob:'))URL.revokeObjectURL(preview)},[preview])
  const shown=useMemo(()=>rows?.filter(x=>!query.trim()||[x.name,x.sku,x.barcode,x.category].some(v=>String(v||'').toLowerCase().includes(query.toLowerCase())))||[],[rows,query])
 
  async function show(product?:any){
    setError('');setSuccess('');setCreatedId(null);setEditing(product||null)
-   try{const s=await api('/suppliers');setSuppliers(Array.isArray(s)?s:[])}catch{setSuppliers([])}
+   try{const [s,c]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(c)?c:[])}catch{setSuppliers([])}
    if(product){
      setForm({name:product.name||'',sku:product.sku||'',barcode:product.barcode||'',category:product.category||'',cost:product.cost!=null?String(product.cost):'',price:product.price!=null?String(product.price):'',stock:product.stock!=null?String(product.stock):'',reorderLevel:product.reorder_level!=null?String(product.reorder_level):'',supplierIds:(product.suppliers||[]).map((x:any)=>Number(x.id))})
      setPreview(product.image_url||'')
-   }else{setForm(blank);setPreview('')}
+   }else{setForm({...blank,category:String(categories[0]?.name||'General')});setPreview('')}
    setImage(null);setOpen(true)
  }
  function close(){if(saving)return;setOpen(false);setError('');setSuccess('');setCreatedId(null);setEditing(null)}
@@ -48,9 +50,9 @@ export default function Products({currency}:{currency:string}){
    try{
      let id=editing?.id?Number(editing.id):createdId
      if(editing?.id){
-       await api('/products/'+editing.id,{method:'PUT',body:JSON.stringify({name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
+       await api('/products/'+editing.id,{method:'PUT',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
      }else if(!id){
-       const p=await api('/products',{method:'POST',body:JSON.stringify({...form,name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0)})})
+       const p=await api('/products',{method:'POST',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
        id=Number(p.id);setCreatedId(id)
      }
      if(image&&id)await uploadProductImage(id,image)
@@ -100,9 +102,9 @@ export default function Products({currency}:{currency:string}){
 
       <div className="grid gap-x-4 gap-y-4 md:grid-cols-2">
         <Field label="Product name" required><input className="control" autoFocus value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Chicken Burger"/></Field>
-        <Field label="Category"><input className="control" value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="e.g. Burgers, Drinks, General"/></Field>
-        <Field label="SKU"><input className="control" value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})} placeholder="Optional"/></Field>
-        <Field label="Barcode"><input className="control" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Optional"/></Field>
+        <Field label="Category"><div className="flex gap-2"><select className="control mt-0 flex-1" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}><option value="">Choose category</option>{categories.map(x=><option key={x.id} value={x.name}>{x.name}</option>)}</select><button type="button" onClick={()=>setCategoryOpen(true)} className="rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600">+ Category</button></div></Field>
+        <Field label="Product code / SKU"><input className="control" value={editing?(form.sku||editing.product_code||''):'Generated automatically after save'} disabled/></Field>
+        <Field label="Barcode / QR code"><div className="flex gap-2"><input className="control mt-0 flex-1" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Scan or enter barcode"/><button type="button" onClick={()=>setScannerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600"><ScanLine size={14}/>Scan</button></div></Field>
         <Field label={'Cost ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.cost} onChange={e=>setForm({...form,cost:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter cost"/></Field>
         <Field label={'Selling price ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.price} onChange={e=>setForm({...form,price:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter selling price"/></Field>
         <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter opening quantity"/>{editing&&<span className="mt-1 block text-[9.5px] font-normal text-slate-400">Adjust stock from Inventory to keep the movement ledger correct.</span>}</Field>
@@ -120,6 +122,13 @@ export default function Products({currency}:{currency:string}){
         <button onClick={save} disabled={saving||!form.name.trim()} className="w-full min-w-36 rounded-lg bg-[#22A53A] px-5 py-3 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[#1d9132] disabled:opacity-40 sm:w-auto">{saving?(editing?'Updating product…':'Saving product…'):(editing?'Update Product':'Save Product')}</button>
       </div>
     </div>
+  </Modal>}
+
+  <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={code=>setForm({...form,barcode:code})} title="Scan product barcode / QR"/>
+
+  {categoryOpen&&<Modal title="Add Product Category" onClose={()=>setCategoryOpen(false)} size="sm">
+    <Field label="Category name" required><input className="control" autoFocus value={newCategory} onChange={e=>setNewCategory(e.target.value)} placeholder="e.g. Drinks"/></Field>
+    <button onClick={async()=>{const name=newCategory.trim();if(!name)return;try{const out=await api('/product-categories',{method:'POST',body:JSON.stringify({name})});setCategories(v=>[...v.filter(x=>x.name!==out.name),out].sort((a,b)=>a.name.localeCompare(b.name)));setForm({...form,category:out.name});setNewCategory('');setCategoryOpen(false)}catch(e:any){setError(e.message)}}} disabled={!newCategory.trim()} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">Save Category</button>
   </Modal>}
  </div>
 }
