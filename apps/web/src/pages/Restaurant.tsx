@@ -1,47 +1,74 @@
-import { useEffect, useState } from 'react'
-import { Plus, Store, Users, UtensilsCrossed, XCircle } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { CircleCheckBig, CircleDot, Clock3, Sparkles, Table2, UtensilsCrossed } from 'lucide-react'
 import { api, money } from '../api'
-import { PageHeading, Stat, Panel, DataTable, Badge, Loading, Modal } from '../components'
+import { PageHeading, Stat, Panel, Badge, Loading } from '../components'
+
+type TableFilter='all'|'vacant'|'reserved'|'occupied'|'dirty'|'clean'
 
 export default function Restaurant({currency}:{currency:string}){
- const [o,setO]=useState<any>(null),[tables,setTables]=useState<any[]>([]),[menu,setMenu]=useState<any[]>([]),[areas,setAreas]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([])
- const [tableOpen,setTableOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[error,setError]=useState('')
- const [table,setTable]=useState({branchId:0,areaId:0,name:'',code:'',capacity:2}),[area,setArea]=useState({branchId:0,name:''})
- const load=()=>Promise.all([api('/restaurant/overview'),api('/restaurant/tables'),api('/menu/items'),api('/restaurant/areas'),api('/branches')]).then(([ov,t,m,a,b])=>{setO(ov);setTables(t);setMenu(m);setAreas(a);setBranches(b)})
- useEffect(()=>{load()},[])
- async function createArea(){setError('');try{if(!area.branchId||!area.name.trim())throw new Error('Choose a branch and enter an area/floor name.');await api('/restaurant/areas',{method:'POST',body:JSON.stringify(area)});setAreaOpen(false);setArea({branchId:0,name:''});await load()}catch(e:any){setError(e.message)}}
- async function createTable(){setError('');try{if(!table.branchId||!table.name.trim())throw new Error('Choose a branch and enter a table name.');await api('/restaurant/tables',{method:'POST',body:JSON.stringify({...table,areaId:table.areaId||null})});setTableOpen(false);setTable({branchId:0,areaId:0,name:'',code:'',capacity:2});await load()}catch(e:any){setError(e.message)}}
- if(!o)return <Loading/>
+ const [overview,setOverview]=useState<any>(null),[tables,setTables]=useState<any[]>([]),[menu,setMenu]=useState<any[]>([]),[categories,setCategories]=useState<any[]>([]),[orders,setOrders]=useState<any[]>([])
+ const [categoryId,setCategoryId]=useState<number>(0),[tableFilter,setTableFilter]=useState<TableFilter>('all'),[busyTable,setBusyTable]=useState<number|null>(null)
+ const load=()=>Promise.all([
+   api('/restaurant/overview'),
+   api('/restaurant/tables'),
+   api('/menu/available?orderType=dine_in'),
+   api('/menu/categories'),
+   api('/restaurant/orders?status=active').catch(()=>[])
+ ]).then(([o,t,m,c,r])=>{setOverview(o);setTables(t);setMenu(m);setCategories(c);setOrders(r)})
+ useEffect(()=>{load();const id=setInterval(load,15000);return()=>clearInterval(id)},[])
+ const orderByTable=useMemo(()=>new Map(orders.filter(x=>x.table_id).map(x=>[Number(x.table_id),x])),[orders])
+ const visibleMenu=useMemo(()=>categoryId?menu.filter(x=>Number(x.category_id)===categoryId):menu,[menu,categoryId])
+ const visibleTables=useMemo(()=>tables.filter(t=>{
+   if(tableFilter==='all')return true
+   if(tableFilter==='vacant')return t.status==='available'
+   if(tableFilter==='dirty'||tableFilter==='clean')return (t.cleanliness_status||'clean')===tableFilter
+   return t.status===tableFilter
+ }),[tables,tableFilter])
+
+ async function setCleanliness(t:any,value:'clean'|'dirty'){
+   setBusyTable(Number(t.id))
+   try{await api('/restaurant/tables/'+t.id+'/state',{method:'PUT',body:JSON.stringify({cleanlinessStatus:value})});await load()}finally{setBusyTable(null)}
+ }
+
+ if(!overview)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Restaurant setup" title="Floor, Tables & Menu" sub="Configure restaurant areas and tables here, then use them when opening dine-in orders." action={<div className="flex gap-2"><button onClick={()=>{setError('');setArea({...area,branchId:Number(branches[0]?.id||0)});setAreaOpen(true)}} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium"><Plus size={14} className="mr-1 inline"/>Area</button><button onClick={()=>{setError('');setTable({...table,branchId:Number(branches[0]?.id||0)});setTableOpen(true)}} className="rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-medium text-white"><Plus size={14} className="mr-1 inline"/>Table</button></div>}/>
-  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Tables" value={o.tables} sub="Configured tables" icon={Store}/><Stat label="Occupied" value={o.occupied} sub="In service" icon={Users} tone="amber"/><Stat label="Available menu" value={o.availableMenu} sub="Can be ordered" icon={UtensilsCrossed}/><Stat label="Sold out" value={o.soldOut} sub="Hidden from POS" icon={XCircle} tone="rose"/></div>
-  <div className="mt-3 grid gap-3 xl:grid-cols-[1.05fr_.95fr]">
-   <Panel title="Floor status" sub={areas.length+' areas · '+tables.length+' tables'}>
-    {tables.length?<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{tables.map(t=><div key={t.id} className={'rounded-xl border p-3 '+(t.status==='occupied'?'border-red-100 bg-red-50':t.status==='reserved'?'border-amber-100 bg-amber-50':'border-emerald-100 bg-emerald-50')}><div className="flex items-start justify-between gap-2"><div><b className="text-[13px]">{t.name}</b><div className="mt-0.5 text-[10px] text-slate-500">{t.area_name||'Main Floor'}</div></div><Badge tone={t.status==='occupied'?'red':t.status==='reserved'?'amber':'green'}>{t.status}</Badge></div><div className="mt-2 text-[10px] text-slate-500">{t.capacity} seats · {t.branch_name}</div></div>)}</div>:<div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-[12px] text-slate-400">No tables yet. Add an area and table to start dine-in service.</div>}
-   </Panel>
-   <Panel title="Menu control"><DataTable head={['Item','Category','Station','Price','Status']} rows={menu.slice(0,15).map(x=>[<b>{x.product_name}</b>,x.category_name||'Other',x.station_name||'-',money(x.base_price,currency),x.sold_out?<Badge tone="red">Sold out</Badge>:<Badge tone="green">Available</Badge>])}/></Panel>
+  <PageHeading eyebrow="Restaurant service" title="Restaurant Dashboard" sub="Live menu and floor view for the active shift. Restaurant setup and pricing are managed under Settings."/>
+
+  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+   <button onClick={()=>setTableFilter('vacant')} className="text-left"><Stat label="Vacant" value={overview.vacant||0} sub="Ready for guests" icon={Table2}/></button>
+   <button onClick={()=>setTableFilter('reserved')} className="text-left"><Stat label="Reserved" value={overview.reserved||0} sub="Upcoming guests" icon={Clock3} tone="amber"/></button>
+   <button onClick={()=>setTableFilter('occupied')} className="text-left"><Stat label="Occupied" value={overview.occupied||0} sub="Currently serving" icon={UtensilsCrossed} tone="blue"/></button>
+   <button onClick={()=>setTableFilter('dirty')} className="text-left"><Stat label="Dirty" value={overview.dirty||0} sub="Needs cleaning" icon={Sparkles} tone="rose"/></button>
+   <button onClick={()=>setTableFilter('clean')} className="text-left"><Stat label="Clean" value={overview.clean||0} sub="Clean tables" icon={CircleCheckBig} tone="emerald"/></button>
+   <div><Stat label="Menu Items" value={overview.availableMenu||0} sub={(overview.categories||0)+' categories'} icon={CircleDot} tone="violet"/></div>
   </div>
 
-  {areaOpen&&<Modal title="Add Restaurant Area / Floor" onClose={()=>setAreaOpen(false)}>
-   <div className="grid gap-3">
-    <Field label="Branch"><select className="control" value={area.branchId} onChange={e=>setArea({...area,branchId:Number(e.target.value)})}><option value="0">Choose branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-    <Field label="Area / floor name"><input className="control" value={area.name} onChange={e=>setArea({...area,name:e.target.value})} placeholder="Main Floor, Terrace, VIP…"/></Field>
-    {error&&<div className="rounded-lg bg-red-50 p-3 text-[12px] text-red-700">{error}</div>}
-    <button onClick={createArea} className="rounded-lg bg-[#22A53A] py-3 text-[13px] font-semibold text-white">Save Area</button>
-   </div>
-  </Modal>}
+  <div className="mt-3 grid gap-3 xl:grid-cols-[1.05fr_.95fr]">
+   <Panel title="Live floor" sub={visibleTables.length+' shown · '+tables.length+' total'} action={<button onClick={()=>setTableFilter('all')} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-medium text-slate-500">Show all</button>}>
+    <div className="mb-3 flex flex-wrap gap-1.5">
+      {(['all','vacant','reserved','occupied','dirty','clean'] as TableFilter[]).map(f=><button key={f} onClick={()=>setTableFilter(f)} className={'rounded-full px-3 py-1.5 text-[10px] font-medium capitalize '+(tableFilter===f?'bg-slate-950 text-white':'bg-slate-100 text-slate-600')}>{f}</button>)}
+    </div>
+    {visibleTables.length?<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">{visibleTables.map(t=>{
+      const order=orderByTable.get(Number(t.id)),clean=(t.cleanliness_status||'clean')==='clean'
+      const occupancy=t.status==='available'?'Vacant':t.status==='reserved'?'Reserved':'Occupied'
+      return <div key={t.id} className={'rounded-xl border p-3 '+(t.status==='occupied'?'border-blue-200 bg-blue-50/60':t.status==='reserved'?'border-amber-200 bg-amber-50/60':clean?'border-emerald-200 bg-emerald-50/50':'border-red-200 bg-red-50/60')}>
+       <div className="flex items-start justify-between gap-2"><div><div className="text-[13px] font-semibold text-slate-800">{t.name}</div><div className="mt-0.5 text-[9.5px] text-slate-400">{t.area_name||'Main Floor'} · {t.capacity} seats</div></div><Badge tone={t.status==='occupied'?'blue':t.status==='reserved'?'amber':'green'}>{occupancy}</Badge></div>
+       <div className="mt-2 flex items-center justify-between gap-2"><Badge tone={clean?'green':'red'}>{clean?'Clean':'Dirty'}</Badge>{order&&<span className="truncate text-[9px] font-medium text-slate-500">{order.order_no}</span>}</div>
+       {t.status==='available'&&<button disabled={busyTable===Number(t.id)} onClick={()=>setCleanliness(t,clean?'dirty':'clean')} className={'mt-2 w-full rounded-lg border px-2 py-1.5 text-[9.5px] font-medium '+(clean?'border-slate-200 bg-white text-slate-500':'border-emerald-200 bg-white text-emerald-700')}>{busyTable===Number(t.id)?'Updating…':clean?'Mark Dirty':'Mark Clean'}</button>}
+      </div>
+    })}</div>:<div className="rounded-xl border border-dashed border-slate-200 p-7 text-center text-[12px] text-slate-400">No tables match this status.</div>}
+   </Panel>
 
-  {tableOpen&&<Modal title="Add Table" onClose={()=>setTableOpen(false)}>
-   <div className="grid gap-3 sm:grid-cols-2">
-    <Field label="Branch"><select className="control" value={table.branchId} onChange={e=>setTable({...table,branchId:Number(e.target.value),areaId:0})}><option value="0">Choose branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-    <Field label="Area / floor"><select className="control" value={table.areaId} onChange={e=>setTable({...table,areaId:Number(e.target.value)})}><option value="0">No area</option>{areas.filter(a=>Number(a.branch_id)===Number(table.branchId)).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-    <Field label="Table name"><input className="control" value={table.name} onChange={e=>setTable({...table,name:e.target.value})} placeholder="Table 1"/></Field>
-    <Field label="Code"><input className="control" value={table.code} onChange={e=>setTable({...table,code:e.target.value})} placeholder="T1"/></Field>
-    <Field label="Seats"><input className="control" type="number" min="1" value={table.capacity} onChange={e=>setTable({...table,capacity:Math.max(1,Number(e.target.value))})}/></Field>
-   </div>
-   {error&&<div className="mt-3 rounded-lg bg-red-50 p-3 text-[12px] text-red-700">{error}</div>}
-   <button onClick={createTable} className="mt-4 w-full rounded-lg bg-[#22A53A] py-3 text-[13px] font-semibold text-white">Save Table</button>
-  </Modal>}
+   <Panel title="Menu" sub={visibleMenu.length+' available items'}>
+    <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+      <button onClick={()=>setCategoryId(0)} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-medium '+(!categoryId?'bg-[#22A53A] text-white':'bg-slate-100 text-slate-600')}>All</button>
+      {categories.map(c=><button key={c.id} onClick={()=>setCategoryId(Number(c.id))} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-medium '+(categoryId===Number(c.id)?'bg-[#22A53A] text-white':'bg-slate-100 text-slate-600')}>{c.name}</button>)}
+    </div>
+    {visibleMenu.length?<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">{visibleMenu.map(item=><div key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="h-20 bg-slate-50">{item.image_url?<img src={item.image_url} alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center"><UtensilsCrossed size={20} className="text-slate-300"/></div>}</div>
+      <div className="p-2.5"><div className="truncate text-[11.5px] font-semibold text-slate-800">{item.name}</div><div className="mt-0.5 truncate text-[9px] text-slate-400">{item.category_name||'Other'}</div><div className="mt-1.5 text-[11px] font-semibold text-[#169B36]">{money(item.resolved_price,currency)}</div></div>
+    </div>)}</div>:<div className="rounded-xl bg-slate-50 p-6 text-center text-[11px] text-slate-400">No available menu items in this category.</div>}
+   </Panel>
+  </div>
  </div>
 }
-function Field({label,children}:{label:string;children:any}){return <label className="text-[12px] font-medium text-slate-600">{label}{children}</label>}
