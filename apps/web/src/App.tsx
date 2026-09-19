@@ -38,6 +38,7 @@ export default function App(){
   const [business,setBusiness]=useState('Your Business')
   const [enabled,setEnabled]=useState<Set<string>>(new Set())
   const [businessRole,setBusinessRole]=useState('')
+  const [businessRoles,setBusinessRoles]=useState<string[]>([])
   const [permissions,setPermissions]=useState<Set<string>>(new Set())
   const [path,setPath]=useState(window.location.pathname)
   const [workspace,setWorkspace]=useState<'management'|'operations'>('management')
@@ -49,7 +50,7 @@ export default function App(){
     Promise.all([api('/dashboard'),api('/modules'),api('/me/access')]).then(([d,m,a]:any[])=>{
       setCurrency(d.business?.currency||'UGX');setBusiness(d.business?.name||'Your Business')
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
-      setBusinessRole(a.businessRole||user.role);setPermissions(new Set(a.permissions||[]))
+      setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
     }).catch(()=>{})
   },[user])
   useEffect(()=>{
@@ -79,20 +80,21 @@ export default function App(){
   </div>
 
   const go=(v:ViewKey)=>{setView(v);setSidebar(false)}
-  const elevated=['owner','administrator','admin'].includes(businessRole)
+  const hasRole=(...roles:string[])=>businessRoles.some(r=>roles.includes(r))||roles.includes(businessRole)
+  const elevated=hasRole('owner','administrator','admin')
   const can=(p:string)=>elevated||permissions.has(p)
   const hasRestaurant=enabled.has('restaurant')
   const operationRoles=['cashier','waiter','kitchen','bar']
   const managerRoles=['branch_manager','restaurant_manager']
-  const isOpsOnly=operationRoles.includes(businessRole)
+  const isOpsOnly=businessRoles.length>0&&businessRoles.every(r=>operationRoles.includes(r))
 
   const managementRows=(administration.filter(([name])=>{
     if(name==='Purchasing'&&!enabled.has('purchasing'))return false
-    if(name==='Approvals')return elevated||managerRoles.includes(businessRole)
+    if(name==='Approvals')return elevated||businessRoles.some(r=>managerRoles.includes(r))
     if(name==='Reports')return can('reports.profit')
     if(name==='Staff')return can('staff.manage')
     if(name==='Branches'||name==='Settings')return can('settings.manage')
-    return elevated||['branch_manager','restaurant_manager','storekeeper','accountant','auditor'].includes(businessRole)
+    return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','storekeeper','accountant','auditor'].includes(r))
   }) as any)
 
   const operationRows=[
@@ -104,13 +106,13 @@ export default function App(){
   ] as any
 
   const allowedOps=operationRows.filter(([name]:any)=>{
-    if(name==='POS')return elevated||['branch_manager','restaurant_manager','cashier'].includes(businessRole)
-    if(name==='Orders')return elevated||['branch_manager','restaurant_manager','cashier','waiter'].includes(businessRole)
-    if(name==='Kitchen')return elevated||['restaurant_manager','kitchen','bar'].includes(businessRole)
-    if(name==='Restaurant')return elevated||['branch_manager','restaurant_manager','waiter'].includes(businessRole)
-    if(name==='Sales')return elevated||['branch_manager','restaurant_manager','cashier','accountant','auditor'].includes(businessRole)
-    if(name==='Customers')return elevated||['branch_manager','restaurant_manager','cashier','waiter','accountant'].includes(businessRole)
-    if(name==='Shifts')return elevated||['branch_manager','cashier','accountant'].includes(businessRole)
+    if(name==='POS')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier'].includes(r))
+    if(name==='Orders')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier','waiter'].includes(r))
+    if(name==='Kitchen')return elevated||businessRoles.some(r=>['restaurant_manager','kitchen','bar'].includes(r))
+    if(name==='Restaurant')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','waiter'].includes(r))
+    if(name==='Sales')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier','accountant','auditor'].includes(r))
+    if(name==='Customers')return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','cashier','waiter','accountant'].includes(r))
+    if(name==='Shifts')return elevated||businessRoles.some(r=>['branch_manager','cashier','accountant'].includes(r))
     return false
   })
 
@@ -146,7 +148,7 @@ export default function App(){
           <div className="ml-auto flex items-center gap-2">
             {!isOpsOnly&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
             <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
-            <div className="hidden items-center gap-2 sm:flex"><div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500"><UserRound size={14}/></div><div className="leading-tight"><div className="max-w-32 truncate text-[11px] font-medium">{user.name}</div><div className="text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div></div>
+            <div className="hidden items-center gap-2 sm:flex"><div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500"><UserRound size={14}/></div><div className="leading-tight"><div className="max-w-32 truncate text-[11px] font-medium">{user.name}</div><div className="max-w-44 truncate text-[9px] text-slate-400">{(businessRoles.length?businessRoles:[businessRole||user.role]).map(nice).join(' · ')}</div></div></div>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
           </div>
         </div>
