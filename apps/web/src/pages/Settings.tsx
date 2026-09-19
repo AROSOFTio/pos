@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { PageHeading, Panel, Loading } from '../components'
+import { PageHeading, Panel, Loading, DataTable, Badge } from '../components'
 
 export default function Settings(){
- const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false),[profiles,setProfiles]=useState<any[]>([]),[profileName,setProfileName]=useState('Customer Receipt'),[profileType,setProfileType]=useState('receipt'),[paperSize,setPaperSize]=useState('80mm')
+ const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false),[profiles,setProfiles]=useState<any[]>([]),[profileName,setProfileName]=useState('Customer Receipt'),[profileType,setProfileType]=useState('receipt'),[paperSize,setPaperSize]=useState('80mm'),[printerName,setPrinterName]=useState(''),[stationId,setStationId]=useState<number|''>(''),[stations,setStations]=useState<any[]>([]),[printLogs,setPrintLogs]=useState<any[]>([])
  const [currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState(''),[passwordMessage,setPasswordMessage]=useState(''),[passwordBusy,setPasswordBusy]=useState(false)
- useEffect(()=>{Promise.all([api('/document-settings'),api('/print/profiles')]).then(([x,p])=>{setS(x);setProfiles(p)})},[])
+ useEffect(()=>{Promise.all([api('/document-settings'),api('/print/profiles'),api('/kitchen/stations').catch(()=>[]),api('/print/logs').catch(()=>[])]).then(([x,p,ks,logs])=>{setS(x);setProfiles(p);setStations(ks);setPrintLogs(logs)})},[])
  async function save(){
    setSaving(true);setSaved(false)
    try{
@@ -51,8 +51,12 @@ export default function Settings(){
    </div>
 
    <Panel title="Printing" sub="Receipt, kitchen and document printer profiles.">
-     <div className="grid gap-3 sm:grid-cols-4"><Field label="Profile name"><input className="control" value={profileName} onChange={e=>setProfileName(e.target.value)}/></Field><Field label="Document"><select className="control" value={profileType} onChange={e=>setProfileType(e.target.value)}><option value="receipt">Receipt</option><option value="kot">Kitchen Ticket</option><option value="invoice">Invoice</option><option value="z_report">Z Report</option></select></Field><Field label="Paper"><select className="control" value={paperSize} onChange={e=>setPaperSize(e.target.value)}><option>58mm</option><option>80mm</option><option>A5</option><option>A4</option></select></Field><button onClick={async()=>{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize})});setProfiles(await api('/print/profiles'))}} className="mt-6 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Add Profile</button></div>
-     <div className="mt-4 flex flex-wrap gap-2">{profiles.map(p=><span key={p.id} className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{p.name} · {p.paper_size}</span>)}</div>
+     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><Field label="Profile name"><input className="control" value={profileName} onChange={e=>setProfileName(e.target.value)}/></Field><Field label="Document"><select className="control" value={profileType} onChange={e=>setProfileType(e.target.value)}><option value="receipt">Receipt</option><option value="kot">Kitchen Ticket</option><option value="invoice">Invoice</option><option value="z_report">Z Report</option></select></Field><Field label="Paper"><select className="control" value={paperSize} onChange={e=>setPaperSize(e.target.value)}><option>58mm</option><option>80mm</option><option>A5</option><option>A4</option></select></Field><Field label="Printer name"><input className="control" value={printerName} onChange={e=>setPrinterName(e.target.value)} placeholder="Optional"/></Field><Field label="Kitchen station"><select className="control" value={stationId} onChange={e=>setStationId(Number(e.target.value)||'')}><option value="">Any / none</option>{stations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field><button onClick={async()=>{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(await api('/print/profiles'))}} className="mt-6 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Add Profile</button></div>
+     <div className="mt-4"><DataTable head={['Profile','Document','Paper','Printer','Station','Status']} rows={profiles.map(p=>[p.name,p.document_type,p.paper_size,p.printer_name||'Browser / PDF',p.station_name||'-',<Badge tone={p.active?'green':'red'}>{p.active?'Active':'Inactive'}</Badge>])}/></div>
+   </Panel>
+
+   <Panel title="Print / Reprint Audit" sub="Every generated customer receipt, refund, KOT and Z-report is recorded.">
+     <DataTable head={['When','Document','Reference','Paper','By','Type']} rows={printLogs.slice(0,80).map(x=>[new Date(x.created_at).toLocaleString(),x.document_type,x.document_no||x.entity_type+' #'+x.entity_id,x.paper_size||'-',x.printed_by||'-',<Badge tone={x.reprint?'amber':'green'}>{x.reprint?'Reprint':'First print'}</Badge>])}/>
    </Panel>
 
    <Panel title="Account Security" sub="Change your MauzoPOS login password without leaving the workspace.">
