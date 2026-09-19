@@ -118,9 +118,9 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
   async function submit(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError('')
     try{
-      const fd=new FormData(e.currentTarget)
-      const email=String(fd.get('email')||'').trim()
-      const password=String(fd.get('password')||'')
+      const form=e.currentTarget
+      const email=String((form.elements.namedItem('email') as HTMLInputElement|null)?.value||'').trim()
+      const password=String((form.elements.namedItem('password') as HTMLInputElement|null)?.value||'')
       if(!email||!password)throw new Error('Enter email and password')
       const j=await api('/login',{method:'POST',body:JSON.stringify({email,password})})
       localStorage.setItem('pos_token',j.token);onLogin(j.user)
