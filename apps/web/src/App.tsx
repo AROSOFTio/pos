@@ -47,10 +47,11 @@ export default function App(){
   useEffect(()=>{const token=localStorage.getItem('pos_token');if(!token){setLoading(false);return}api('/me').then(setUser).catch(()=>localStorage.removeItem('pos_token')).finally(()=>setLoading(false))},[])
   useEffect(()=>{
     if(!user||user.role==='saas_admin')return
-    Promise.all([api('/dashboard'),api('/modules'),api('/me/access')]).then(([d,m,a]:any[])=>{
+    Promise.all([api('/dashboard'),api('/modules'),api('/me/access'),api('/document-settings').catch(()=>({}))]).then(([d,m,a,theme]:any[])=>{
       setCurrency(d.business?.currency||'UGX');setBusiness(d.business?.name||'Your Business')
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
       setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
+      const accent=String(theme?.document_accent||'#22A53A');document.documentElement.style.setProperty('--brand-primary',accent);document.documentElement.style.setProperty('--brand-primary-soft',accent+'14')
     }).catch(()=>{})
   },[user])
   useEffect(()=>{
