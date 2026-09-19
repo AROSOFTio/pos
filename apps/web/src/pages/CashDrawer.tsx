@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Banknote, Clock3, LockKeyhole, Plus, Printer, RefreshCw, UnlockKeyhole, ArrowDownLeft, ArrowUpRight, CircleCheckBig } from 'lucide-react'
+import { Banknote, LockKeyhole, Plus, Printer, RefreshCw, UnlockKeyhole, ArrowDownLeft, ArrowUpRight, CircleCheckBig } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
 import { PageHeading, Panel, Stat, Loading, Modal, DataTable, Badge } from '../components'
 
