@@ -61,7 +61,7 @@ export default function Settings(){
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
        receiptHeaderNote:s.receipt_header_note,receiptShowLogo:s.receipt_show_logo!==false
      })})
-     setS(next);setMessage('Settings saved successfully.')
+     setS(next);if(next?.document_accent)document.documentElement.style.setProperty('--brand-primary',next.document_accent);setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
  }
 
