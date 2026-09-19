@@ -6,11 +6,20 @@ import { MauzoLogo } from './Brand'
 const currencyByCountry:Record<string,string>={Uganda:'UGX',Kenya:'KES',Ghana:'GHS',Nigeria:'NGN',Rwanda:'RWF'}
 
 export default function Register({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
-  const [name,setName]=useState(''),[email,setEmail]=useState(''),[businessName,setBusinessName]=useState(''),[country,setCountry]=useState('Uganda'),[password,setPassword]=useState(''),[show,setShow]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  async function submit(e:React.FormEvent){
+  const [name,setName]=useState(''),[email,setEmail]=useState(''),[businessName,setBusinessName]=useState(''),[country,setCountry]=useState('Uganda'),[businessType,setBusinessType]=useState('restaurant'),[password,setPassword]=useState(''),[show,setShow]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  async function submit(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError('')
     try{
-      const j=await api('/register',{method:'POST',body:JSON.stringify({name,email,password,businessName,country,currency:currencyByCountry[country]||'UGX'})})
+      const fd=new FormData(e.currentTarget)
+      const payload={
+        name:String(fd.get('name')||name).trim(),
+        email:String(fd.get('email')||email).trim(),
+        businessName:String(fd.get('businessName')||businessName).trim(),
+        country:String(fd.get('country')||country),
+        businessType:String(fd.get('businessType')||businessType),
+        password:String(fd.get('password')||password),
+      }
+      const j=await api('/register',{method:'POST',body:JSON.stringify({...payload,currency:currencyByCountry[payload.country]||'UGX'})})
       localStorage.setItem('pos_token',j.token);history.replaceState({},'', '/app');onLogin(j.user)
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
@@ -33,13 +42,14 @@ export default function Register({onLogin,navigate}:{onLogin:(u:User)=>void;navi
         <h2 className="mt-2 text-4xl font-black tracking-[-.04em]">Create your MauzoPOS workspace</h2>
         <p className="mt-2 text-sm text-slate-500">No credit card required.</p>
         <div className="mt-7 grid gap-4 sm:grid-cols-2">
-          <Field label="Your name" icon={UserRound}><input value={name} onChange={e=>setName(e.target.value)} className="flex-1 outline-none" placeholder="Full name"/></Field>
-          <Field label="Email address" icon={Mail}><input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="flex-1 outline-none" placeholder="you@example.com"/></Field>
-          <Field label="Business name" icon={Store}><input value={businessName} onChange={e=>setBusinessName(e.target.value)} className="flex-1 outline-none" placeholder="Business / restaurant"/></Field>
-          <label className="text-sm font-bold text-slate-700">Country<select value={country} onChange={e=>setCountry(e.target.value)} className="control"><option>Uganda</option><option>Kenya</option><option>Ghana</option><option>Nigeria</option><option>Rwanda</option></select></label>
+          <Field label="Your name" icon={UserRound}><input name="name" autoComplete="name" value={name} onChange={e=>setName(e.target.value)} className="flex-1 outline-none" placeholder="Full name"/></Field>
+          <Field label="Email address" icon={Mail}><input name="email" autoComplete="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} className="flex-1 outline-none" placeholder="you@example.com"/></Field>
+          <Field label="Business name" icon={Store}><input name="businessName" autoComplete="organization" value={businessName} onChange={e=>setBusinessName(e.target.value)} className="flex-1 outline-none" placeholder="Business / restaurant"/></Field>
+          <label className="text-sm font-bold text-slate-700">Country<select name="country" value={country} onChange={e=>setCountry(e.target.value)} className="control"><option>Uganda</option><option>Kenya</option><option>Ghana</option><option>Nigeria</option><option>Rwanda</option></select></label>
+          <label className="text-sm font-bold text-slate-700 sm:col-span-2">Business type<select name="businessType" value={businessType} onChange={e=>setBusinessType(e.target.value)} className="control"><option value="restaurant">Restaurant / Cafe / Bar</option><option value="retail">Supermarket / Retail</option><option value="pharmacy">Pharmacy</option><option value="factory">Industrial / Factory</option><option value="general">General / Mixed Business</option></select></label>
         </div>
         <label className="mt-4 block text-sm font-bold text-slate-700">Password
-          <div className="mt-2 flex h-13 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100"><LockKeyhole size={18} className="text-slate-400"/><input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className="flex-1 outline-none" placeholder="Minimum 10 characters"/><button type="button" onClick={()=>setShow(v=>!v)}>{show?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
+          <div className="mt-2 flex h-13 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100"><LockKeyhole size={18} className="text-slate-400"/><input name="password" autoComplete="new-password" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className="flex-1 outline-none" placeholder="Minimum 10 characters"/><button type="button" onClick={()=>setShow(v=>!v)}>{show?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
         </label>
         {error&&<div className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
         <button disabled={busy||!name.trim()||!email.trim()||!businessName.trim()||password.length<10} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white disabled:opacity-40">{busy?'Creating workspace…':'Start Free Trial'} {!busy&&<ArrowRight size={18}/>}</button>
