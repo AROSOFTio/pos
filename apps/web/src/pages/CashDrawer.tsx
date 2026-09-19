@@ -1,17 +1,40 @@
 import { useEffect, useState } from 'react'
-import { Banknote, LockKeyhole, UnlockKeyhole } from 'lucide-react'
-import { api, money } from '../api'
-import { PageHeading, Panel, Stat, Loading, Modal } from '../components'
+import { Banknote, LockKeyhole, Plus, Printer, UnlockKeyhole } from 'lucide-react'
+import { api, money, nice, openPdf } from '../api'
+import { PageHeading, Panel, Stat, Loading, Modal, DataTable, Badge } from '../components'
+
 export default function CashDrawer({currency}:{currency:string}){
- const [session,setSession]=useState<any>(undefined),[openModal,setOpenModal]=useState(false),[closeModal,setCloseModal]=useState(false),[opening,setOpening]=useState(0),[actual,setActual]=useState(0)
- const load=()=>api('/cash/current').then(setSession);useEffect(()=>{load()},[])
- async function open(){await api('/cash/open',{method:'POST',body:JSON.stringify({openingCash:opening})});setOpenModal(false);await load()}
- async function close(){await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:actual})});setCloseModal(false);await load()}
+ const [session,setSession]=useState<any>(undefined),[branches,setBranches]=useState<any[]>([]),[terminals,setTerminals]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([])
+ const [openModal,setOpenModal]=useState(false),[closeModal,setCloseModal]=useState(false),[moveModal,setMoveModal]=useState(false)
+ const [opening,setOpening]=useState(0),[actual,setActual]=useState(0),[branchId,setBranchId]=useState<number|''>(''),[terminalId,setTerminalId]=useState<number|''>('')
+ const [movementType,setMovementType]=useState('cash_out'),[amount,setAmount]=useState(0),[reason,setReason]=useState(''),[managerConfirmed,setManagerConfirmed]=useState(true)
+ const load=()=>Promise.all([api('/cash/current'),api('/branches'),api('/terminals')]).then(([s,b,t])=>{setSession(s);setBranches(b);setTerminals(t);if(s?.id)api('/cash/movements?sessionId='+s.id).then(setMoves);else setMoves([])})
+ useEffect(()=>{load()},[])
+ async function open(){await api('/cash/open',{method:'POST',body:JSON.stringify({openingCash:opening,branchId:branchId||null,terminalId:terminalId||null})});setOpenModal(false);await load()}
+ async function close(){const out=await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:actual,managerConfirmed})});setCloseModal(false);await load();await openPdf('/documents/cash-session/'+out.id+'/pdf')}
+ async function addMove(){await api('/cash/movements',{method:'POST',body:JSON.stringify({movementType,amount,reason})});setMoveModal(false);setAmount(0);setReason('');await load()}
  if(session===undefined)return <Loading/>
- return <div><PageHeading eyebrow="Cash control" title="Cash Drawer" sub="Open and close cashier sessions with expected-versus-actual reconciliation."/>
- <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4"><Stat label="Session" value={session?'Open':'Closed'} sub={session?'Opened by '+session.opened_by:'No active drawer'} icon={session?UnlockKeyhole:LockKeyhole}/><Stat label="Opening Cash" value={money(session?.opening_cash||0,currency)} sub="Opening float" icon={Banknote} tone="blue"/></div>
- <div className="mt-4"><Panel title={session?'Active Cash Session':'No Active Cash Session'} sub={session?'Opened '+new Date(session.opened_at).toLocaleString():'Open the drawer before taking cash payments.'}>{session?<button onClick={()=>{setActual(Number(session.opening_cash||0));setCloseModal(true)}} className="rounded-xl bg-red-600 text-white px-5 py-3 font-bold">Close & Reconcile Drawer</button>:<button onClick={()=>setOpenModal(true)} className="rounded-xl bg-slate-950 text-white px-5 py-3 font-bold">Open Cash Drawer</button>}</Panel></div>
- {openModal&&<Modal title="Open Cash Drawer" onClose={()=>setOpenModal(false)}><label className="text-sm font-semibold text-slate-700">Opening cash<input className="control" type="number" min="0" value={opening} onChange={e=>setOpening(Number(e.target.value))}/></label><button onClick={open} className="mt-4 w-full rounded-xl bg-slate-950 text-white py-3 font-bold">Open Session</button></Modal>}
- {closeModal&&<Modal title="Close & Reconcile Drawer" onClose={()=>setCloseModal(false)}><label className="text-sm font-semibold text-slate-700">Actual cash counted<input className="control" type="number" min="0" value={actual} onChange={e=>setActual(Number(e.target.value))}/></label><button onClick={close} className="mt-4 w-full rounded-xl bg-red-600 text-white py-3 font-bold">Close Drawer</button></Modal>}
+ return <div>
+  <PageHeading eyebrow="Cash control" title="Cash Drawer & Shifts" sub="Opening float, cash in/out, refunds, expected cash, physical count and Z-report." action={session?<button onClick={()=>setMoveModal(true)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Plus size={15} className="mr-1 inline"/>Cash Movement</button>:undefined}/>
+  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Stat label="Session" value={session?'Open':'Closed'} sub={session?(session.branch_name||'Branch')+' · '+(session.terminal_name||'Terminal'):'No active drawer'} icon={session?UnlockKeyhole:LockKeyhole}/>
+    <Stat label="Opening" value={money(session?.opening_cash||0,currency)} sub="Opening float" icon={Banknote} tone="blue"/>
+    <Stat label="Expected" value={money(session?.expectedCash||0,currency)} sub="Live reconciliation" icon={Banknote} tone="violet"/>
+    <Stat label="Cash sales" value={money(session?.cashSales||0,currency)} sub={'Refunds '+money(session?.refunds||0,currency)} icon={Banknote} tone="amber"/>
+  </div>
+  <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_.7fr]">
+    <Panel title={session?'Active Shift':'No Active Shift'} sub={session?'Opened '+new Date(session.opened_at).toLocaleString():'Open a shift before taking cash.'}>
+      {session?<div className="flex flex-wrap gap-2"><button onClick={()=>{setActual(Number(session.expectedCash||session.opening_cash||0));setCloseModal(true)}} className="rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white">Close & Reconcile</button><button onClick={()=>openPdf('/documents/cash-session/'+session.id+'/pdf')} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-medium"><Printer size={15} className="mr-1 inline"/>X/Z Preview</button></div>:<button onClick={()=>setOpenModal(true)} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Open Shift</button>}
+    </Panel>
+    <Panel title="Live Cash Breakdown">
+      <div className="grid grid-cols-2 gap-3 text-sm"><Mini label="Cash in" value={money(session?.cashIn||0,currency)}/><Mini label="Cash out" value={money(session?.cashOut||0,currency)}/><Mini label="Refunds" value={money(session?.refunds||0,currency)}/><Mini label="Expected" value={money(session?.expectedCash||0,currency)}/></div>
+    </Panel>
+  </div>
+  {moves.length>0&&<div className="mt-4"><Panel title="Cash Movements"><DataTable head={['Time','Type','Reason','Amount','By']} rows={moves.map(x=>[new Date(x.created_at).toLocaleString(),<Badge tone={x.movement_type==='cash_in'?'green':'amber'}>{nice(x.movement_type)}</Badge>,x.reason,money(x.amount,currency),x.created_by||'-'])}/></Panel></div>}
+  {openModal&&<Modal title="Open Shift" onClose={()=>setOpenModal(false)}><div className="grid gap-3"><Field label="Opening cash"><input className="control" type="number" min="0" value={opening} onChange={e=>setOpening(Number(e.target.value))}/></Field><Field label="Branch"><select className="control" value={branchId} onChange={e=>setBranchId(Number(e.target.value)||'')}><option value="">Select branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field><Field label="Terminal"><select className="control" value={terminalId} onChange={e=>setTerminalId(Number(e.target.value)||'')}><option value="">Select terminal</option>{terminals.filter(t=>!branchId||t.branch_id===branchId).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></Field></div><button onClick={open} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-semibold text-white">Open Shift</button></Modal>}
+  {moveModal&&<Modal title="Cash In / Out" onClose={()=>setMoveModal(false)}><div className="grid gap-3"><Field label="Type"><select className="control" value={movementType} onChange={e=>setMovementType(e.target.value)}><option value="cash_in">Cash In</option><option value="cash_out">Cash Out</option></select></Field><Field label="Amount"><input className="control" type="number" min="0" value={amount} onChange={e=>setAmount(Number(e.target.value))}/></Field><Field label="Reason"><input className="control" value={reason} onChange={e=>setReason(e.target.value)}/></Field></div><button onClick={addMove} disabled={!reason||amount<=0} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-semibold text-white disabled:opacity-40">Post Movement</button></Modal>}
+  {closeModal&&<Modal title="Close & Reconcile Shift" onClose={()=>setCloseModal(false)}><div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-400">Expected cash</div><div className="mt-1 text-xl font-semibold">{money(session?.expectedCash||0,currency)}</div></div><Field label="Physical cash counted"><input className="control" type="number" min="0" value={actual} onChange={e=>setActual(Number(e.target.value))}/></Field><div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">Variance: <b>{money(actual-Number(session?.expectedCash||0),currency)}</b></div><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={managerConfirmed} onChange={e=>setManagerConfirmed(e.target.checked)}/>Manager confirmation</label><button onClick={close} disabled={!managerConfirmed} className="mt-4 w-full rounded-xl bg-red-600 py-3 font-semibold text-white disabled:opacity-40">Close Shift & Print Z-Report</button></Modal>}
  </div>
 }
+function Field({label,children}:{label:string;children:any}){return <label className="text-sm font-medium text-slate-600">{label}{children}</label>}
+function Mini({label,value}:{label:string;value:string}){return <div className="rounded-xl bg-slate-50 p-3"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 font-semibold">{value}</div></div>}
