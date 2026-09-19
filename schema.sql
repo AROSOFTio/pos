@@ -1247,3 +1247,7 @@ ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS shift_no TEXT;
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS closing_note TEXT;
 ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS variance_reason TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_sessions_business_shift_no ON cash_sessions(business_id,shift_no) WHERE shift_no IS NOT NULL;
+
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_key TEXT NOT NULL DEFAULT 'green';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_mode TEXT NOT NULL DEFAULT 'light';
