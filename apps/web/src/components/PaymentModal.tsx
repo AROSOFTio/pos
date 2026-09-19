@@ -47,7 +47,17 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
   if(!open)return null
 
   const patch=(id:number,patch:Partial<PaymentLine>)=>setLines(v=>v.map(x=>x.id===id?{...x,...patch}:x))
-  const add=()=>setLines(v=>[...v,createLine(Date.now()+v.length,remaining)])
+  const add=()=>setLines(v=>{
+    if(!v.length)return [createLine(Date.now(),balance)]
+    if(remaining>0.005)return [...v,createLine(Date.now()+v.length,remaining)]
+    if(v.length===1&&balance>0){
+      const first=Math.max(0,Number(v[0].amount||0))
+      const left=Math.max(0,Math.round((first/2)*100)/100)
+      const right=Math.max(0,Math.round((balance-left)*100)/100)
+      return [{...v[0],amount:left,tenderedAmount:v[0].method==='cash'?left:left},createLine(Date.now()+1,right)]
+    }
+    return v
+  })
   const remove=(id:number)=>setLines(v=>v.filter(x=>x.id!==id))
 
   async function submit(){
@@ -67,8 +77,8 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
     }
   }
 
-  return <Modal title={title} onClose={onClose}>
-    <div className="rounded-xl bg-slate-950 p-4 text-white">
+  return <Modal title={title} onClose={onClose} size="lg">
+    <div className="rounded-xl bg-slate-950 px-4 py-3 text-white">
       <div className="grid grid-cols-3 gap-3 text-xs">
         <div><div className="text-slate-400">Bill total</div><div className="mt-1 font-semibold">{money(total,currency)}</div></div>
         <div><div className="text-slate-400">Already paid</div><div className="mt-1 font-semibold text-emerald-300">{money(amountPaid,currency)}</div></div>
@@ -76,17 +86,17 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
       </div>
     </div>
 
-    <div className="mt-4 space-y-3 max-h-[420px] overflow-y-auto pr-1">
+    <div className="mt-3 max-h-[52vh] space-y-2.5 overflow-y-auto pr-1 sm:max-h-[46vh]">
       {lines.map((line,index)=>{
         const meta=METHODS.find(x=>x.value===line.method)||METHODS[0]
         const Icon=meta.icon
-        return <div key={line.id} className="rounded-xl border border-slate-200 p-4">
+        return <div key={line.id} className="rounded-xl border border-slate-200 bg-white p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2"><div className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600"><Icon size={17}/></div><div><div className="text-[13px] font-medium">Tender {index+1}</div><div className="text-[11px] text-slate-400">{meta.label}</div></div></div>
             {lines.length>1&&<button onClick={()=>remove(line.id)} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={16}/></button>}
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
             <label className="text-xs font-medium text-slate-600">Payment method
               <select value={line.method} onChange={e=>patch(line.id,{method:e.target.value,tenderedAmount:Number(line.amount||0)})} className="control">
                 {METHODS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
@@ -107,8 +117,8 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
       })}
     </div>
 
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <button onClick={add} disabled={remaining<=0.005} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium disabled:opacity-40"><Plus size={15}/>Split tender</button>
+    <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-0"><div className="flex flex-wrap items-center justify-between gap-3">
+      <button onClick={add} disabled={balance<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Split tender</button>
       <div className="text-right">
         <div className="text-[11px] text-slate-400">After this payment</div>
         <div className={'text-lg font-semibold '+(remaining<=0.005?'text-emerald-600':'text-amber-600')}>{remaining<=0.005?'Fully paid':money(remaining,currency)+' due'}</div>
@@ -116,10 +126,10 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
       </div>
     </div>
 
-    {error&&<div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+    {error&&<div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[12px] font-medium text-red-700">{error}</div>}
 
-    <button onClick={submit} disabled={busy||proposed<=0} className="mt-4 w-full rounded-xl bg-[linear-gradient(90deg,#37C516,#22A53A)] py-3.5 font-semibold text-white  disabled:opacity-40">
+    <button onClick={submit} disabled={busy||proposed<=0} className="mt-3 w-full rounded-lg bg-[#22A53A] py-3 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#1d9132] disabled:opacity-40">
       {busy?'Posting payment…':remaining<=0.005?'Complete Payment':'Post Partial Payment'}
-    </button>
+    </button></div>
   </Modal>
 }
