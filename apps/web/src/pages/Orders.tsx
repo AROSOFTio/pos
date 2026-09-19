@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal, ScanLine } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal } from 'lucide-react'
 import { api, money, nice, openPdf, printPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
-import BarcodeScanner, { useHardwareScanner } from '../components/BarcodeScanner'
 
 type OrderDraft={branchId:number;orderType:string;tableId:number;customerId:number;guestCount:number;waiterUserId:number;reservationId:number;notes:string}
 
@@ -19,8 +18,6 @@ export default function Orders({currency}:{currency:string}){
  const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
  const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null)
- const [scannerOpen,setScannerOpen]=useState(false),[scanNotice,setScanNotice]=useState(''),[requestOpen,setRequestOpen]=useState(false),[requestCode,setRequestCode]=useState(''),[requestName,setRequestName]=useState(''),[requestBusy,setRequestBusy]=useState(false)
- const scanQueue=useRef<Promise<any>>(Promise.resolve())
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -51,34 +48,6 @@ export default function Orders({currency}:{currency:string}){
    await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:selectedProduct,qty,variantId:variantId||null,modifierIds,notes:itemNotes})})
    setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');await refreshDetail()
  }
- function flashScan(text:string){setScanNotice(text);window.setTimeout(()=>setScanNotice(''),1400)}
- async function processHardwareScan(raw:string){
-   const code=raw.trim();if(!code||!detail?.order?.id)return
-   if(['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status))return
-   const p=menu.find(x=>[x.barcode,x.sku,x.product_code].some(v=>String(v||'').trim()===code))
-   if(!p){
-     try{
-       const found=await api('/products/lookup?code='+encodeURIComponent(code))
-       flashScan((found?.name||'Product')+' is not available on this order menu.')
-     }catch{
-       setRequestCode(code);setRequestName('');setRequestOpen(true)
-     }
-     return
-   }
-   try{
-     await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:Number(p.id),qty:1,autoMerge:true})})
-     flashScan('Added '+p.name)
-     const d=await api('/restaurant/orders/'+detail.order.id);setDetail(d)
-   }catch(e:any){flashScan(e.message||'Item could not be added')}
- }
- function queueHardwareScan(code:string){scanQueue.current=scanQueue.current.then(()=>processHardwareScan(code)).catch(()=>{})}
- async function submitProductRequest(){
-   if(!requestCode.trim()&&!requestName.trim())return
-   setRequestBusy(true)
-   try{await api('/product-requests',{method:'POST',body:JSON.stringify({name:requestName.trim()||null,scannedCode:requestCode.trim()||null,notes:'Requested while taking restaurant order'})});setRequestOpen(false);flashScan('Item request sent to management.')}finally{setRequestBusy(false)}
- }
- useHardwareScanner(queueHardwareScan,detailOpen&&!scannerOpen&&!addOpen&&!requestOpen&&!paymentOpen&&!depositOpen&&!chargesOpen)
-
  async function sendKitchen(){
    const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
    await refreshDetail();await load()
@@ -245,17 +214,6 @@ export default function Orders({currency}:{currency:string}){
     onClose={()=>{setPaymentOpen(false);setBill(null)}}
     onSubmit={submitBillPayment}
   />
-
-  <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={queueHardwareScan} title="Scan item"/>
-
-  {requestOpen&&<Modal title="Unknown Item" onClose={()=>!requestBusy&&setRequestOpen(false)} size="sm">
-    <div className="rounded-lg bg-slate-50 px-3 py-2 text-[10.5px] text-slate-500">This code is not in the catalogue. Send it to management instead of creating products from the cashier screen.</div>
-    <div className="mt-3 grid gap-3">
-      <Field label="Scanned code"><input className="control" value={requestCode} onChange={e=>setRequestCode(e.target.value)}/></Field>
-      <Field label="Item name"><input className="control" value={requestName} onChange={e=>setRequestName(e.target.value)} placeholder="Optional item name"/></Field>
-    </div>
-    <button onClick={submitProductRequest} disabled={requestBusy||(!requestCode.trim()&&!requestName.trim())} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{requestBusy?'Sending…':'Request Item'}</button>
-  </Modal>}
 
   {receiptActions&&<Modal title="Payment Complete" onClose={()=>setReceiptActions(null)} size="sm">
     <div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white">
