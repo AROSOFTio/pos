@@ -3,14 +3,14 @@ import { Banknote, LockKeyhole, Plus, Printer, UnlockKeyhole } from 'lucide-reac
 import { api, money, nice, openPdf } from '../api'
 import { PageHeading, Panel, Stat, Loading, Modal, DataTable, Badge } from '../components'
 
-export default function CashDrawer({currency}:{currency:string}){
+export default function CashDrawer({currency,onOpened}:{currency:string;onOpened?:()=>void}){
  const [session,setSession]=useState<any>(undefined),[branches,setBranches]=useState<any[]>([]),[terminals,setTerminals]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([])
  const [openModal,setOpenModal]=useState(false),[closeModal,setCloseModal]=useState(false),[moveModal,setMoveModal]=useState(false)
  const [opening,setOpening]=useState(0),[actual,setActual]=useState(0),[branchId,setBranchId]=useState<number|''>(''),[terminalId,setTerminalId]=useState<number|''>('')
  const [movementType,setMovementType]=useState('cash_out'),[amount,setAmount]=useState(0),[reason,setReason]=useState(''),[managerConfirmed,setManagerConfirmed]=useState(true),[denoms,setDenoms]=useState<{value:number;count:number}[]>([])
  const load=()=>Promise.all([api('/cash/current'),api('/branches'),api('/terminals')]).then(([s,b,t])=>{setSession(s);setBranches(b);setTerminals(t);if(s?.id)api('/cash/movements?sessionId='+s.id).then(setMoves);else setMoves([])})
  useEffect(()=>{load()},[])
- async function open(){await api('/cash/open',{method:'POST',body:JSON.stringify({openingCash:opening,branchId:branchId||null,terminalId:terminalId||null})});setOpenModal(false);await load()}
+ async function open(){await api('/cash/open',{method:'POST',body:JSON.stringify({openingCash:opening,branchId:branchId||null,terminalId:terminalId||null})});setOpenModal(false);await load();onOpened?.()}
  async function close(){const denominationTotal=denoms.reduce((n,x)=>n+(Number(x.value)||0)*(Number(x.count)||0),0);const physical=denoms.length?denominationTotal:actual;const out=await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:physical,managerConfirmed,denominations:denoms})});setCloseModal(false);setDenoms([]);await load();await openPdf('/documents/cash-session/'+out.id+'/pdf')}
  async function addMove(){await api('/cash/movements',{method:'POST',body:JSON.stringify({movementType,amount,reason})});setMoveModal(false);setAmount(0);setReason('');await load()}
  if(session===undefined)return <Loading/>
