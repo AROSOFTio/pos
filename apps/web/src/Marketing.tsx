@@ -42,7 +42,7 @@ export default function Marketing({navigate}:{navigate:(path:string)=>void}){
 
           <Reveal>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white premium-shadow">
-              <img src="/brand/retail.webp" alt="MauzoPOS point of sale" className="aspect-[16/11] w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
+              <img src="/brand/hero.webp" alt="MauzoPOS for restaurants, retail, pharmacy and more" className="aspect-[16/11] w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
             </div>
           </Reveal>
         </div>
