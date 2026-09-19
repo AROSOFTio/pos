@@ -22,12 +22,14 @@ import Settings from './pages/Settings'
 import CashDrawer from './pages/CashDrawer'
 import Customers from './pages/Customers'
 import SaaSAdmin from './pages/SaaSAdmin'
+import Reports from './pages/Reports'
+import Staff from './pages/Staff'
 
-export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Reports'|'Staff'|'Branches'|'Settings'
 
 const coreOperations=[['Dashboard',LayoutDashboard],['POS',ShoppingCart],['Sales',ReceiptText],['Customers',UsersRound]] as const
 const restaurantOperations=[['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed]] as const
-const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Branches',Building2],['Settings',SettingsIcon]] as const
+const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
   const [user,setUser]=useState<User|null>(null)
@@ -102,7 +104,9 @@ export default function App(){
         {view==='Expenses'&&<Expenses currency={currency}/>}
         {view==='Products'&&<Products currency={currency}/>}
         {view==='Suppliers'&&<Suppliers currency={currency}/>}
-        {view==='Cash Drawer'&&<CashDrawer currency={currency}/>}
+        {view==='Cash Drawer'&&<CashDrawer currency={currency}/>} 
+        {view==='Reports'&&<Reports currency={currency}/>} 
+        {view==='Staff'&&<Staff/>}
         {view==='Branches'&&<Branches/>}
         {view==='Settings'&&<Settings/>}
       </div>
