@@ -3,6 +3,7 @@ import { Plus, ShieldCheck, UserRound } from 'lucide-react'
 import { api, nice } from '../api'
 import { Badge, DataTable, Loading, Modal, PageHeading, Panel } from '../components'
 
+const roleHelp:Record<string,string>={owner:"Full business control",administrator:"Full management except platform controls",branch_manager:"Manages one or more branches",restaurant_manager:"Restaurant floor, staff and approvals",cashier:"POS, payments and cash shift",waiter:"Tables and restaurant orders",kitchen:"Kitchen display and ticket status",bar:"Bar station tickets",storekeeper:"Stock, suppliers and receiving",accountant:"Expenses, reconciliation and reports",auditor:"Read-only review and reports"}
 const roles=['owner','administrator','branch_manager','restaurant_manager','cashier','waiter','kitchen','bar','storekeeper','accountant','auditor']
 
 export default function Staff(){
@@ -18,7 +19,7 @@ export default function Staff(){
  async function savePerms(){setSavingPerms(true);try{await api('/roles/'+permRole+'/permissions',{method:'PUT',body:JSON.stringify({permissions:selected})});await load()}finally{setSavingPerms(false)}}
  if(!rows)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Access control" title="Staff & Permissions" sub="Users, roles, branch access and approval rights." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white"><Plus size={15} className="mr-1 inline"/>Add Staff</button>}/>
+  <PageHeading eyebrow="Access control" title="Users & Roles" sub="Add staff, assign their role, branch access and exactly what they can do." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white"><Plus size={15} className="mr-1 inline"/>Add Staff</button>}/>
   <Panel title="Staff"><DataTable head={['Name','Email','Role','Status','Action']} rows={rows.map((x:any)=>[
     <div className="flex items-center gap-2"><UserRound size={15}/><span>{x.name}</span></div>,x.email,nice(x.role),<Badge tone={x.active?'green':'red'}>{x.active?'Active':'Disabled'}</Badge>,<button onClick={()=>toggleActive(x)} className="text-xs font-medium text-slate-600">{x.active?'Disable':'Enable'}</button>
   ])}/></Panel>
@@ -36,7 +37,7 @@ export default function Staff(){
       <Field label="Name"><input className="control" value={name} onChange={e=>setName(e.target.value)}/></Field>
       <Field label="Email"><input className="control" type="email" value={email} onChange={e=>setEmail(e.target.value)}/></Field>
       <Field label="Temporary password"><input className="control" type="password" value={password} onChange={e=>setPassword(e.target.value)}/></Field>
-      <Field label="Role"><select className="control" value={role} onChange={e=>setRole(e.target.value)}>{roles.map(r=><option key={r} value={r}>{nice(r)}</option>)}</select></Field>
+      <Field label="Role"><select className="control" value={role} onChange={e=>setRole(e.target.value)}>{roles.map(r=><option key={r} value={r}>{nice(r)}</option>)}</select><span className="mt-1 block text-[10px] font-normal text-slate-400">{roleHelp[role]}</span></Field>
       <div><div className="text-sm font-medium text-slate-600">Branches</div><div className="mt-2 flex flex-wrap gap-2">{branches.map(b=><label key={b.id} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"><input type="checkbox" checked={branchIds.includes(b.id)} onChange={e=>setBranchIds(e.target.checked?[...branchIds,b.id]:branchIds.filter(x=>x!==b.id))}/>{b.name}</label>)}</div></div>
     </div>
     <button onClick={save} disabled={!name||!email||password.length<10} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-semibold text-white disabled:opacity-40">Create Staff Account</button>
