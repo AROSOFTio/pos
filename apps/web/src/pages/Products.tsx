@@ -103,7 +103,7 @@ export default function Products({currency,allowScanning=false}:{currency:string
         </div>
         <div>
           <div className="text-[13px] font-semibold text-slate-800">Product image</div>
-          <div className="mt-1 max-w-md text-[11px] leading-5 text-slate-500">The full image is kept visible without cropping. PNG, JPG or WebP, maximum 5MB. Square images work best on POS cards.</div>
+          <div className="mt-1 max-w-md text-[11px] leading-5 text-slate-500">PNG, JPG or WebP, maximum 5MB. For the cleanest product cards, use a square image around 800×800 or 1000×1000 px. Cards will automatically crop to fill their image area.</div>
           {image&&<div className="mt-2 inline-flex max-w-full rounded-lg bg-white px-2.5 py-1.5 text-[10px] text-emerald-700 shadow-sm ring-1 ring-slate-100"><span className="truncate">{image.name}</span></div>}
         </div>
       </div>
