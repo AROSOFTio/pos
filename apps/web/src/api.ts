@@ -70,3 +70,20 @@ export async function sharePdf(path:string, filename='MauzoPOS-document.pdf') {
   const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove()
   setTimeout(()=>URL.revokeObjectURL(url),120000)
 }
+
+
+export async function printPdf(path:string) {
+  const token=localStorage.getItem('pos_token')||''
+  const response=await fetch('/api'+path,{headers:{Authorization:'Bearer '+token}})
+  if(!response.ok){
+    const type=response.headers.get('content-type')||''
+    const body=type.includes('application/json')?await response.json():await response.text()
+    throw new Error(body?.error||body||'Unable to print document')
+  }
+  const blob=await response.blob()
+  const url=URL.createObjectURL(blob)
+  const frame=document.createElement('iframe')
+  frame.style.position='fixed';frame.style.right='0';frame.style.bottom='0';frame.style.width='0';frame.style.height='0';frame.style.border='0';frame.src=url
+  document.body.appendChild(frame)
+  frame.onload=()=>setTimeout(()=>{try{frame.contentWindow?.focus();frame.contentWindow?.print()}catch{window.open(url,'_blank','noopener,noreferrer')}setTimeout(()=>{frame.remove();URL.revokeObjectURL(url)},60000)},250)
+}
