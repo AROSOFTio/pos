@@ -50,7 +50,7 @@ export default function Customers({currency}:{currency:string}){
 
  if(!rows)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Customer accounts" title="Customers & Credit" sub="Customer records, controlled credit limits, outstanding balances and account-payment allocation." action={<button onClick={()=>setCreateOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white"><Plus size={16} className="inline mr-1"/>New Customer</button>}/>
+  <PageHeading eyebrow="Customer accounts" title="Customers & Credit" sub="Customer records, controlled credit limits, outstanding balances and account-payment allocation." action={<button onClick={()=>setCreateOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-medium text-white"><Plus size={16} className="inline mr-1"/>New Customer</button>}/>
   <Panel title="Customers" sub={rows.length+' customer accounts'}>
     <DataTable head={['Customer','Contact','Credit','Limit','Outstanding','Action']} rows={rows.map(x=>[
       <b>{x.name}</b>,
@@ -58,7 +58,7 @@ export default function Customers({currency}:{currency:string}){
       x.credit_enabled?<Badge tone="green">Enabled</Badge>:<Badge>Cash only</Badge>,
       money(x.credit_limit,currency),
       <b className={Number(x.balance)>0?'text-amber-600':''}>{money(x.balance,currency)}</b>,
-      <button onClick={()=>openDetail(Number(x.id))} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold"><Eye size={14}/>View</button>
+      <button onClick={()=>openDetail(Number(x.id))} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium"><Eye size={14}/>View</button>
     ])}/>
   </Panel>
 
@@ -70,7 +70,7 @@ export default function Customers({currency}:{currency:string}){
       <Field label="Credit policy"><select className="control" value={creditEnabled?'enabled':'disabled'} onChange={e=>setCreditEnabled(e.target.value==='enabled')}><option value="disabled">Cash / immediate payment only</option><option value="enabled">Allow customer credit</option></select></Field>
       {creditEnabled&&<Field label="Credit limit"><input className="control" type="number" min="0" step="0.01" value={creditLimit} onChange={e=>setCreditLimit(Number(e.target.value))}/></Field>}
     </div>
-    <button onClick={create} disabled={busy||!name.trim()} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-bold text-white disabled:opacity-40">{busy?'Saving…':'Create Customer'}</button>
+    <button onClick={create} disabled={busy||!name.trim()} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-medium text-white disabled:opacity-40">{busy?'Saving…':'Create Customer'}</button>
   </Modal>}
 
   {detailOpen&&detail&&<Modal title={detail.customer.name+' · Account'} onClose={()=>setDetailOpen(false)}>
@@ -80,12 +80,12 @@ export default function Customers({currency}:{currency:string}){
       <Kpi label="Credit" value={detail.customer.credit_enabled?'Enabled':'Disabled'} tone={detail.customer.credit_enabled?'green':'slate'}/>
     </div>
     <div className="mt-4 grid grid-cols-2 gap-2">
-      <button onClick={openCredit} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-sm font-bold"><CreditCard size={16}/>Credit Settings</button>
-      <button onClick={openPayment} disabled={Number(detail.customer.balance)<=0.005} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#22A53A] py-2.5 text-sm font-bold text-white disabled:opacity-40"><WalletCards size={16}/>Receive Payment</button>
+      <button onClick={openCredit} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-sm font-medium"><CreditCard size={16}/>Credit Settings</button>
+      <button onClick={openPayment} disabled={Number(detail.customer.balance)<=0.005} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#22A53A] py-2.5 text-sm font-medium text-white disabled:opacity-40"><WalletCards size={16}/>Receive Payment</button>
     </div>
-    <div className="mt-5 text-xs font-black uppercase tracking-[.14em] text-slate-400">Outstanding / recent sales</div>
+    <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Outstanding / recent sales</div>
     <div className="mt-2 max-h-44 overflow-y-auto"><DataTable head={['Receipt','Total','Paid','Due','Status']} rows={detail.sales.slice(0,30).map((s:any)=>[<b>{s.receipt_no}</b>,money(s.total,currency),money(s.amount_paid,currency),money(s.balance_due,currency),<Badge tone={s.payment_status==='paid'?'green':'amber'}>{nice(s.payment_status)}</Badge>])}/></div>
-    <div className="mt-5 text-xs font-black uppercase tracking-[.14em] text-slate-400">Ledger</div>
+    <div className="mt-5 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Ledger</div>
     <div className="mt-2 max-h-52 overflow-y-auto"><DataTable head={['Date','Entry','Reference','Debit','Credit','Balance']} rows={detail.ledger.slice(0,80).map((x:any)=>[new Date(x.created_at).toLocaleDateString(),nice(x.entry_type),x.reference_no||'-',Number(x.debit)>0?money(x.debit,currency):'-',Number(x.credit)>0?money(x.credit,currency):'-',money(x.balance_after,currency)])}/></div>
   </Modal>}
 
@@ -93,22 +93,22 @@ export default function Customers({currency}:{currency:string}){
     <Field label="Credit access"><select className="control" value={creditEnabled?'enabled':'disabled'} onChange={e=>setCreditEnabled(e.target.value==='enabled')}><option value="disabled">Disabled</option><option value="enabled">Enabled</option></select></Field>
     <Field label="Credit limit"><input className="control" type="number" min="0" step="0.01" value={creditLimit} onChange={e=>setCreditLimit(Number(e.target.value))}/></Field>
     {message&&<div className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{message}</div>}
-    <button onClick={saveCredit} disabled={busy} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-bold text-white">{busy?'Saving…':'Save Credit Policy'}</button>
+    <button onClick={saveCredit} disabled={busy} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-medium text-white">{busy?'Saving…':'Save Credit Policy'}</button>
   </Modal>}
 
   {payOpen&&detail&&<Modal title="Receive Customer Account Payment" onClose={()=>setPayOpen(false)}>
-    <div className="rounded-xl bg-slate-950 p-4 text-white"><div className="text-xs text-slate-400">Current outstanding balance</div><div className="mt-1 text-2xl font-black">{money(detail.customer.balance,currency)}</div></div>
+    <div className="rounded-xl bg-slate-950 p-4 text-white"><div className="text-xs text-slate-400">Current outstanding balance</div><div className="mt-1 text-2xl font-semibold">{money(detail.customer.balance,currency)}</div></div>
     <div className="mt-3 grid sm:grid-cols-2 gap-3">
       <Field label="Amount"><input className="control" type="number" min="0" max={Number(detail.customer.balance)} step="0.01" value={payAmount||''} onChange={e=>{setPayAmount(Number(e.target.value));if(payMethod==='cash')setPayTendered(Number(e.target.value))}}/></Field>
       <Field label="Method"><select className="control" value={payMethod} onChange={e=>setPayMethod(e.target.value)}><option value="cash">Cash</option><option value="mobile money">Mobile Money</option><option value="card">Card</option><option value="bank transfer">Bank Transfer</option></select></Field>
       {payMethod==='cash'&&<Field label="Cash tendered"><input className="control" type="number" min="0" value={payTendered||''} onChange={e=>setPayTendered(Number(e.target.value))}/></Field>}
       {payMethod!=='cash'&&<Field label="Reference"><input className="control" value={payReference} onChange={e=>setPayReference(e.target.value)} placeholder="Transaction / bank reference"/></Field>}
     </div>
-    {payMethod==='cash'&&payTendered>payAmount&&<div className="mt-2 text-right text-sm font-bold text-emerald-600">Change: {money(payTendered-payAmount,currency)}</div>}
+    {payMethod==='cash'&&payTendered>payAmount&&<div className="mt-2 text-right text-sm font-medium text-emerald-600">Change: {money(payTendered-payAmount,currency)}</div>}
     {message&&<div className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{message}</div>}
-    <button onClick={receivePayment} disabled={busy||!(payAmount>0)} className="mt-4 w-full rounded-xl bg-[#22A53A] py-3 font-bold text-white disabled:opacity-40">{busy?'Posting…':'Receive & Allocate Payment'}</button>
+    <button onClick={receivePayment} disabled={busy||!(payAmount>0)} className="mt-4 w-full rounded-xl bg-[#22A53A] py-3 font-medium text-white disabled:opacity-40">{busy?'Posting…':'Receive & Allocate Payment'}</button>
   </Modal>}
  </div>
 }
-function Field({label,children}:{label:string;children:any}){return <label className="mt-3 block text-sm font-semibold text-slate-700">{label}{children}</label>}
-function Kpi({label,value,tone='slate'}:{label:string;value:string;tone?:string}){const cls=tone==='amber'?'bg-amber-50 text-amber-700':tone==='green'?'bg-emerald-50 text-emerald-700':'bg-slate-50 text-slate-700';return <div className={'rounded-xl p-3 '+cls}><div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{label}</div><div className="mt-1 text-sm font-black">{value}</div></div>}
+function Field({label,children}:{label:string;children:any}){return <label className="mt-3 block text-[13px] font-medium text-slate-700">{label}{children}</label>}
+function Kpi({label,value,tone='slate'}:{label:string;value:string;tone?:string}){const cls=tone==='amber'?'bg-amber-50 text-amber-700':tone==='green'?'bg-emerald-50 text-emerald-700':'bg-slate-50 text-slate-700';return <div className={'rounded-xl p-3 '+cls}><div className="text-[10px] font-medium uppercase tracking-wider opacity-70">{label}</div><div className="mt-1 text-[13px] font-medium">{value}</div></div>}
