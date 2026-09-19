@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   trial_ends_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'restaurant';
+
 CREATE TABLE IF NOT EXISTS user_businesses (
   user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
