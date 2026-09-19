@@ -3,6 +3,13 @@
 :root{
   --brand-primary:#22A53A;
   --brand-primary-soft:rgba(34,165,58,.08);
+  --brand-soft:#ECF8EF;
+  --brand-border:#BDE7C5;
+  --app-bg:#F7F9F7;
+  --app-surface:#FFFFFF;
+  --app-text:#172033;
+  --app-muted:#64748B;
+  --app-sidebar:#FBFCFB;
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:#172033;
   background:#f7f8fa;
@@ -11,8 +18,8 @@
   -webkit-font-smoothing:antialiased;
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;background:#f7f8fa}
-body{margin:0;min-width:320px;min-height:100vh;background:#f7f8fa;overflow-x:hidden;color:#172033}
+html{scroll-behavior:smooth;background:var(--app-bg)}
+body{margin:0;min-width:320px;min-height:100vh;background:var(--app-bg);overflow-x:hidden;color:var(--app-text)}
 button,input,select,textarea{font:inherit}
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 img{max-width:100%;display:block}
@@ -33,7 +40,7 @@ a{color:inherit}
   font-weight:400;font-size:.84rem;
 }
 .control:hover{border-color:#cbd5e1}
-.control:focus{border-color:#22A53A;box-shadow:0 0 0 3px rgba(34,165,58,.08)}
+.control:focus{border-color:var(--brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-primary) 12%,transparent)}
 .control:disabled{background:#f8fafc;color:#94a3b8;cursor:not-allowed}
 textarea.control{min-height:88px;resize:vertical}
 
@@ -42,11 +49,11 @@ textarea.control{min-height:88px;resize:vertical}
   border-radius:.65rem;background:#fff;padding:0 .72rem;color:#94a3b8;transition:border-color .15s ease,box-shadow .15s ease;
 }
 .field:hover{border-color:#cbd5e1}
-.field:focus-within{border-color:#22A53A;box-shadow:0 0 0 3px rgba(34,165,58,.08);color:#64748b}
+.field:focus-within{border-color:var(--brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-primary) 12%,transparent);color:var(--app-muted)}
 .field input{min-width:0;flex:1;border:0;outline:none;background:transparent;color:#172033;font-weight:400;font-size:.84rem}
 
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
-  outline:2px solid rgba(34,165,58,.65);outline-offset:2px;
+  outline:2px solid color-mix(in srgb,var(--brand-primary) 65%,transparent);outline-offset:2px;
 }
 button:disabled{cursor:not-allowed}
 
@@ -113,3 +120,26 @@ button:active:not(:disabled){transform:translateY(1px) scale(.995)}
 [class*="text-[#22A53A]"],[class*="text-[#169B36]"],[class*="text-[#15803d]"]{color:var(--brand-primary)!important}
 [class*="border-[#22A53A]"]{border-color:var(--brand-primary)!important}
 [class*="ring-[#22A53A]"]{--tw-ring-color:color-mix(in srgb,var(--brand-primary) 18%,transparent)!important}
+
+
+/* Complete tenant palette mapping */
+.bg-emerald-50,.bg-green-50{background-color:var(--brand-soft)!important}
+.text-emerald-700,.text-green-700,.text-emerald-600,.text-green-600{color:var(--brand-primary)!important}
+.border-emerald-200,.border-green-200,.border-emerald-300,.border-green-300{border-color:var(--brand-border)!important}
+.hover\:bg-emerald-50:hover,.hover\:bg-green-50:hover{background-color:var(--brand-soft)!important}
+.hover\:text-emerald-700:hover,.hover\:text-green-700:hover{color:var(--brand-primary)!important}
+.accent-\[\#22A53A\]{accent-color:var(--brand-primary)!important}
+.data-table th{background:var(--app-surface)}
+.control,.field,.compact-card,.modal-surface{background:var(--app-surface);color:var(--app-text)}
+.field input{color:var(--app-text)}
+::selection{background:color-mix(in srgb,var(--brand-primary) 18%,transparent)}
+
+[data-theme="dark"] .bg-white,[data-theme="dark"] .bg-white\/95,[data-theme="dark"] .bg-white\/98{background-color:var(--app-surface)!important}
+[data-theme="dark"] .bg-slate-50,[data-theme="dark"] .bg-slate-50\/60,[data-theme="dark"] .bg-slate-50\/70{background-color:#1D252D!important}
+[data-theme="dark"] .text-slate-900,[data-theme="dark"] .text-slate-800,[data-theme="dark"] .text-slate-700{color:#F8FAFC!important}
+[data-theme="dark"] .text-slate-600,[data-theme="dark"] .text-slate-500,[data-theme="dark"] .text-slate-400{color:#AAB7C4!important}
+[data-theme="dark"] .border-slate-100,[data-theme="dark"] .border-slate-200{border-color:#2B3540!important}
+[data-theme="dark"] .control,[data-theme="dark"] .field{background:#171D23;border-color:#33404D;color:#F8FAFC}
+[data-theme="dark"] .control:disabled{background:#202832;color:#718096}
+[data-theme="dark"] .modal-backdrop{background:rgba(0,0,0,.62)}
+[data-theme="dark"] .premium-shadow{box-shadow:0 8px 28px rgba(0,0,0,.24)}
