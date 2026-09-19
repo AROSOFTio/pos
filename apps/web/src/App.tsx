@@ -205,30 +205,30 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
 
-  return <div className="min-h-screen bg-[radial-gradient(circle_at_50%_0%,rgba(34,165,58,.08),transparent_30%),#f7faf7] text-[#0f172a]">
-    <header className="mx-auto flex h-[70px] max-w-[1080px] items-center px-5">
+  return <div className="min-h-screen bg-[#f7f8fa] text-[#172033]">
+    <header className="mx-auto flex h-[60px] max-w-[920px] items-center px-4 sm:px-5">
       <button onClick={()=>navigate('/')} className="mr-4 inline-flex items-center gap-1 text-sm font-medium text-slate-500"><ArrowLeft size={15}/>Home</button>
       <MauzoLogo compact/>
       <button onClick={()=>navigate('/register')} className="ml-auto rounded-xl bg-[#22A53A] px-4 py-2.5 text-sm font-semibold text-white">Start Free Trial</button>
     </header>
 
-    <main className="mx-auto flex max-w-[1080px] justify-center px-5 pb-14 pt-8">
-      <section className="w-full max-w-[520px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,.09)] sm:p-8">
+    <main className="mx-auto flex max-w-[920px] justify-center px-3 pb-10 pt-4 sm:px-5 sm:pt-8">
+      <section className="w-full max-w-[500px] rounded-2xl border border-slate-200 bg-white p-5 premium-shadow sm:p-7">
         <MauzoLogo compact/>
         {!forgot?<form onSubmit={submit} autoComplete="on" className="mt-7">
-          <h1 className="text-[32px] font-semibold tracking-[-.04em]">Welcome back</h1>
+          <h1 className="text-[30px] font-semibold tracking-[-.035em]">Welcome back</h1>
           <div className="mt-1 text-sm text-slate-400">Login to MauzoPOS</div>
 
-          <label className="mt-6 block text-sm font-medium text-slate-700">Email
+          <label className="mt-5 block text-[13px] font-medium text-slate-600">Email
             <div className="field !mt-1"><Mail size={17}/><input name="email" type="email" autoComplete="email" placeholder="you@example.com" required/></div>
           </label>
 
-          <div className="mt-4 flex items-center justify-between"><span className="text-sm font-medium text-slate-700">Password</span><button type="button" onClick={()=>{setForgot(true);setError('');setSent(false)}} className="text-xs font-semibold text-[#169B36]">Forgot password?</button></div>
+          <div className="mt-4 flex items-center justify-between"><span className="text-sm font-medium text-slate-700">Password</span><button type="button" onClick={()=>{setForgot(true);setError('');setSent(false)}} className="text-xs font-medium text-[#169B36]">Forgot password?</button></div>
           <div className="field !mt-1"><LockKeyhole size={17}/><input name="password" type={showPassword?'text':'password'} autoComplete="current-password" placeholder="Password" required/><button type="button" onClick={()=>setShowPassword(v=>!v)} className="text-slate-400">{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>
 
           {error&&<div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-          <button disabled={busy} className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-semibold text-white disabled:opacity-50">{busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={17}/>}</button>
-          <div className="mt-4 text-center text-xs text-slate-400">No account? <button type="button" onClick={()=>navigate('/register')} className="font-semibold text-[#169B36]">Start free trial</button></div>
+          <button disabled={busy} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#22A53A] text-[14px] font-medium text-white disabled:opacity-50">{busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={17}/>}</button>
+          <div className="mt-4 text-center text-xs text-slate-400">No account? <button type="button" onClick={()=>navigate('/register')} className="font-medium text-[#169B36]">Start free trial</button></div>
         </form>:<form onSubmit={requestReset} autoComplete="on" className="mt-7">
           <button type="button" onClick={()=>{setForgot(false);setError('');setSent(false)}} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500"><ArrowLeft size={14}/>Back</button>
           <h1 className="mt-5 text-3xl font-semibold tracking-[-.04em]">Reset password</h1>
@@ -238,7 +238,7 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
           </label>
           {sent&&<div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Reset link prepared. If email is not configured, SaaS Admin can generate it.</div>}
           {error&&<div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-          <button disabled={busy} className="mt-6 h-13 w-full rounded-xl bg-slate-950 font-semibold text-white disabled:opacity-50">{busy?'Preparing…':'Send Reset Link'}</button>
+          <button disabled={busy} className="mt-5 h-12 w-full rounded-lg bg-slate-900 text-[14px] font-medium text-white disabled:opacity-50">{busy?'Preparing…':'Send Reset Link'}</button>
         </form>}
       </section>
     </main>
