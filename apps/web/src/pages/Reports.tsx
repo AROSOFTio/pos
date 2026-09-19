@@ -9,6 +9,12 @@ const types=[
   ['restaurant','Restaurant'],
   ['inventory','Inventory'],
   ['cash','Cash & Shifts'],
+  ['payments','Payments'],
+  ['refunds','Refunds & Voids'],
+  ['purchases','Purchases'],
+  ['expenses','Expenses'],
+  ['stock_movements','Stock Movements'],
+  ['kitchen','Kitchen Performance'],
 ] as const
 
 export default function Reports({currency}:{currency:string}){
