@@ -75,7 +75,7 @@ export default function Products({currency}:{currency:string}){
       r.scanned_code||'-',r.requested_by_name||'-',
       <div className="flex gap-2"><button onClick={async()=>{setSourceRequestId(Number(r.id));setEditing(null);setError('');setSuccess('');setCreatedId(null);try{const [s,cats]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(cats)?cats:[])}catch{}setForm({...blank,name:r.name||'',barcode:r.scanned_code||'',category:String(categories[0]?.name||'General')});setPreview('');setImage(null);setOpen(true)}} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[10px] font-medium text-white">Create Product</button><button onClick={async()=>{await api('/product-requests/'+r.id+'/status',{method:'PUT',body:JSON.stringify({status:'rejected'})});await load()}} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-medium text-slate-500">Reject</button></div>
     ])}/>
-  </Panel></div>}
+  </Panel>}
   <div className={requests.some(x=>x.status==='pending')?'mt-4':''}><Panel title="Product catalogue" sub={rows.length+' products'} action={<div className="relative hidden sm:block"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="w-64 rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-[#22A53A] focus:ring-2 focus:ring-[#22A53A]/10"/></div>}>
     <div className="mb-3 sm:hidden"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0 pl-9"/></div></div>
     <DataTable head={['Product','Category','Stock','Cost','Price','Suppliers','']} rows={shown.map(x=>[
@@ -86,7 +86,7 @@ export default function Products({currency}:{currency:string}){
       x.category,<Badge tone={Number(x.stock)<=Number(x.reorder_level)?'amber':'green'}>{Number(x.stock)}</Badge>,money(x.cost,currency),money(x.price,currency),(x.suppliers||[]).map((s:any)=>s.name).join(', ')||'-',
       <button onClick={()=>show(x)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"><Pencil size={12}/>Edit</button>
     ])}/>
-  </Panel>
+  </Panel></div>
 
   {open&&<Modal title={editing?'Edit product':'Add product'} onClose={close} size="xl">
     <div className="space-y-5">
