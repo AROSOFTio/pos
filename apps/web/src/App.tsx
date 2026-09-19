@@ -25,9 +25,9 @@ import SaaSAdmin from './pages/SaaSAdmin'
 import Reports from './pages/Reports'
 import Staff from './pages/Staff'
 
-export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Cash Drawer'|'Reports'|'Staff'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
-const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Cash Drawer',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
+const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Shifts',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
   const [user,setUser]=useState<User|null>(null)
@@ -100,7 +100,7 @@ export default function App(){
     ...(hasRestaurant?[['Orders',ClipboardList],['Kitchen',ChefHat],['Restaurant',UtensilsCrossed]]:[]),
     ['Sales',ReceiptText],
     ['Customers',UsersRound],
-    ['Cash Drawer',Banknote],
+    ['Shifts',Banknote],
   ] as any
 
   const allowedOps=operationRows.filter(([name]:any)=>{
@@ -110,7 +110,7 @@ export default function App(){
     if(name==='Restaurant')return elevated||['branch_manager','restaurant_manager','waiter'].includes(businessRole)
     if(name==='Sales')return elevated||['branch_manager','restaurant_manager','cashier','accountant','auditor'].includes(businessRole)
     if(name==='Customers')return elevated||['branch_manager','restaurant_manager','cashier','waiter','accountant'].includes(businessRole)
-    if(name==='Cash Drawer')return elevated||['branch_manager','cashier','accountant'].includes(businessRole)
+    if(name==='Shifts')return elevated||['branch_manager','cashier','accountant'].includes(businessRole)
     return false
   })
 
@@ -128,7 +128,7 @@ export default function App(){
     {view==='Expenses'&&<Expenses currency={currency}/>}
     {view==='Products'&&<Products currency={currency}/>}
     {view==='Suppliers'&&<Suppliers currency={currency}/>}
-    {view==='Cash Drawer'&&<CashDrawer currency={currency}/>}
+    {view==='Shifts'&&<CashDrawer currency={currency}/>}
     {view==='Reports'&&<Reports currency={currency}/>}
     {view==='Staff'&&<Staff/>}
     {view==='Branches'&&<Branches/>}
