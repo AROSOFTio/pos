@@ -1186,6 +1186,25 @@ INSERT INTO permission_catalog(code,name,section) VALUES
 ('settings.manage','Manage organisation settings','Settings'),
 ('staff.manage','Manage staff and roles','Staff')
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'administrator',p.code,true FROM businesses b CROSS JOIN permission_catalog p
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'branch_manager',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('sales.discount','sales.refund','sales.void','sales.reopen','inventory.adjust','inventory.cost','reports.profit','reports.export','shift.close','branch.all')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'restaurant_manager',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('sales.discount','sales.refund','sales.void','sales.reopen','reports.profit','shift.close')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'accountant',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.cost','reports.profit','reports.export','shift.close')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'storekeeper',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.adjust','inventory.cost')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'auditor',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.cost','reports.profit','reports.export','branch.all')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+
 INSERT INTO terminals(business_id,branch_id,name,code)
 SELECT b.business_id,b.id,'Front Counter','MAIN-'||b.id FROM branches b
 ON CONFLICT(business_id,code) DO NOTHING;
