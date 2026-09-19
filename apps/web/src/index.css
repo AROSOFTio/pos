@@ -14,3 +14,7 @@ button { cursor:pointer; }
 .control { margin-top:.375rem; width:100%; border:1px solid #e2e8f0; border-radius:.75rem; background:#fff; padding:.7rem .8rem; color:#0f172a; outline:none; transition:.18s ease; }
 .control:focus { border-color:#10b981; box-shadow:0 0 0 4px rgba(16,185,129,.12); }
 .control:disabled { background:#f8fafc; color:#94a3b8; }
+
+.field { margin-top:.5rem; height:3.25rem; display:flex; align-items:center; gap:.75rem; border:1px solid #e2e8f0; border-radius:.75rem; background:#fff; padding:0 .9rem; color:#94a3b8; transition:.18s ease; }
+.field:focus-within { border-color:#22A53A; box-shadow:0 0 0 4px rgba(34,165,58,.10); color:#64748b; }
+.field input { min-width:0; flex:1; border:0; outline:none; background:transparent; color:#0f172a; }
