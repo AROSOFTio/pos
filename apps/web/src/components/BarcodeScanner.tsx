@@ -46,7 +46,7 @@ export default function BarcodeScanner({open,onClose,onDetected,title='Scan barc
   <div className="mt-4">
    <label className="text-[11px] font-medium text-slate-600">Scanner / code input</label>
    <div className="mt-1 flex gap-2">
-    <div className="relative flex-1"><ScanLine size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input autoFocus className="control mt-0 pl-9" value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')submit()}} placeholder="Scan or enter code"/></div>
+    <div className="flex-1"><input autoFocus className="control mt-0" value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')submit()}} placeholder="Scan or enter code"/></div>
     <button onClick={submit} disabled={!manual.trim()} className="rounded-lg bg-[var(--brand-primary)] px-4 text-[11px] font-semibold text-white disabled:opacity-40"><Camera size={14} className="mr-1 inline"/>Use</button>
    </div>
   </div>
