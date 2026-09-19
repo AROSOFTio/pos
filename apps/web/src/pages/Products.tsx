@@ -11,13 +11,14 @@ export default function Products({currency}:{currency:string}){
  const [image,setImage]=useState<File|null>(null),[preview,setPreview]=useState(''),[saving,setSaving]=useState(false),[query,setQuery]=useState('')
  const [error,setError]=useState(''),[success,setSuccess]=useState(''),[createdId,setCreatedId]=useState<number|null>(null),[editing,setEditing]=useState<any>(null)
  const [categories,setCategories]=useState<any[]>([]),[scannerOpen,setScannerOpen]=useState(false),[categoryOpen,setCategoryOpen]=useState(false),[newCategory,setNewCategory]=useState('')
- const load=()=>Promise.all([api('/products'),api('/product-categories').catch(()=>[])]).then(([r,c])=>{setRows(Array.isArray(r)?r:[]);setCategories(Array.isArray(c)?c:[])})
+ const [requests,setRequests]=useState<any[]>([]),[sourceRequestId,setSourceRequestId]=useState<number|null>(null)
+ const load=()=>Promise.all([api('/products'),api('/product-categories').catch(()=>[]),api('/product-requests').catch(()=>[])]).then(([r,c,q])=>{setRows(Array.isArray(r)?r:[]);setCategories(Array.isArray(c)?c:[]);setRequests(Array.isArray(q)?q:[])})
  useEffect(()=>{load()},[])
  useEffect(()=>()=>{if(preview.startsWith('blob:'))URL.revokeObjectURL(preview)},[preview])
  const shown=useMemo(()=>rows?.filter(x=>!query.trim()||[x.name,x.sku,x.barcode,x.category].some(v=>String(v||'').toLowerCase().includes(query.toLowerCase())))||[],[rows,query])
 
  async function show(product?:any){
-   setError('');setSuccess('');setCreatedId(null);setEditing(product||null)
+   setError('');setSuccess('');setCreatedId(null);setEditing(product||null);setSourceRequestId(null)
    try{const [s,c]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(c)?c:[])}catch{setSuppliers([])}
    if(product){
      setForm({name:product.name||'',sku:product.sku||'',barcode:product.barcode||'',category:product.category||'',cost:product.cost!=null?String(product.cost):'',price:product.price!=null?String(product.price):'',stock:product.stock!=null?String(product.stock):'',reorderLevel:product.reorder_level!=null?String(product.reorder_level):'',supplierIds:(product.suppliers||[]).map((x:any)=>Number(x.id))})
@@ -25,7 +26,7 @@ export default function Products({currency}:{currency:string}){
    }else{setForm({...blank,category:String(categories[0]?.name||'General')});setPreview('')}
    setImage(null);setOpen(true)
  }
- function close(){if(saving)return;setOpen(false);setError('');setSuccess('');setCreatedId(null);setEditing(null)}
+ function close(){if(saving)return;setOpen(false);setError('');setSuccess('');setCreatedId(null);setEditing(null);setSourceRequestId(null)}
  function chooseImage(file?:File){
    setError('')
    if(!file)return
@@ -52,7 +53,7 @@ export default function Products({currency}:{currency:string}){
      if(editing?.id){
        await api('/products/'+editing.id,{method:'PUT',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
      }else if(!id){
-       const p=await api('/products',{method:'POST',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
+       const p=await api('/products',{method:'POST',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds,requestId:sourceRequestId})})
        id=Number(p.id);setCreatedId(id)
      }
      if(image&&id)await uploadProductImage(id,image)
@@ -68,7 +69,14 @@ export default function Products({currency}:{currency:string}){
  if(!rows)return <Loading/>
  return <div>
   <PageHeading eyebrow="Catalogue" title="Products" sub="Products, pricing, suppliers and product images." action={<button onClick={()=>show()} className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:bg-slate-800"><Plus size={15}/>Add Product</button>}/>
-  <Panel title="Product catalogue" sub={rows.length+' products'} action={<div className="relative hidden sm:block"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="w-64 rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-[#22A53A] focus:ring-2 focus:ring-[#22A53A]/10"/></div>}>
+  {requests.some(x=>x.status==='pending')&&<Panel title="Requested Items" sub={requests.filter(x=>x.status==='pending').length+' awaiting review'}>
+    <DataTable head={['Requested item','Scanned code','Requested by','Action']} rows={requests.filter(x=>x.status==='pending').slice(0,20).map(r=>[
+      <div><div className="font-medium text-slate-800">{r.name||'Unnamed item'}</div>{r.notes&&<div className="mt-0.5 text-[10px] text-slate-400">{r.notes}</div>}</div>,
+      r.scanned_code||'-',r.requested_by_name||'-',
+      <div className="flex gap-2"><button onClick={async()=>{setSourceRequestId(Number(r.id));setEditing(null);setError('');setSuccess('');setCreatedId(null);try{const [s,cats]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(cats)?cats:[])}catch{}setForm({...blank,name:r.name||'',barcode:r.scanned_code||'',category:String(categories[0]?.name||'General')});setPreview('');setImage(null);setOpen(true)}} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[10px] font-medium text-white">Create Product</button><button onClick={async()=>{await api('/product-requests/'+r.id+'/status',{method:'PUT',body:JSON.stringify({status:'rejected'})});await load()}} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-medium text-slate-500">Reject</button></div>
+    ])}/>
+  </Panel></div>}
+  <div className={requests.some(x=>x.status==='pending')?'mt-4':''}><Panel title="Product catalogue" sub={rows.length+' products'} action={<div className="relative hidden sm:block"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="w-64 rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-[#22A53A] focus:ring-2 focus:ring-[#22A53A]/10"/></div>}>
     <div className="mb-3 sm:hidden"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0 pl-9"/></div></div>
     <DataTable head={['Product','Category','Stock','Cost','Price','Suppliers','']} rows={shown.map(x=>[
       <div className="flex items-center gap-3">
