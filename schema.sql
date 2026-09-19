@@ -866,7 +866,17 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at)
-SELECT b.id,m.code,true,(NOT m.core),CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
+SELECT b.id,m.code,
+  CASE
+    WHEN m.core THEN true
+    WHEN m.code='restaurant' AND b.business_type='restaurant' THEN true
+    WHEN m.code='retail' AND b.business_type='retail' THEN true
+    WHEN m.code='pharmacy' AND b.business_type='pharmacy' THEN true
+    WHEN m.code='production' AND b.business_type='factory' THEN true
+    ELSE false
+  END,
+  CASE WHEN m.core THEN false ELSE true END,
+  CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
 FROM businesses b CROSS JOIN module_catalog m
 ON CONFLICT(business_id,module_code) DO NOTHING;
 
