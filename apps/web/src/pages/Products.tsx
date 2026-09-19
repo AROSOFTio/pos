@@ -53,7 +53,7 @@ export default function Products({currency}:{currency:string}){
        const p=await api('/products',{method:'POST',body:JSON.stringify({...form,name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0)})})
        id=Number(p.id);setCreatedId(id)
      }
-     if(image)await uploadProductImage(id,image)
+     if(image&&id)await uploadProductImage(id,image)
      await load()
      setSuccess(editing?'Product updated successfully.':'Product saved successfully.')
      setTimeout(()=>{setOpen(false);setSuccess('');setCreatedId(null);setEditing(null);setImage(null);setPreview('');setForm(blank)},180)
