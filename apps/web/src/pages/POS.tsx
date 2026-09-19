@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Clock3, Printer, Search, ScanLine, Share2, ShoppingCart, SlidersHorizontal, UtensilsCrossed } from 'lucide-react'
-import { api, money, nice, openPdf, sharePdf } from '../api'
+import { api, money, nice, printPdf, sharePdf } from '../api'
 import { Badge, Modal, PageHeading, Panel } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -212,7 +212,7 @@ export default function POS({currency}:{currency:string}){
       <div className="min-w-0"><div className="truncate text-[13px] font-semibold">{success.sale.receipt_no}</div><div className="mt-0.5 text-[10px] text-slate-400">{money(success.sale.amount_paid,currency)} paid{Number(success.sale.balance_due||0)>0?' · '+money(success.sale.balance_due,currency)+' due':''}</div></div>
     </div>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>openPdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
+      <button onClick={()=>printPdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
       <button onClick={()=>sharePdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm',success.sale.receipt_no+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
       <button onClick={()=>setSuccess(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
     </div>
