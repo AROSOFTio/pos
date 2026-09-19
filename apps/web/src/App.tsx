@@ -266,8 +266,8 @@ function applyTheme(key:string,mode:string,customAccent=''){
   const primary=customAccent||p.primary
   const root=document.documentElement
   root.style.setProperty('--brand-primary',primary)
-  root.style.setProperty('--brand-soft',p.soft)
-  root.style.setProperty('--brand-border',p.border)
+  root.style.setProperty('--brand-soft',key==='dark'?p.soft:`color-mix(in srgb, ${primary} 9%, white)`)
+  root.style.setProperty('--brand-border',key==='dark'?p.border:`color-mix(in srgb, ${primary} 28%, white)`)
   root.style.setProperty('--app-bg',p.bg)
   root.style.setProperty('--app-surface',p.surface)
   root.style.setProperty('--app-text',p.text)
