@@ -8,7 +8,8 @@ import BarcodeScanner, { useHardwareScanner } from '../components/BarcodeScanner
 type Adjustment={id:number;reference_no:string;adjustment_type:'discount'|'foc';requested_amount:number;requested_percent:number;status:string}
 
 export default function Supermarket({currency}:{currency:string}){
- const [items,setItems]=useState<any[]>([]),[cart,setCart]=useState<any[]>([]),[type,setType]=useState('counter'),[category,setCategory]=useState('All')
+ const [items,setItems]=useState<any[]>([]),[cart,setCart]=useState<any[]>([]),[category,setCategory]=useState('All')
+ const type='counter'
  const [busy,setBusy]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[balancesOpen,setBalancesOpen]=useState(false),[balances,setBalances]=useState<any[]>([])
  const [selectedSale,setSelectedSale]=useState<any>(null),[success,setSuccess]=useState<any>(null)
  const [customers,setCustomers]=useState<any[]>([]),[customerId,setCustomerId]=useState(0)
@@ -22,7 +23,7 @@ export default function Supermarket({currency}:{currency:string}){
    const [s,c]=await Promise.all([api('/document-settings'),api('/customers')])
    setTaxRate(Number(s.default_tax_rate||0));setServiceRate(Number(s.default_service_charge_rate||0));setTaxInclusive(!!s.tax_inclusive);setCustomers(c)
  }
- useEffect(()=>{setCart([]);setAdjustment(null);setCustomerId(0);load();loadDefaults()},[type])
+ useEffect(()=>{setCart([]);setAdjustment(null);setCustomerId(0);load();loadDefaults()},[])
 
  const cats=['All',...Array.from(new Set(items.map(x=>x.category_name||'Other')))]
  const shown=items.filter(x=>(category==='All'||(x.category_name||'Other')===category)&&(!query.trim()||[x.name,x.sku,x.product_code,x.barcode,x.category_name].some(v=>String(v||'').toLowerCase().includes(query.trim().toLowerCase()))))
@@ -125,7 +126,6 @@ export default function Supermarket({currency}:{currency:string}){
     sub="Fast barcode-led checkout, stock-aware sales and customer balances."
     action={<div className="flex gap-2">
       <button onClick={openBalances} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Clock3 size={16}/>Open Balances</button>
-      <select value={type} onChange={e=>setType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium"><option value="counter">Counter</option><option value="counter">Counter</option></select>
     </div>}
   />
 
