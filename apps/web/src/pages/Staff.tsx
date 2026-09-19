@@ -10,7 +10,7 @@ export default function Staff(){
  const [name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[role,setRole]=useState('cashier'),[branchIds,setBranchIds]=useState<number[]>([])
  const load=()=>Promise.all([api('/staff'),api('/branches'),api('/permissions')]).then(([u,b,p])=>{setRows(u);setBranches(b);setPermissions(p)})
  useEffect(()=>{load()},[])
- const grouped=useMemo(()=>Object.groupBy(permissions,(x:any)=>x.section||'Other'),[permissions])
+ const grouped=useMemo(()=>permissions.reduce((acc:any,x:any)=>{const k=x.section||'Other';(acc[k] ||= []).push(x);return acc},{}),[permissions])
  async function save(){if(!name||!email||!password)return;await api('/staff',{method:'POST',body:JSON.stringify({name,email,password,role,branchIds})});setOpen(false);setName('');setEmail('');setPassword('');setBranchIds([]);await load()}
  async function toggleActive(x:any){await api('/staff/'+x.id,{method:'PUT',body:JSON.stringify({active:!x.active})});await load()}
  if(!rows)return <Loading/>
