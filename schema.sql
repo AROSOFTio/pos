@@ -1233,3 +1233,17 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_show_logo BOOLEAN NOT NU
 
 ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS cleanliness_status TEXT NOT NULL DEFAULT 'clean';
 UPDATE restaurant_tables SET cleanliness_status='clean' WHERE cleanliness_status IS NULL OR cleanliness_status NOT IN ('clean','dirty');
+
+
+-- Shift hardening: bind financial events to the cashier session that created them
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS received_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_cash_session ON payments(cash_session_id,payment_method,status);
+
+ALTER TABLE refund_tenders ADD COLUMN IF NOT EXISTS cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_refund_tenders_cash_session ON refund_tenders(cash_session_id,payment_method);
+
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS shift_no TEXT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS closing_note TEXT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS variance_reason TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cash_sessions_business_shift_no ON cash_sessions(business_id,shift_no) WHERE shift_no IS NOT NULL;
