@@ -102,25 +102,49 @@ export default function App(){
     return true
   })
 
-  return <div className="min-h-screen bg-[#f4f7fb] text-slate-900 flex">
-    {sidebar&&<div onClick={()=>setSidebar(false)} className="fixed inset-0 bg-slate-950/50 z-40 lg:hidden"/>}
-    <aside className={'fixed inset-y-0 left-0 z-50 w-[270px] bg-[#0b1220] text-white px-3 py-4 flex flex-col transition-transform lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
-      <div className="px-3 py-2"><div className="flex items-center gap-3"><MauzoLogo compact light/><button onClick={()=>setSidebar(false)} className="ml-auto lg:hidden text-slate-400"><X size={20}/></button></div><div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"><div className="text-[10px] font-bold uppercase tracking-[.14em] text-slate-500">Workspace</div><div className="mt-1 truncate text-xs font-semibold text-slate-200">{business}</div></div></div>
-      <nav className="overflow-y-auto flex-1 px-1">
-        <NavGroup title="Business Operations" rows={visibleCore} view={view} go={go}/>
-        {hasRestaurant&&visibleRestaurant.length>0&&<NavGroup title="Restaurant Operations" rows={visibleRestaurant} view={view} go={go}/>}
-        <NavGroup title="Administration" rows={sharedAdmin} view={view} go={go}/>
+  return <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
+    {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
+
+    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[228px] flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
+      <div className="flex h-[60px] items-center border-b border-slate-100 px-4">
+        <MauzoLogo compact/>
+        <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
+      </div>
+      <div className="px-3 pt-3">
+        <div className="rounded-xl bg-[#f7f9f8] px-3 py-2.5">
+          <div className="text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">Workspace</div>
+          <div className="mt-0.5 truncate text-[12px] font-medium text-slate-700">{business}</div>
+        </div>
+      </div>
+      <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
+        <NavGroup title="Operations" rows={visibleCore} view={view} go={go}/>
+        {hasRestaurant&&visibleRestaurant.length>0&&<NavGroup title="Restaurant" rows={visibleRestaurant} view={view} go={go}/>}
+        <NavGroup title="Manage" rows={sharedAdmin} view={view} go={go}/>
       </nav>
-      <div className="m-2 rounded-2xl border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-emerald-400"/>Protected workspace</div><div className="mt-1 text-xs text-slate-500">{hasRestaurant?'Restaurant module active':'Core POS modules active'}</div></div>
+      <div className="border-t border-slate-100 p-3">
+        <div className="flex items-center gap-2 rounded-xl px-2 py-2">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><UserRound size={15}/></div>
+          <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium text-slate-700">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div>
+          <button onClick={logout} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
+        </div>
+      </div>
     </aside>
 
-    <main className="min-w-0 flex-1 lg:ml-[270px]">
-      <header className="sticky top-0 z-30 glass border-b border-slate-200/70 px-4 sm:px-6 lg:px-8 h-[74px] flex items-center gap-4">
-        <button onClick={()=>setSidebar(true)} className="lg:hidden h-10 w-10 rounded-xl border border-slate-200 grid place-items-center"><MenuIcon size={19}/></button>
-        <div><div className="text-xs text-slate-500">{business}</div><h1 className="font-black text-lg tracking-tight">{view}</h1></div>
-        <div className="ml-auto flex items-center gap-2"><button className="hidden sm:grid h-10 w-10 rounded-xl border border-slate-200 bg-white place-items-center text-slate-500"><Search size={17}/></button><button className="h-10 w-10 rounded-xl border border-slate-200 bg-white grid place-items-center text-slate-500 relative"><Bell size={17}/><span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500"/></button><div className="ml-1 flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-2 py-1.5"><div className="h-8 w-8 rounded-lg bg-slate-100 grid place-items-center"><UserRound size={16}/></div><div className="hidden md:block max-w-36"><div className="text-xs font-bold truncate">{user.name}</div><div className="text-[10px] text-slate-500 truncate">{nice(businessRole||user.role)}</div></div><button onClick={logout} className="p-1.5 text-slate-400 hover:text-red-500"><LogOut size={16}/></button></div></div>
+    <main className="min-w-0 lg:ml-[228px]">
+      <header className="sticky top-0 z-30 flex h-[60px] items-center gap-3 border-b border-slate-200/80 bg-white/95 px-3 backdrop-blur-sm sm:px-5 lg:px-6">
+        <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
+        <div className="min-w-0">
+          <h1 className="truncate text-[16px] font-semibold tracking-[-.02em] text-slate-900">{view}</h1>
+          <div className="hidden truncate text-[10px] text-slate-400 sm:block">{business}</div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button className="hidden h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 sm:grid"><Search size={16}/></button>
+          <button className="relative grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#22A53A]"/></button>
+          <div className="hidden items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 md:flex"><div className="grid h-7 w-7 place-items-center rounded-md bg-slate-100 text-slate-500"><UserRound size={14}/></div><div className="max-w-32"><div className="truncate text-[11px] font-medium">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div></div>
+        </div>
       </header>
-      <div className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+
+      <div className="page-enter px-3 pb-24 pt-4 sm:px-5 lg:px-6 lg:pb-8">
         {view==='Dashboard'&&<Dashboard currency={currency} go={go}/>}
         {view==='POS'&&<POS currency={currency}/>}
         {view==='Sales'&&<Sales currency={currency}/>}
@@ -134,17 +158,26 @@ export default function App(){
         {view==='Expenses'&&<Expenses currency={currency}/>}
         {view==='Products'&&<Products currency={currency}/>}
         {view==='Suppliers'&&<Suppliers currency={currency}/>}
-        {view==='Cash Drawer'&&<CashDrawer currency={currency}/>} 
-        {view==='Reports'&&<Reports currency={currency}/>} 
+        {view==='Cash Drawer'&&<CashDrawer currency={currency}/>}
+        {view==='Reports'&&<Reports currency={currency}/>}
         {view==='Staff'&&<Staff/>}
         {view==='Branches'&&<Branches/>}
         {view==='Settings'&&<Settings/>}
       </div>
     </main>
+
+    <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[64px] grid-cols-5 border-t border-slate-200 bg-white/98 px-1 pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <MobileNav icon={LayoutDashboard} label="Home" active={view==='Dashboard'} onClick={()=>go('Dashboard')}/>
+      <MobileNav icon={ShoppingCart} label="POS" active={view==='POS'} onClick={()=>go('POS')}/>
+      <MobileNav icon={ClipboardList} label="Orders" active={view==='Orders'} onClick={()=>hasRestaurant?go('Orders'):go('Sales')}/>
+      <MobileNav icon={BarChart3} label="Reports" active={view==='Reports'} onClick={()=>can('reports.profit')?go('Reports'):go('Dashboard')}/>
+      <MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/>
+    </nav>
   </div>
 }
 
-function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-7"><div className="px-4 mb-2 text-[10px] font-bold tracking-[.16em] uppercase text-slate-500">{title}</div><div className="space-y-1">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'w-full flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition '+(view===name?'bg-[#22A53A] text-white shadow-lg shadow-green-900/10':'text-slate-300 hover:bg-white/5 hover:text-white')}><Icon size={18}/><span>{name}</span></button>)}</div></div>}
+function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-4"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-emerald-50 font-medium text-[#15803d]':'font-normal text-slate-600 hover:bg-slate-50 hover:text-slate-900')}><Icon size={16}/><span>{name}</span></button>)}</div></div>}
+function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[#22A53A]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
 
 function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
   const [showPassword,setShowPassword]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[forgot,setForgot]=useState(false),[sent,setSent]=useState(false)
