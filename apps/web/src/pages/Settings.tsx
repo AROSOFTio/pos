@@ -3,6 +3,8 @@ import { ImagePlus, Pencil, Plus } from 'lucide-react'
 import { api, money } from '../api'
 import { PageHeading, Panel, Loading, DataTable, Badge, Modal } from '../components'
 
+const asArray=(value:any):any[]=>Array.isArray(value)?value:Array.isArray(value?.rows)?value.rows:Array.isArray(value?.data)?value.data:[]
+
 export default function Settings(){
  const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
  const [profiles,setProfiles]=useState<any[]>([]),[profileName,setProfileName]=useState('Customer Receipt'),[profileType,setProfileType]=useState('receipt'),[paperSize,setPaperSize]=useState('80mm'),[printerName,setPrinterName]=useState(''),[stationId,setStationId]=useState<number|''>(''),[stations,setStations]=useState<any[]>([]),[printLogs,setPrintLogs]=useState<any[]>([])
@@ -19,7 +21,7 @@ export default function Settings(){
  const load=()=>Promise.all([
    api('/document-settings'),
    api('/print/profiles').catch(()=>[]),
-   api('/kitchen/stations').catch(()=>[]),
+   api('/restaurant/stations').catch(()=>[]),
    api('/print/logs').catch(()=>[]),
    api('/branches').catch(()=>[]),
    api('/restaurant/areas').catch(()=>[]),
@@ -28,7 +30,8 @@ export default function Settings(){
    api('/menu/items').catch(()=>[]),
    api('/products').catch(()=>[])
  ]).then(([x,p,ks,logs,b,a,t,c,m,pr])=>{
-   setS(x);setProfiles(p);setStations(ks);setPrintLogs(logs);setBranches(b);setAreas(a);setTables(t);setCategories(c);setMenu(m);setProducts(pr)
+   setS(x&&typeof x==='object'&&!Array.isArray(x)?x:{})
+   setProfiles(asArray(p));setStations(asArray(ks));setPrintLogs(asArray(logs));setBranches(asArray(b));setAreas(asArray(a));setTables(asArray(t));setCategories(asArray(c));setMenu(asArray(m));setProducts(asArray(pr))
  })
 
  useEffect(()=>{load().catch((e:any)=>setError(e.message||'Settings could not be loaded.'))},[])
@@ -78,7 +81,7 @@ export default function Settings(){
      await api('/menu/items/'+editingMenu.id+'/config',{method:'PUT',body:JSON.stringify({categoryId:menuForm.categoryId||null,kitchenStationId:menuForm.kitchenStationId||null,price:menuForm.price,available:menuForm.available,soldOut:menuForm.soldOut})})
    }else{
      await api('/menu/items',{method:'POST',body:JSON.stringify({productId:menuForm.productId,categoryId:menuForm.categoryId||null,kitchenStationId:menuForm.kitchenStationId||null,available:menuForm.available,soldOut:menuForm.soldOut})})
-     const fresh=await api('/menu/items')
+     const fresh=asArray(await api('/menu/items'))
      const created=fresh.find((x:any)=>Number(x.product_id)===Number(menuForm.productId))
      if(created)await api('/menu/items/'+created.id+'/config',{method:'PUT',body:JSON.stringify({categoryId:menuForm.categoryId||null,kitchenStationId:menuForm.kitchenStationId||null,price:menuForm.price,available:menuForm.available,soldOut:menuForm.soldOut})})
    }
@@ -169,7 +172,7 @@ export default function Settings(){
       <Field label="Kitchen station"><select className="control" value={stationId} onChange={e=>setStationId(Number(e.target.value)||'')}><option value="">Any / none</option>{stations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
       <div className="sm:col-span-2"><Field label="Printer name"><input className="control" value={printerName} onChange={e=>setPrinterName(e.target.value)} placeholder="Optional local/browser printer"/></Field></div>
     </div>
-    <button onClick={async()=>{try{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(await api('/print/profiles'));setMessage('Printer profile added.')}catch(e:any){setError(e.message)}}} className="mt-3 rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white">Add Printer Profile</button>
+    <button onClick={async()=>{try{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(asArray(await api('/print/profiles')));setMessage('Printer profile added.')}catch(e:any){setError(e.message)}}} className="mt-3 rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white">Add Printer Profile</button>
    </Panel>
   </div>
 
