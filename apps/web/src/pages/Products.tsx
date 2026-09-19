@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, ImagePlus, Package, Pencil, Plus, ScanLine, Search, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ImagePlus, Package, Pencil, Plus, ScanLine, X } from 'lucide-react'
 import { api, money } from '../api'
 import { PageHeading, Panel, DataTable, Loading, Modal, Badge } from '../components'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -76,8 +76,8 @@ export default function Products({currency}:{currency:string}){
       <div className="flex gap-2"><button onClick={async()=>{setSourceRequestId(Number(r.id));setEditing(null);setError('');setSuccess('');setCreatedId(null);try{const [s,cats]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(cats)?cats:[])}catch{}setForm({...blank,name:r.name||'',barcode:r.scanned_code||'',category:String(categories[0]?.name||'General')});setPreview('');setImage(null);setOpen(true)}} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[10px] font-medium text-white">Create Product</button><button onClick={async()=>{await api('/product-requests/'+r.id+'/status',{method:'PUT',body:JSON.stringify({status:'rejected'})});await load()}} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-medium text-slate-500">Reject</button></div>
     ])}/>
   </Panel>}
-  <div className={requests.some(x=>x.status==='pending')?'mt-4':''}><Panel title="Product catalogue" sub={rows.length+' products'} action={<div className="relative hidden sm:block"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="w-64 rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-[12px] outline-none transition focus:border-[#22A53A] focus:ring-2 focus:ring-[#22A53A]/10"/></div>}>
-    <div className="mb-3 sm:hidden"><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0 pl-9"/></div></div>
+  <div className={requests.some(x=>x.status==='pending')?'mt-4':''}><Panel title="Product catalogue" sub={rows.length+' products'} action={<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="hidden w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] outline-none transition focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10 sm:block"/>}>
+    <div className="mb-3 sm:hidden"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0"/></div>
     <DataTable head={['Product','Category','Stock','Cost','Price','Suppliers','']} rows={shown.map(x=>[
       <div className="flex items-center gap-3">
         {x.image_url?<div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-slate-100 bg-white p-1"><img src={x.image_url} className="max-h-full max-w-full object-contain" alt={x.name}/></div>:<div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-slate-50 text-slate-300"><Package size={18}/></div>}
