@@ -50,3 +50,23 @@ export async function downloadFile(path:string, filename?:string) {
   const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()
   setTimeout(()=>URL.revokeObjectURL(url),120000)
 }
+
+
+export async function sharePdf(path:string, filename='MauzoPOS-document.pdf') {
+  const token=localStorage.getItem('pos_token')||''
+  const response=await fetch('/api'+path,{headers:{Authorization:'Bearer '+token}})
+  if(!response.ok){
+    const type=response.headers.get('content-type')||''
+    const body=type.includes('application/json')?await response.json():await response.text()
+    throw new Error(body?.error||body||'Unable to prepare document')
+  }
+  const blob=await response.blob()
+  const file=new File([blob],filename,{type:'application/pdf'})
+  if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+    await navigator.share({title:'MauzoPOS document',files:[file]})
+    return
+  }
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove()
+  setTimeout(()=>URL.revokeObjectURL(url),120000)
+}
