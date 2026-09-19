@@ -79,7 +79,6 @@ async function canDecideApproval(client,req,bid,approval){
 async function getBiz(req){if(req.businessId)return req.businessId;const q=await pool.query('SELECT id FROM businesses ORDER BY id LIMIT 1');return q.rows[0]?.id}
 async function audit(user,businessId,action,entity,id,details={}){try{await pool.query('INSERT INTO audit_logs(user_email,business_id,action,entity,entity_id,details) VALUES($1,$2,$3,$4,$5,$6)',[user?.email||null,businessId||null,action,entity,id?String(id):null,details])}catch{}}
 app.get('/api/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,database:'postgresql'})}catch(e){res.status(500).json({ok:false,error:e.message})}});
-app.post('/api/_body-check',(req,res)=>res.json({probe:String(req.body?.probe||''),keys:Object.keys(req.body||{})}));
 
 app.post('/api/register',async(req,res)=>{
   const {name,email,password,businessName,country='Uganda',currency='UGX',businessType='general'}=req.body||{};
