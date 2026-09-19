@@ -7,7 +7,7 @@ export function PageHeading({eyebrow,title,sub,action}:{eyebrow:string;title:str
     <div className="min-w-0">
       <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[var(--brand-primary)]">{eyebrow}</div>
       <h2 className="mt-1 text-[21px] font-semibold tracking-[-.025em] text-slate-900 sm:text-[25px]">{title}</h2>
-      <p className="mt-1 max-w-2xl text-[12px] leading-[1.45] text-slate-500 sm:text-[12.5px]">{sub}</p>
+      {sub&&<p className="mt-1 max-w-2xl truncate text-[11px] text-slate-400">{sub}</p>}
     </div>
     {action&&<div className="shrink-0">{action}</div>}
   </div>
