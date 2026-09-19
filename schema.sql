@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS businesses (
 );
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'restaurant';
 
+
 CREATE TABLE IF NOT EXISTS user_businesses (
   user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
@@ -1228,3 +1229,7 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_title TEXT NOT NULL DEFA
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_payment_options TEXT NOT NULL DEFAULT 'CASH | MTN MOMO | AIRTEL MONEY | CARD';
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_header_note TEXT;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_show_logo BOOLEAN NOT NULL DEFAULT true;
+
+
+ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS cleanliness_status TEXT NOT NULL DEFAULT 'clean';
+UPDATE restaurant_tables SET cleanliness_status='clean' WHERE cleanliness_status IS NULL OR cleanliness_status NOT IN ('clean','dirty');
