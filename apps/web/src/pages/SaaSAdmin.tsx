@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, Copy, Eye, Layers3, RefreshCcw, ShieldCheck, UsersRound } from 'lucide-react'
+import { Building2, Copy, Eye, RefreshCcw, ShieldCheck, UsersRound } from 'lucide-react'
 import { api, nice } from '../api'
 import { Badge, DataTable, Loading, Modal, Panel } from '../components'
 
