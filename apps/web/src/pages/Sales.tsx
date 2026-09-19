@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Eye, RotateCcw, ShieldAlert } from 'lucide-react'
-import { api, money, nice } from '../api'
+import { api, money, nice, openPdf } from '../api'
 import { Badge, DataTable, Loading, Modal, PageHeading, Panel } from '../components'
 
 type Mode='refund'|'void_item'|'void_sale'
@@ -49,7 +49,7 @@ export default function Sales({currency}:{currency:string}){
   </Panel>
 
   {detailOpen&&detail&&<Modal title={'Sale · '+detail.sale.receipt_no} onClose={()=>setDetailOpen(false)}>
-    <div className="grid grid-cols-3 gap-3">
+    <div className="mb-3 flex justify-end"><button onClick={()=>openPdf('/documents/sale/'+detail.sale.id+'/pdf')} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium">Print Receipt</button></div><div className="grid grid-cols-3 gap-3">
       <Kpi label="Total" value={money(detail.sale.total,currency)}/>
       <Kpi label="Collected" value={money(detail.sale.amount_paid,currency)} tone="green"/>
       <Kpi label="Refunded" value={money(detail.sale.refunded_amount,currency)} tone={Number(detail.sale.refunded_amount)>0?'amber':'slate'}/>
@@ -60,7 +60,7 @@ export default function Sales({currency}:{currency:string}){
     <div className="mt-5 text-xs font-black uppercase tracking-[.14em] text-slate-400">Tender history</div>
     <div className="mt-2 space-y-2">{detail.payments.length?detail.payments.map((p:any)=><div key={p.id} className="flex justify-between rounded-xl bg-slate-50 p-3 text-sm"><span>{nice(p.payment_method)} {p.reference&&'· '+p.reference}</span><b>{money(p.allocated_amount||p.amount,currency)}</b></div>):<div className="text-sm text-slate-400">No posted tenders.</div>}</div>
     <div className="mt-5 text-xs font-black uppercase tracking-[.14em] text-slate-400">Refund / void history</div>
-    <div className="mt-2 space-y-2">{detail.refunds.length?detail.refunds.map((r:any)=><div key={r.id} className="rounded-xl border border-slate-200 p-3"><div className="flex justify-between gap-3"><div><b className="text-sm">{r.refund_no}</b><div className="mt-1 text-xs text-slate-400">{nice(r.request_kind)} · {r.reason}</div></div><div className="text-right"><b>{money(r.total,currency)}</b><div className="mt-1"><Badge tone={r.status==='approved'?'green':r.status==='rejected'?'red':'amber'}>{nice(r.status)}</Badge></div></div></div></div>):<div className="text-sm text-slate-400">No refund or void requests.</div>}</div>
+    <div className="mt-2 space-y-2">{detail.refunds.length?detail.refunds.map((r:any)=><div key={r.id} className="rounded-xl border border-slate-200 p-3"><div className="flex justify-between gap-3"><div><b className="text-sm">{r.refund_no}</b><div className="mt-1 text-xs text-slate-400">{nice(r.request_kind)} · {r.reason}</div></div><div className="text-right"><b>{money(r.total,currency)}</b><div className="mt-1 flex items-center justify-end gap-2"><Badge tone={r.status==='approved'?'green':r.status==='rejected'?'red':'amber'}>{nice(r.status)}</Badge>{r.status==='approved'&&<button onClick={()=>openPdf('/documents/refund/'+r.id+'/pdf')} className="text-[11px] font-medium text-slate-500">PDF</button>}</div></div></div></div>):<div className="text-sm text-slate-400">No refund or void requests.</div>}</div>
     {!detail.sale.voided&&Number(detail.sale.amount_paid)>Number(detail.sale.refunded_amount)&&<div className="mt-5 grid grid-cols-3 gap-2">
       <button onClick={()=>openAction('refund')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold"><RotateCcw size={15}/>Refund Items</button>
       <button onClick={()=>openAction('void_item')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-xs font-bold text-amber-800"><ShieldAlert size={15}/>Void Item</button>
