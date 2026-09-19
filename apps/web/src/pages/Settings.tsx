@@ -263,7 +263,7 @@ function applyLocalTheme(key:string,primary:string){
   dark:{soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
  }[key]||{}
  const r=document.documentElement
- r.style.setProperty('--brand-primary',primary||'#22A53A');r.style.setProperty('--brand-soft',map.soft||'#ECF8EF');r.style.setProperty('--brand-border',map.border||'#BDE7C5');r.style.setProperty('--app-bg',map.bg||'#F7F9F7');r.style.setProperty('--app-surface',map.surface||'#fff');r.style.setProperty('--app-text',map.text||'#172033');r.style.setProperty('--app-muted',map.muted||'#64748B');r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB');r.dataset.theme=key
+ const p=primary||'#22A53A';r.style.setProperty('--brand-primary',p);r.style.setProperty('--brand-soft',key==='dark'?(map.soft||'#263119'):`color-mix(in srgb, ${p} 9%, white)`);r.style.setProperty('--brand-border',key==='dark'?(map.border||'#3F4B2C'):`color-mix(in srgb, ${p} 28%, white)`);r.style.setProperty('--app-bg',map.bg||'#F7F9F7');r.style.setProperty('--app-surface',map.surface||'#fff');r.style.setProperty('--app-text',map.text||'#172033');r.style.setProperty('--app-muted',map.muted||'#64748B');r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB');r.dataset.theme=key
 }
 
 function SaveButton({saving,onClick}:{saving:boolean;onClick:()=>void}){return <div className="mt-5 flex justify-end"><button onClick={onClick} disabled={saving} className="rounded-lg bg-[#22A53A] px-5 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Saving…':'Save Changes'}</button></div>}
