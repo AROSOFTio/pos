@@ -1305,3 +1305,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_business_receipt_no ON sales(business
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Africa/Kampala';
 CREATE INDEX IF NOT EXISTS idx_products_business_barcode ON products(business_id,barcode);
 CREATE INDEX IF NOT EXISTS idx_products_business_sku ON products(business_id,sku);
+
+
+-- Backfill system-generated expense register from operational activity.
+INSERT INTO expenses(business_id,category,description,amount,expense_date,reference_no,source_type,source_id,auto_generated,accounting_treatment,status)
+SELECT cm.business_id,'Cash Expense',cm.reason,cm.amount,cm.created_at::date,coalesce(cm.reference,'CASH-'||cm.id),'cash_movement',cm.id,true,'operating_expense','posted'
+FROM cash_movements cm
+WHERE cm.movement_type='cash_out'
+ON CONFLICT(business_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL DO NOTHING;
+
+INSERT INTO expenses(business_id,category,description,amount,expense_date,reference_no,source_type,source_id,auto_generated,accounting_treatment,status)
+SELECT ic.business_id,
+       CASE WHEN ic.consumption_type='staff_meal' THEN 'Staff Meals' ELSE 'Complimentary / Promotion' END,
+       CASE WHEN ic.consumption_type='staff_meal' THEN 'Staff meal stock consumption' ELSE 'Complimentary stock consumption' END,
+       sum(ici.qty*ici.unit_cost),
+       ic.created_at::date,ic.reference_no,'inventory_consumption',ic.id,true,
+       CASE WHEN ic.consumption_type='staff_meal' THEN 'staff_welfare_expense' ELSE 'promotion_expense' END,'posted'
+FROM inventory_consumptions ic
+JOIN inventory_consumption_items ici ON ici.consumption_id=ic.id
+GROUP BY ic.id
+HAVING sum(ici.qty*ici.unit_cost)>0
+ON CONFLICT(business_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL DO NOTHING;
+
+INSERT INTO expenses(business_id,category,description,amount,expense_date,reference_no,source_type,source_id,auto_generated,accounting_treatment,status)
+SELECT sa.business_id,
+       CASE WHEN sa.adjustment_type='spoilage' THEN 'Spoilage' ELSE 'Wastage' END,
+       CASE WHEN sa.adjustment_type='spoilage' THEN 'Spoilage ' ELSE 'Wastage ' END || coalesce(sa.reason,sa.reference_no),
+       sum(abs(sai.qty_change*sai.unit_cost)),
+       sa.created_at::date,sa.reference_no,'stock_adjustment',sa.id,true,'inventory_loss','posted'
+FROM stock_adjustments sa
+JOIN stock_adjustment_items sai ON sai.adjustment_id=sa.id
+WHERE sa.status='posted' AND sa.adjustment_type IN ('wastage','spoilage')
+GROUP BY sa.id
+HAVING sum(abs(sai.qty_change*sai.unit_cost))>0
+ON CONFLICT(business_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL DO NOTHING;
