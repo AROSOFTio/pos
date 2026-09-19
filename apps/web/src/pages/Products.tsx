@@ -50,7 +50,7 @@ export default function Products({currency}:{currency:string}){
      if(image)await uploadProductImage(id,image)
      await load()
      setSuccess('Product saved successfully.')
-     setTimeout(()=>{setOpen(false);setSuccess('');setCreatedId(null)},450)
+     setTimeout(()=>{setOpen(false);setSuccess('');setCreatedId(null);setImage(null);setPreview('');setForm(blank)},180)
    }catch(e:any){
      setError(e?.message||'Product could not be saved. Please try again.')
      await load().catch(()=>{})
