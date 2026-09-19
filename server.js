@@ -70,18 +70,35 @@ async function audit(user,businessId,action,entity,id,details={}){try{await pool
 app.get('/api/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,database:'postgresql'})}catch(e){res.status(500).json({ok:false,error:e.message})}});
 
 app.post('/api/register',async(req,res)=>{
-  const {name,email,password,businessName,country='Uganda',currency='UGX'}=req.body||{};
-  if(!name||!email||!password||!businessName)return res.status(400).json({error:'All fields are required'});
+  const {name,email,password,businessName,country='Uganda',currency='UGX',businessType='general'}=req.body||{};
+  const cleanName=String(name||'').trim(),cleanEmail=String(email||'').trim().toLowerCase(),cleanBusiness=String(businessName||'').trim(),cleanType=String(businessType||'general').trim().toLowerCase();
+  if(!cleanName||!cleanEmail||!password||!cleanBusiness)return res.status(400).json({error:'Please complete name, email, business name and password'});
+  if(String(password).length<10)return res.status(400).json({error:'Password must be at least 10 characters'});
+  const allowedTypes=['restaurant','retail','pharmacy','factory','general'];
+  if(!allowedTypes.includes(cleanType))return res.status(400).json({error:'Choose a valid business type'});
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const exists=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1)',[email]); if(exists.rowCount)throw new Error('Email already registered');
+    const exists=await client.query('SELECT 1 FROM users WHERE lower(email)=lower($1)',[cleanEmail]); if(exists.rowCount)throw new Error('Email already registered. Use Login or Forgot password.');
     const hash=await bcrypt.hash(password,12);
-    const u=await client.query('INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,$3,$4) RETURNING id,email,name,role',[email,hash,name,'tenant_owner']);
-    const b=await client.query("INSERT INTO businesses(name,country,currency,status,trial_ends_at) VALUES($1,$2,$3,'trial',now()+interval '14 days') RETURNING *",[businessName,country,currency]);
+    const u=await client.query('INSERT INTO users(email,password_hash,name,role) VALUES($1,$2,$3,$4) RETURNING id,email,name,role',[cleanEmail,hash,cleanName,'tenant_owner']);
+    const b=await client.query("INSERT INTO businesses(name,country,currency,status,trial_ends_at,business_type) VALUES($1,$2,$3,'trial',now()+interval '14 days',$4) RETURNING *",[cleanBusiness,country,currency,cleanType]);
     await client.query('INSERT INTO user_businesses(user_id,business_id,role) VALUES($1,$2,$3)',[u.rows[0].id,b.rows[0].id,'owner']);
-    await client.query("INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at) SELECT $1,code,true,(NOT core),CASE WHEN core THEN NULL ELSE now()+interval '14 days' END FROM module_catalog",[b.rows[0].id]);
-    await client.query('INSERT INTO branches(business_id,name,location) VALUES($1,$2,$3)',[b.rows[0].id,'Main Branch',country]);await client.query("INSERT INTO approval_rules(business_id,section,action_type,approver_role) VALUES($1,'Purchasing','purchase_order','owner'),($1,'Inventory','inventory_wastage','owner'),($1,'Inventory','inventory_spoilage','owner'),($1,'Restaurant','restaurant_order_cancel','owner'),($1,'Sales','transaction_discount','owner'),($1,'Sales','transaction_foc','owner'),($1,'Sales','sale_refund','owner'),($1,'Sales','sale_void','owner') ON CONFLICT(business_id,action_type) DO NOTHING",[b.rows[0].id]);
+    await client.query(`INSERT INTO tenant_modules(business_id,module_code,enabled,trial,expires_at)
+      SELECT $1,m.code,
+        CASE
+          WHEN m.core THEN true
+          WHEN m.code='restaurant' AND $2='restaurant' THEN true
+          WHEN m.code='retail' AND $2='retail' THEN true
+          WHEN m.code='pharmacy' AND $2='pharmacy' THEN true
+          WHEN m.code='production' AND $2='factory' THEN true
+          ELSE false
+        END,
+        CASE WHEN m.core THEN false ELSE true END,
+        CASE WHEN m.core THEN NULL ELSE now()+interval '14 days' END
+      FROM module_catalog m`,[b.rows[0].id,cleanType]);
+    await client.query('INSERT INTO branches(business_id,name,location) VALUES($1,$2,$3)',[b.rows[0].id,'Main Branch',country]);
+    await client.query("INSERT INTO approval_rules(business_id,section,action_type,approver_role) VALUES($1,'Purchasing','purchase_order','owner'),($1,'Inventory','inventory_wastage','owner'),($1,'Inventory','inventory_spoilage','owner'),($1,'Restaurant','restaurant_order_cancel','owner'),($1,'Sales','transaction_discount','owner'),($1,'Sales','transaction_foc','owner'),($1,'Sales','sale_refund','owner'),($1,'Sales','sale_void','owner') ON CONFLICT(business_id,action_type) DO NOTHING",[b.rows[0].id]);
     await client.query('COMMIT');
     const token=jwt.sign({id:u.rows[0].id,email:u.rows[0].email,name:u.rows[0].name,role:u.rows[0].role,businessId:b.rows[0].id},secret,{expiresIn:'7d'});
     res.json({token,user:u.rows[0],business:b.rows[0],trialDays:14});
