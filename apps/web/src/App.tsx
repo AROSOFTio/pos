@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { BarChart3, useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, Bell, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, LockKeyhole, LogOut, Mail, Menu as MenuIcon, Package, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo } from './Brand'
