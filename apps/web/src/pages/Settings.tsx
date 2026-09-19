@@ -184,6 +184,9 @@ export default function Settings(){
           <button onClick={async()=>{try{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(asArray(await api('/print/profiles')));setMessage('Printer profile added.')}catch(e:any){setError(e.message)}}} className="mt-3 rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white"><Printer size={13} className="mr-1 inline"/>Add Printer Profile</button>
           <div className="mt-4"><DataTable head={['Profile','Document','Paper','Printer','Station','Status']} rows={profiles.map(p=>[p.name,p.document_type,p.paper_size,p.printer_name||'Browser / PDF',p.station_name||'-',<Badge tone={p.active?'green':'red'}>{p.active?'Active':'Inactive'}</Badge>])}/></div>
         </Panel>
+        <Panel title="Print / Reprint Audit" sub="Recent receipts, KOTs and reports generated from the system.">
+          <DataTable head={['When','Document','Reference','Paper','By','Type']} rows={printLogs.slice(0,50).map(x=>[new Date(x.created_at).toLocaleString(),x.document_type,x.document_no||x.entity_type+' #'+x.entity_id,x.paper_size||'-',x.printed_by||'-',<Badge tone={x.reprint?'amber':'green'}>{x.reprint?'Reprint':'First print'}</Badge>])}/>
+        </Panel>
       </div>}
 
       {section==='tax'&&<Panel title="Tax & Service Charge" sub="Defaults used on new orders and sales.">
