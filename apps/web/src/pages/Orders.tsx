@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, SlidersHorizontal } from 'lucide-react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal } from 'lucide-react'
 import { api, money, nice, openPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
@@ -17,6 +17,7 @@ export default function Orders({currency}:{currency:string}){
  const [depositOpen,setDepositOpen]=useState(false),[depositBusy,setDepositBusy]=useState(false)
  const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
+ const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null)
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -58,7 +59,7 @@ export default function Orders({currency}:{currency:string}){
  }
  async function requestBill(){await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'bill_requested',comment:'Bill requested from premium POS'})});await refreshDetail();await load()}
  async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
- async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const out=await api('/restaurant/orders/'+detail.order.id+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid')setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d)}finally{setPaymentBusy(false)}}
+ async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const orderId=Number(detail.order.id),orderNo=String(detail.order.order_no||'ORDER');const out=await api('/restaurant/orders/'+orderId+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid'){setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d);setReceiptActions({id:orderId,orderNo})}}finally{setPaymentBusy(false)}}
  async function submitDeposit(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setDepositBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/deposits',{method:'POST',body:JSON.stringify({payments:lines})});setDepositOpen(false);await refreshDetail();await load()}finally{setDepositBusy(false)}}
  async function openCharges(){
    if(!detail?.order)return
@@ -103,7 +104,7 @@ export default function Orders({currency}:{currency:string}){
 
  return <div>
   <PageHeading eyebrow="Front of house" title="Restaurant Orders" sub="Live tables, service status and bills." action={<button onClick={openNew} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>New Order</button>}/>
-  <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">{rows.map(o=><div key={o.id} className={'rounded-xl border bg-white p-4 premium-shadow '+(o.held?'border-amber-300':'border-slate-200')}><div className="flex justify-between gap-3"><div><b>{o.order_no}</b><div className="text-xs text-slate-400 mt-1">{nice(o.order_type)} {o.table_name&&'· '+o.table_name}</div></div><Badge tone={o.status==='ready'?'green':o.status==='preparing'?'amber':'blue'}>{nice(o.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Guests</span><b className="block text-base mt-1">{o.guest_count}</b></div><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Waiter</span><b className="block truncate mt-1">{o.waiter_name||'Unassigned'}</b></div></div><div className="mt-3 flex items-end justify-between"><div><span className="text-xs text-slate-400">Order total</span><div className="font-semibold">{money(o.total,currency)}</div></div><button onClick={()=>openOrder(Number(o.id))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-emerald-400">Open</button></div></div>)}</div>
+  <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">{rows.map(o=><div key={o.id} className={'rounded-xl border bg-white p-4 premium-shadow '+(o.held?'border-amber-300':'border-slate-200')}><div className="flex justify-between gap-3"><div><b>{o.order_no}</b><div className="text-xs text-slate-400 mt-1">{nice(o.order_type)} {o.table_name&&'· '+o.table_name}</div></div><Badge tone={o.status==='ready'?'green':o.status==='preparing'?'amber':'blue'}>{nice(o.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Guests</span><b className="block text-base mt-1">{o.guest_count}</b></div><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Waiter</span><b className="block truncate mt-1">{o.waiter_name||'Unassigned'}</b></div></div><div className="mt-3 flex items-end justify-between"><div><span className="text-xs text-slate-400">Order total</span><div className="font-semibold">{money(o.total,currency)}</div></div><button onClick={()=>openOrder(Number(o.id))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-[var(--brand-border)]">Open</button></div></div>)}</div>
 
   {newOpen&&<Modal title="Open Restaurant Order" onClose={()=>setNewOpen(false)}>
     <div className="grid sm:grid-cols-2 gap-3">
@@ -132,7 +133,7 @@ export default function Orders({currency}:{currency:string}){
       </div>
       <div className="mt-3 flex justify-between items-end border-t border-white/10 pt-3">
         <div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-semibold">{money(detail.order.total,currency)}</div>{Number(detail.order.amount_paid||0)>0&&<div className="mt-1 text-xs text-emerald-300">{money(detail.order.amount_paid,currency)} paid · {money(detail.order.balance_due,currency)} due</div>}</div>
-        {!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-emerald-400 text-slate-950 px-4 py-2 text-sm font-medium">+ Add Item</button>}
+        {!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-[var(--brand-primary)] text-white px-4 py-2 text-sm font-medium">+ Add Item</button>}
       </div>
     </div>
     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -175,8 +176,8 @@ export default function Orders({currency}:{currency:string}){
     <div className="my-5 h-px bg-slate-200"/>
     <div className="text-[11px] font-medium uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>Discount</button>
-      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>FOC / Complimentary</button>
+      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>Discount</button>
+      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>FOC / Complimentary</button>
     </div>
     {adjustType==='discount'&&<div className="mt-3 grid grid-cols-2 gap-3">
       <Field label="Fixed amount"><input className="control" type="number" min="0" step="0.01" value={adjustAmount||''} onChange={e=>{setAdjustAmount(Number(e.target.value));if(Number(e.target.value)>0)setAdjustPercent(0)}} placeholder="Amount"/></Field>
@@ -184,7 +185,7 @@ export default function Orders({currency}:{currency:string}){
     </div>}
     <label className="mt-3 block text-[13px] font-medium text-slate-700">Reason<textarea className="control min-h-20" value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} placeholder="Why is this adjustment required?"/></label>
     <label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={adjustUrgent} onChange={e=>setAdjustUrgent(e.target.checked)}/>Mark approval request as urgent</label>
-    <button onClick={requestAdjustment} disabled={chargesBusy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="mt-3 w-full rounded-xl bg-[#22A53A] py-3 font-medium text-white disabled:opacity-40">Send {adjustType==='foc'?'FOC':'Discount'} for Approval</button>
+    <button onClick={requestAdjustment} disabled={chargesBusy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="mt-3 w-full rounded-xl bg-[var(--brand-primary)] py-3 font-medium text-white disabled:opacity-40">Send {adjustType==='foc'?'FOC':'Discount'} for Approval</button>
     {adjustMessage&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[13px] font-medium text-emerald-700">{adjustMessage}</div>}
   </Modal>}
 
@@ -209,6 +210,18 @@ export default function Orders({currency}:{currency:string}){
     onClose={()=>{setPaymentOpen(false);setBill(null)}}
     onSubmit={submitBillPayment}
   />
+
+  {receiptActions&&<Modal title="Payment Complete" onClose={()=>setReceiptActions(null)} size="sm">
+    <div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10"><CheckCircle2 size={20}/></div>
+      <div><div className="text-[13px] font-semibold">{receiptActions.orderNo}</div><div className="mt-0.5 text-[10px] text-slate-400">Order fully settled</div></div>
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <button onClick={()=>openPdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
+      <button onClick={()=>sharePdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm',receiptActions.orderNo+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
+      <button onClick={()=>setReceiptActions(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
+    </div>
+  </Modal>}
 
   {transferOpen&&<Modal title="Transfer Table" onClose={()=>setTransferOpen(false)}><Field label="Destination table"><select value={transferTable} onChange={e=>setTransferTable(Number(e.target.value))} className="control">{availableTables.map(t=><option key={t.id} value={t.id}>{t.area_name||'Floor'} · {t.name}</option>)}</select></Field><button onClick={doTransfer} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium">Transfer Order</button></Modal>}
 
