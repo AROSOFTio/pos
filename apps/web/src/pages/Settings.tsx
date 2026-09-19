@@ -3,9 +3,9 @@ import { api } from '../api'
 import { PageHeading, Panel, Loading } from '../components'
 
 export default function Settings(){
- const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false)
+ const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[saved,setSaved]=useState(false),[profiles,setProfiles]=useState<any[]>([]),[profileName,setProfileName]=useState('Customer Receipt'),[profileType,setProfileType]=useState('receipt'),[paperSize,setPaperSize]=useState('80mm')
  const [currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState(''),[passwordMessage,setPasswordMessage]=useState(''),[passwordBusy,setPasswordBusy]=useState(false)
- useEffect(()=>{api('/document-settings').then(setS)},[])
+ useEffect(()=>{Promise.all([api('/document-settings'),api('/print/profiles')]).then(([x,p])=>{setS(x);setProfiles(p)})},[])
  async function save(){
    setSaving(true);setSaved(false)
    try{
@@ -49,6 +49,11 @@ export default function Settings(){
        </div>
      </Panel>
    </div>
+
+   <Panel title="Printing" sub="Receipt, kitchen and document printer profiles.">
+     <div className="grid gap-3 sm:grid-cols-4"><Field label="Profile name"><input className="control" value={profileName} onChange={e=>setProfileName(e.target.value)}/></Field><Field label="Document"><select className="control" value={profileType} onChange={e=>setProfileType(e.target.value)}><option value="receipt">Receipt</option><option value="kot">Kitchen Ticket</option><option value="invoice">Invoice</option><option value="z_report">Z Report</option></select></Field><Field label="Paper"><select className="control" value={paperSize} onChange={e=>setPaperSize(e.target.value)}><option>58mm</option><option>80mm</option><option>A5</option><option>A4</option></select></Field><button onClick={async()=>{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize})});setProfiles(await api('/print/profiles'))}} className="mt-6 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Add Profile</button></div>
+     <div className="mt-4 flex flex-wrap gap-2">{profiles.map(p=><span key={p.id} className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{p.name} · {p.paper_size}</span>)}</div>
+   </Panel>
 
    <Panel title="Account Security" sub="Change your MauzoPOS login password without leaving the workspace.">
      <div className="grid sm:grid-cols-3 gap-4">
