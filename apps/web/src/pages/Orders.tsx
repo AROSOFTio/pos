@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal, ScanLine } from 'lucide-react'
 import { api, money, nice, openPdf, printPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
+import BarcodeScanner, { useHardwareScanner } from '../components/BarcodeScanner'
 
 type OrderDraft={branchId:number;orderType:string;tableId:number;customerId:number;guestCount:number;waiterUserId:number;reservationId:number;notes:string}
 
@@ -18,6 +19,8 @@ export default function Orders({currency}:{currency:string}){
  const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
  const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null)
+ const [scannerOpen,setScannerOpen]=useState(false),[scanNotice,setScanNotice]=useState(''),[requestOpen,setRequestOpen]=useState(false),[requestCode,setRequestCode]=useState(''),[requestName,setRequestName]=useState(''),[requestBusy,setRequestBusy]=useState(false)
+ const scanQueue=useRef<Promise<any>>(Promise.resolve())
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
  useEffect(()=>{load()},[])
@@ -48,6 +51,34 @@ export default function Orders({currency}:{currency:string}){
    await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:selectedProduct,qty,variantId:variantId||null,modifierIds,notes:itemNotes})})
    setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');await refreshDetail()
  }
+ function flashScan(text:string){setScanNotice(text);window.setTimeout(()=>setScanNotice(''),1400)}
+ async function processHardwareScan(raw:string){
+   const code=raw.trim();if(!code||!detail?.order?.id)return
+   if(['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status))return
+   const p=menu.find(x=>[x.barcode,x.sku,x.product_code].some(v=>String(v||'').trim()===code))
+   if(!p){
+     try{
+       const found=await api('/products/lookup?code='+encodeURIComponent(code))
+       flashScan((found?.name||'Product')+' is not available on this order menu.')
+     }catch{
+       setRequestCode(code);setRequestName('');setRequestOpen(true)
+     }
+     return
+   }
+   try{
+     await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:Number(p.id),qty:1,autoMerge:true})})
+     flashScan('Added '+p.name)
+     const d=await api('/restaurant/orders/'+detail.order.id);setDetail(d)
+   }catch(e:any){flashScan(e.message||'Item could not be added')}
+ }
+ function queueHardwareScan(code:string){scanQueue.current=scanQueue.current.then(()=>processHardwareScan(code)).catch(()=>{})}
+ async function submitProductRequest(){
+   if(!requestCode.trim()&&!requestName.trim())return
+   setRequestBusy(true)
+   try{await api('/product-requests',{method:'POST',body:JSON.stringify({name:requestName.trim()||null,scannedCode:requestCode.trim()||null,notes:'Requested while taking restaurant order'})});setRequestOpen(false);flashScan('Item request sent to management.')}finally{setRequestBusy(false)}
+ }
+ useHardwareScanner(queueHardwareScan,detailOpen&&!scannerOpen&&!addOpen&&!requestOpen&&!paymentOpen&&!depositOpen&&!chargesOpen)
+
  async function sendKitchen(){
    const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
    await refreshDetail();await load()
@@ -120,8 +151,12 @@ export default function Orders({currency}:{currency:string}){
     <button onClick={createOrder} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium">Open Order</button>
   </Modal>}
 
-  {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)}>
-    <div className="flex flex-wrap gap-2 mb-4"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
+  {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)} size="lg">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
+      {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<div className="flex items-center gap-2"><div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-soft)] px-2.5 py-1 text-[9.5px] font-medium text-[var(--brand-primary)]"><ScanLine size={12}/>Scanner ready</div><button onClick={()=>setScannerOpen(true)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-medium text-slate-600">Camera</button></div>}
+    </div>
+    {scanNotice&&<div className="mb-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[10.5px] font-medium text-slate-600">{scanNotice}</div>}
     <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">{detail.items.length?detail.items.map((x:any)=><div key={x.id} className="py-3 flex justify-between gap-3"><div><b className="text-sm">{Number(x.qty)} × {x.product_name}{x.variant_name?' · '+x.variant_name:''}</b>{x.modifiers?.length>0&&<div className="text-xs text-slate-400 mt-1">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="text-xs text-amber-700 mt-1">{x.notes}</div>}</div><div className="text-right"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge><div className="text-sm font-medium mt-1">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div></div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
     <div className="mt-4 rounded-xl bg-slate-900 text-white p-4">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
@@ -210,6 +245,17 @@ export default function Orders({currency}:{currency:string}){
     onClose={()=>{setPaymentOpen(false);setBill(null)}}
     onSubmit={submitBillPayment}
   />
+
+  <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={queueHardwareScan} title="Scan item"/>
+
+  {requestOpen&&<Modal title="Unknown Item" onClose={()=>!requestBusy&&setRequestOpen(false)} size="sm">
+    <div className="rounded-lg bg-slate-50 px-3 py-2 text-[10.5px] text-slate-500">This code is not in the catalogue. Send it to management instead of creating products from the cashier screen.</div>
+    <div className="mt-3 grid gap-3">
+      <Field label="Scanned code"><input className="control" value={requestCode} onChange={e=>setRequestCode(e.target.value)}/></Field>
+      <Field label="Item name"><input className="control" value={requestName} onChange={e=>setRequestName(e.target.value)} placeholder="Optional item name"/></Field>
+    </div>
+    <button onClick={submitProductRequest} disabled={requestBusy||(!requestCode.trim()&&!requestName.trim())} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{requestBusy?'Sending…':'Request Item'}</button>
+  </Modal>}
 
   {receiptActions&&<Modal title="Payment Complete" onClose={()=>setReceiptActions(null)} size="sm">
     <div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white">
