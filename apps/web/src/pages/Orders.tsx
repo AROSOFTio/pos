@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal } from 'lucide-react'
-import { api, money, nice, openPdf, sharePdf } from '../api'
+import { api, money, nice, openPdf, printPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 
@@ -217,7 +217,7 @@ export default function Orders({currency}:{currency:string}){
       <div><div className="text-[13px] font-semibold">{receiptActions.orderNo}</div><div className="mt-0.5 text-[10px] text-slate-400">Order fully settled</div></div>
     </div>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>openPdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
+      <button onClick={()=>printPdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
       <button onClick={()=>sharePdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm',receiptActions.orderNo+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
       <button onClick={()=>setReceiptActions(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
     </div>
