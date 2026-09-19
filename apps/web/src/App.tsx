@@ -96,12 +96,17 @@ export default function App(){
 
   const managementRows=(administration.filter(([name])=>{
     if(!hasManagementAccess)return false
-    if(name==='Purchasing'&&!enabled.has('purchasing'))return false
-    if(name==='Approvals')return elevated||businessRoles.some(r=>managerRoles.includes(r))
-    if(name==='Reports')return can('reports.profit')
+    if(name==='Approvals')return elevated||hasRole('branch_manager','restaurant_manager')
+    if(name==='Products')return elevated||hasRole('branch_manager','restaurant_manager','storekeeper')
+    if(name==='Inventory')return elevated||hasRole('branch_manager','restaurant_manager','storekeeper','auditor')
+    if(name==='Suppliers')return elevated||hasRole('branch_manager','storekeeper')
+    if(name==='Purchasing')return enabled.has('purchasing')&&(elevated||hasRole('branch_manager','storekeeper','accountant'))
+    if(name==='Expenses')return elevated||hasRole('branch_manager','accountant','auditor')
+    if(name==='Shifts')return elevated||hasRole('branch_manager','accountant','auditor')
+    if(name==='Reports')return can('reports.profit')||hasRole('auditor')
     if(name==='Staff')return can('staff.manage')
     if(name==='Branches'||name==='Settings')return can('settings.manage')
-    return elevated||businessRoles.some(r=>['branch_manager','restaurant_manager','storekeeper','accountant','auditor'].includes(r))
+    return false
   }) as any)
 
   const operationRows=[
@@ -159,7 +164,7 @@ export default function App(){
     if(!hasManagementAccess){const fallback=(allowedOps[0]?.[0]||'POS') as ViewKey;setTimeout(()=>{setWorkspace('operations');if(managementViews.has(view))setView(fallback)},0);return <div className="min-h-screen grid place-items-center bg-[var(--app-bg)] text-slate-500">Loading operations…</div>}
 
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/98">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-[var(--app-surface)]/98">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <BusinessBrand name={business} logo={businessLogo}/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
@@ -178,12 +183,9 @@ export default function App(){
         <div className="page-enter"><ViewErrorBoundary key={view} onBack={()=>setView(hasRestaurant?'Restaurant':'POS')}>{renderView()}</ViewErrorBoundary></div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[64px] grid-cols-5 border-t border-slate-200 bg-white lg:hidden">
-        <MobileNav icon={ShoppingCart} label="POS" active={view==='POS'} onClick={()=>safeGo('POS')}/>
-        <MobileNav icon={ClipboardList} label="Orders" active={view==='Orders'} onClick={()=>safeGo(hasRestaurant?'Orders':'Sales')}/>
-        <MobileNav icon={ChefHat} label="Kitchen" active={view==='Kitchen'} onClick={()=>safeGo(hasRestaurant?'Kitchen':'Sales')}/>
-        <MobileNav icon={ReceiptText} label="History" active={view==='Sales'} onClick={()=>safeGo('Sales')}/>
-        <MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/>
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[64px] border-t border-slate-200 bg-[var(--app-surface)] lg:hidden">
+        {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={name==='Sales'?'History':name} active={view===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}
+        {allowedOps.length>4&&<div className="flex-1"><MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/></div>}
       </nav>
 
       {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/20 lg:hidden" onClick={()=>setSidebar(false)}>
@@ -199,7 +201,7 @@ export default function App(){
   return <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
-    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-slate-200 bg-[#fbfcfd] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
+    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-slate-200 bg-[var(--app-sidebar)] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
       <div className="flex h-[62px] items-center border-b border-slate-100 px-4">
         <BusinessBrand name={business} logo={businessLogo}/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
@@ -223,7 +225,7 @@ export default function App(){
     </aside>
 
     <main className="min-w-0 lg:ml-[236px]">
-      <header className="sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b border-slate-200/80 bg-white px-3 sm:px-5 lg:px-6">
+      <header className="sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b border-slate-200/80 bg-[var(--app-surface)] px-3 sm:px-5 lg:px-6">
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
