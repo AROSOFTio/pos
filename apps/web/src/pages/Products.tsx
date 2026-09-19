@@ -71,14 +71,14 @@ export default function Products({currency}:{currency:string}){
     ])}/>
   </Panel>
 
-  {open&&<Modal title="Add product" onClose={close} size="lg">
+  {open&&<Modal title="Add product" onClose={close} size="xl">
     <div className="space-y-5">
       {error&&<div className="flex items-start gap-2.5 rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-[12px] text-red-700"><AlertCircle size={16} className="mt-0.5 shrink-0"/><span>{error}</span></div>}
       {success&&<div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-[12px] text-emerald-700"><CheckCircle2 size={16}/><span>{success}</span></div>}
 
-      <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:grid-cols-[132px_1fr] sm:items-center">
+      <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 sm:grid-cols-[96px_1fr] sm:items-center">
         <div className="relative mx-auto sm:mx-0">
-          <label className="grid h-32 w-32 cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white p-2 transition hover:border-[#22A53A] hover:bg-emerald-50/20">
+          <label className="grid h-24 w-24 cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white p-2 transition hover:border-[#22A53A] hover:bg-emerald-50/20">
             {preview?<img src={preview} className="max-h-full max-w-full object-contain" alt="Product preview"/>:<div className="text-center text-slate-400"><ImagePlus size={24} className="mx-auto"/><span className="mt-1.5 block text-[10px]">Add image</span></div>}
             <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e=>chooseImage(e.target.files?.[0])}/>
           </label>
