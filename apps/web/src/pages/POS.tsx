@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Clock3, Search, ScanLine, ShoppingCart, SlidersHorizontal, UtensilsCrossed } from 'lucide-react'
-import { api, money, nice } from '../api'
+import { CheckCircle2, Clock3, Printer, Search, ScanLine, Share2, ShoppingCart, SlidersHorizontal, UtensilsCrossed } from 'lucide-react'
+import { api, money, nice, openPdf, sharePdf } from '../api'
 import { Badge, Modal, PageHeading, Panel } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -157,7 +157,7 @@ export default function POS({currency}:{currency:string}){
         </div>
         <div className="mt-3 border-t border-white/10 pt-3"><div className="flex justify-between text-sm text-slate-400"><span>Payable</span><span>{cart.reduce((n,x)=>n+x.qty,0)} items</span></div><div className="mt-2 text-2xl font-semibold">{money(finalTotal,currency)}</div></div>
         {adjustment&&<div className="mt-2 text-[11px]"><Badge tone={adjustment.status==='approved'?'green':adjustment.status==='rejected'?'red':'amber'}>{nice(adjustment.status)} · {adjustment.reference_no}</Badge></div>}
-        <button disabled={!cart.length||busy||(adjustment?.status==='pending')} onClick={startNewPayment} className="mt-4 w-full rounded-xl bg-[#22A53A] text-white py-3 font-semibold disabled:opacity-40">{busy?'Processing…':foc&&approved?'Complete Approved FOC':'Take Payment'}</button>
+        <button disabled={!cart.length||busy||(adjustment?.status==='pending')} onClick={startNewPayment} className="mt-4 w-full rounded-xl bg-[var(--brand-primary)] text-white py-3 font-semibold disabled:opacity-40">{busy?'Processing…':foc&&approved?'Complete Approved FOC':'Take Payment'}</button>
       </div>
     </Panel>
   </div>
@@ -184,8 +184,8 @@ export default function POS({currency}:{currency:string}){
     <div className="my-5 h-px bg-slate-200"/>
     <div className="text-[11px] font-medium uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>Discount</button>
-      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[#22A53A] bg-green-50 text-[#169B36]':'border-slate-200')}>FOC</button>
+      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>Discount</button>
+      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>FOC</button>
     </div>
     {adjustType==='discount'&&<div className="mt-3 grid grid-cols-2 gap-3">
       <Field label="Fixed amount"><input className="control" type="number" min="0" step="0.01" value={adjustAmount||''} onChange={e=>{setAdjustAmount(Number(e.target.value));if(Number(e.target.value)>0)setAdjustPercent(0)}}/></Field>
@@ -194,7 +194,7 @@ export default function POS({currency}:{currency:string}){
     <label className="mt-3 block text-[13px] font-medium text-slate-700">Reason<textarea className="control min-h-20" value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} placeholder="Why is this adjustment required?"/></label>
     <label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={adjustUrgent} onChange={e=>setAdjustUrgent(e.target.checked)}/>Mark approval as urgent</label>
     <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={requestAdjustment} disabled={busy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="rounded-xl bg-[#22A53A] py-3 font-medium text-white disabled:opacity-40">Request Approval</button>
+      <button onClick={requestAdjustment} disabled={busy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="rounded-xl bg-[var(--brand-primary)] py-3 font-medium text-white disabled:opacity-40">Request Approval</button>
       <button onClick={checkApproval} disabled={!adjustment} className="rounded-xl border border-slate-200 py-3 font-medium disabled:opacity-40">Check Approval</button>
     </div>
     {adjustMessage&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[13px] font-medium text-emerald-700">{adjustMessage}</div>}
@@ -206,12 +206,16 @@ export default function POS({currency}:{currency:string}){
     </div>
   </Modal>}
 
-  {success&&<Modal title={success.sale.payment_status==='paid'?'Payment Complete':'Partial Payment Posted'} onClose={()=>setSuccess(null)}>
-    <div className="rounded-xl bg-slate-950 p-5 text-white">
-      <div className="text-xs text-slate-400">Receipt</div><div className="mt-1 text-lg font-semibold">{success.sale.receipt_no}</div>
-      <div className="mt-4 grid grid-cols-2 gap-3"><div><div className="text-xs text-slate-400">Paid</div><div className="font-semibold text-emerald-300">{money(success.sale.amount_paid,currency)}</div></div><div><div className="text-xs text-slate-400">Balance</div><div className="font-semibold text-amber-300">{money(success.sale.balance_due,currency)}</div></div></div>
+  {success&&<Modal title={success.sale.payment_status==='paid'?'Payment Complete':'Payment Posted'} onClose={()=>setSuccess(null)} size="sm">
+    <div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white">
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10"><CheckCircle2 size={20}/></div>
+      <div className="min-w-0"><div className="truncate text-[13px] font-semibold">{success.sale.receipt_no}</div><div className="mt-0.5 text-[10px] text-slate-400">{money(success.sale.amount_paid,currency)} paid{Number(success.sale.balance_due||0)>0?' · '+money(success.sale.balance_due,currency)+' due':''}</div></div>
     </div>
-    <div className="mt-4 text-sm text-slate-500">{success.sale.payment_status==='paid'?'The sale is fully settled.':'The sale remains open in Open Balances for later collection.'}</div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <button onClick={()=>openPdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
+      <button onClick={()=>sharePdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm',success.sale.receipt_no+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
+      <button onClick={()=>setSuccess(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
+    </div>
   </Modal>}
   <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={useScannedCode} title="Scan item"/>
   {requestOpen&&<Modal title="Request New Item" onClose={()=>!requestBusy&&setRequestOpen(false)} size="sm">
