@@ -113,36 +113,67 @@ export default function App(){
 function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-7"><div className="px-4 mb-2 text-[10px] font-bold tracking-[.16em] uppercase text-slate-500">{title}</div><div className="space-y-1">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'w-full flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition '+(view===name?'bg-[#22A53A] text-white shadow-lg shadow-green-900/10':'text-slate-300 hover:bg-white/5 hover:text-white')}><Icon size={18}/><span>{name}</span></button>)}</div></div>}
 
 function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
-  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[showPassword,setShowPassword]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[forgot,setForgot]=useState(false),[sent,setSent]=useState(false)
-  async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');try{const j=await api('/login',{method:'POST',body:JSON.stringify({email:email.trim(),password})});localStorage.setItem('pos_token',j.token);onLogin(j.user)}catch(e:any){setError(e.message)}finally{setBusy(false)}}
-  async function requestReset(e:React.FormEvent){e.preventDefault();setBusy(true);setError('');try{await api('/auth/forgot-password',{method:'POST',body:JSON.stringify({email:email.trim()})});setSent(true)}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+  const [showPassword,setShowPassword]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[forgot,setForgot]=useState(false),[sent,setSent]=useState(false)
 
-  return <div className="min-h-screen bg-[#f6faf5] text-[#0F172A]">
-    <header className="mx-auto flex h-[74px] max-w-[1120px] items-center px-5"><button onClick={()=>navigate('/')} className="mr-4 inline-flex items-center gap-1 text-sm font-bold text-slate-500"><ArrowLeft size={15}/>Home</button><MauzoLogo compact/><button onClick={()=>navigate('/register')} className="ml-auto rounded-xl bg-[#22A53A] px-4 py-2.5 text-sm font-black text-white">Start Free Trial</button></header>
-    <main className="mx-auto flex max-w-[1120px] justify-center px-5 pb-16 pt-8">
-      <div className="grid w-full max-w-[850px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,.09)] md:grid-cols-[300px_1fr]">
-        <aside className="hidden bg-[#0f172a] p-7 text-white md:flex md:flex-col"><MauzoLogo compact light/><div className="mt-auto"><div className="text-[10px] font-black uppercase tracking-[.16em] text-emerald-400">MauzoPOS</div><h2 className="mt-3 text-2xl font-black leading-tight">Clean operations.<br/>Better control.</h2><div className="mt-5 space-y-2 text-xs text-slate-400"><div>✓ Sales & payments</div><div>✓ Restaurant & kitchen</div><div>✓ Stock & purchasing</div><div>✓ Approvals & reports</div></div></div></aside>
-        <section className="p-6 sm:p-9">
-          {!forgot?<form onSubmit={submit}>
-            <div className="text-[10px] font-black uppercase tracking-[.17em] text-[#22A53A]">Secure access</div><h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Welcome back</h1><p className="mt-2 text-sm text-slate-500">Sign in to your MauzoPOS workspace.</p>
-            <Label>Email address<div className="field"><Mail size={17}/><input autoFocus type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></div></Label>
-            <div className="mt-5 flex items-center justify-between"><span className="text-sm font-bold text-slate-700">Password</span><button type="button" onClick={()=>{setForgot(true);setError('')}} className="text-xs font-black text-[#169B36]">Forgot password?</button></div>
-            <div className="field mt-2"><LockKeyhole size={17}/><input type={showPassword?'text':'password'} autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter password"/><button type="button" onClick={()=>setShowPassword(v=>!v)} className="text-slate-400">{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>
-            {error&&<div className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-            <button disabled={busy||!email||!password} className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white disabled:opacity-40">{busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={17}/>}</button>
-            <div className="mt-5 text-center text-xs text-slate-500">New to MauzoPOS? <button type="button" onClick={()=>navigate('/register')} className="font-black text-[#169B36]">Start free trial</button> · No credit card required.</div>
-          </form>:<form onSubmit={requestReset}>
-            <button type="button" onClick={()=>{setForgot(false);setSent(false);setError('')}} className="inline-flex items-center gap-1 text-xs font-bold text-slate-500"><ArrowLeft size={14}/>Back to login</button>
-            <div className="mt-6 text-[10px] font-black uppercase tracking-[.17em] text-[#22A53A]">Account recovery</div><h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Reset password</h1><p className="mt-2 text-sm leading-6 text-slate-500">Enter your account email. A secure reset link is valid for 30 minutes.</p>
-            <Label>Email address<div className="field"><Mail size={17}/><input autoFocus type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></div></Label>
-            {sent&&<div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">If the account exists, reset instructions have been created. If email delivery is unavailable, your MauzoPOS platform administrator can generate the same secure reset link from SaaS Admin.</div>}
-            {error&&<div className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-            <button disabled={busy||!email} className="mt-6 h-13 w-full rounded-xl bg-slate-950 font-black text-white disabled:opacity-40">{busy?'Preparing…':'Send Reset Link'}</button>
-          </form>}
-        </section>
-      </div>
+  async function submit(e:React.FormEvent<HTMLFormElement>){
+    e.preventDefault();setBusy(true);setError('')
+    try{
+      const fd=new FormData(e.currentTarget)
+      const email=String(fd.get('email')||'').trim()
+      const password=String(fd.get('password')||'')
+      if(!email||!password)throw new Error('Enter email and password')
+      const j=await api('/login',{method:'POST',body:JSON.stringify({email,password})})
+      localStorage.setItem('pos_token',j.token);onLogin(j.user)
+    }catch(e:any){setError(e.message)}finally{setBusy(false)}
+  }
+
+  async function requestReset(e:React.FormEvent<HTMLFormElement>){
+    e.preventDefault();setBusy(true);setError('')
+    try{
+      const fd=new FormData(e.currentTarget)
+      const email=String(fd.get('email')||'').trim()
+      if(!email)throw new Error('Enter your email')
+      await api('/auth/forgot-password',{method:'POST',body:JSON.stringify({email})})
+      setSent(true)
+    }catch(e:any){setError(e.message)}finally{setBusy(false)}
+  }
+
+  return <div className="min-h-screen bg-[radial-gradient(circle_at_50%_0%,rgba(34,165,58,.08),transparent_30%),#f7faf7] text-[#0f172a]">
+    <header className="mx-auto flex h-[70px] max-w-[1080px] items-center px-5">
+      <button onClick={()=>navigate('/')} className="mr-4 inline-flex items-center gap-1 text-sm font-bold text-slate-500"><ArrowLeft size={15}/>Home</button>
+      <MauzoLogo compact/>
+      <button onClick={()=>navigate('/register')} className="ml-auto rounded-xl bg-[#22A53A] px-4 py-2.5 text-sm font-black text-white">Start Free Trial</button>
+    </header>
+
+    <main className="mx-auto flex max-w-[1080px] justify-center px-5 pb-14 pt-8">
+      <section className="w-full max-w-[520px] rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,.09)] sm:p-8">
+        <MauzoLogo compact/>
+        {!forgot?<form onSubmit={submit} autoComplete="on" className="mt-7">
+          <h1 className="text-3xl font-black tracking-[-.04em]">Welcome back</h1>
+          <div className="mt-1 text-sm text-slate-400">Login to MauzoPOS</div>
+
+          <label className="mt-6 block text-sm font-bold text-slate-700">Email
+            <div className="field !mt-1"><Mail size={17}/><input name="email" type="email" autoComplete="email" placeholder="you@example.com" required/></div>
+          </label>
+
+          <div className="mt-4 flex items-center justify-between"><span className="text-sm font-bold text-slate-700">Password</span><button type="button" onClick={()=>{setForgot(true);setError('');setSent(false)}} className="text-xs font-black text-[#169B36]">Forgot password?</button></div>
+          <div className="field !mt-1"><LockKeyhole size={17}/><input name="password" type={showPassword?'text':'password'} autoComplete="current-password" placeholder="Password" required/><button type="button" onClick={()=>setShowPassword(v=>!v)} className="text-slate-400">{showPassword?<EyeOff size={17}/>:<Eye size={17}/>}</button></div>
+
+          {error&&<div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+          <button disabled={busy} className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white disabled:opacity-50">{busy?'Signing in…':'Login'} {!busy&&<ArrowRight size={17}/>}</button>
+          <div className="mt-4 text-center text-xs text-slate-400">No account? <button type="button" onClick={()=>navigate('/register')} className="font-black text-[#169B36]">Start free trial</button></div>
+        </form>:<form onSubmit={requestReset} autoComplete="on" className="mt-7">
+          <button type="button" onClick={()=>{setForgot(false);setError('');setSent(false)}} className="inline-flex items-center gap-1 text-xs font-bold text-slate-500"><ArrowLeft size={14}/>Back</button>
+          <h1 className="mt-5 text-3xl font-black tracking-[-.04em]">Reset password</h1>
+          <div className="mt-1 text-sm text-slate-400">Enter your account email</div>
+          <label className="mt-6 block text-sm font-bold text-slate-700">Email
+            <div className="field !mt-1"><Mail size={17}/><input name="email" type="email" autoComplete="email" placeholder="you@example.com" required/></div>
+          </label>
+          {sent&&<div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">Reset link prepared. If email is not configured, SaaS Admin can generate it.</div>}
+          {error&&<div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+          <button disabled={busy} className="mt-6 h-13 w-full rounded-xl bg-slate-950 font-black text-white disabled:opacity-50">{busy?'Preparing…':'Send Reset Link'}</button>
+        </form>}
+      </section>
     </main>
   </div>
 }
-
-function Label({children}:{children:any}){return <label className="mt-6 block text-sm font-bold text-slate-700">{children}</label>}
