@@ -1,61 +1,55 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, BadgeCheck, Eye, EyeOff, LockKeyhole, Mail, Store, UserRound } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { api, type User } from './api'
 import { MauzoLogo } from './Brand'
 
 const currencyByCountry:Record<string,string>={Uganda:'UGX',Kenya:'KES',Ghana:'GHS',Nigeria:'NGN',Rwanda:'RWF'}
 
 export default function Register({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
-  const [name,setName]=useState(''),[email,setEmail]=useState(''),[businessName,setBusinessName]=useState(''),[country,setCountry]=useState('Uganda'),[businessType,setBusinessType]=useState('restaurant'),[password,setPassword]=useState(''),[show,setShow]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const [show,setShow]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('')
   async function submit(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError('')
     try{
       const fd=new FormData(e.currentTarget)
       const payload={
-        name:String(fd.get('name')||name).trim(),
-        email:String(fd.get('email')||email).trim(),
-        businessName:String(fd.get('businessName')||businessName).trim(),
-        country:String(fd.get('country')||country),
-        businessType:String(fd.get('businessType')||businessType),
-        password:String(fd.get('password')||password),
+        name:String(fd.get('name')||'').trim(),
+        email:String(fd.get('email')||'').trim(),
+        businessName:String(fd.get('businessName')||'').trim(),
+        country:String(fd.get('country')||'Uganda'),
+        businessType:String(fd.get('businessType')||'restaurant'),
+        password:String(fd.get('password')||''),
       }
+      if(!payload.name||!payload.email||!payload.businessName||!payload.password)throw new Error('Complete all required fields')
+      if(payload.password.length<10)throw new Error('Password must be at least 10 characters')
       const j=await api('/register',{method:'POST',body:JSON.stringify({...payload,currency:currencyByCountry[payload.country]||'UGX'})})
       localStorage.setItem('pos_token',j.token);history.replaceState({},'', '/app');onLogin(j.user)
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
-  return <div className="min-h-screen bg-[linear-gradient(180deg,#f4fff1_0%,#ffffff_70%)]">
-    <header className="mx-auto flex h-[78px] max-w-[1180px] items-center px-5 lg:px-8">
-      <button onClick={()=>navigate('/')} className="mr-4 rounded-xl p-2 text-slate-500 hover:bg-white"><ArrowLeft size={18}/></button><MauzoLogo compact/>
-      <button onClick={()=>navigate('/login')} className="ml-auto text-sm font-bold text-slate-600">Already have an account? <span className="text-[#169B36]">Login</span></button>
+  return <div className="min-h-screen bg-[#f7faf7] text-[#0f172a]">
+    <header className="mx-auto flex h-[70px] max-w-[1080px] items-center px-5">
+      <button onClick={()=>navigate('/')} className="mr-4 rounded-xl p-2 text-slate-500 hover:bg-white"><ArrowLeft size={17}/></button>
+      <MauzoLogo compact/>
+      <button onClick={()=>navigate('/login')} className="ml-auto text-sm font-bold text-slate-600">Login</button>
     </header>
-    <main className="mx-auto grid max-w-[1180px] gap-10 px-5 pb-16 pt-6 lg:grid-cols-[.8fr_1.2fr] lg:px-8">
-      <section className="hidden rounded-[30px] bg-[#0f172a] p-8 text-white lg:block">
-        <div className="text-xs font-black uppercase tracking-[.18em] text-emerald-400">14-day free trial</div>
-        <h1 className="mt-4 text-4xl font-black tracking-[-.04em]">Start running your business with MauzoPOS.</h1>
-        <p className="mt-4 leading-7 text-slate-300">Create your workspace now and explore sales, restaurant operations, stock, customers, purchasing and approvals.</p>
-        <div className="mt-8 space-y-4 text-sm font-semibold text-slate-200">
-          {['No credit card required','Full trial workspace','Cancel anytime','Secure multi-user access'].map(x=><div key={x} className="flex items-center gap-3"><BadgeCheck size={18} className="text-emerald-400"/>{x}</div>)}
+    <main className="mx-auto max-w-[720px] px-5 pb-14 pt-6">
+      <form onSubmit={submit} autoComplete="on" className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_22px_65px_rgba(15,23,42,.08)] sm:p-8">
+        <div className="text-xs font-black uppercase tracking-[.16em] text-[#22A53A]">14-day free trial</div>
+        <h1 className="mt-2 text-3xl font-black tracking-[-.04em]">Create workspace</h1>
+        <div className="mt-1 text-sm text-slate-400">No credit card</div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <Field label="Your name"><input name="name" autoComplete="name" className="control !mt-1" placeholder="Full name" required/></Field>
+          <Field label="Email"><input name="email" type="email" autoComplete="email" className="control !mt-1" placeholder="you@example.com" required/></Field>
+          <Field label="Business"><input name="businessName" autoComplete="organization" className="control !mt-1" placeholder="Business name" required/></Field>
+          <Field label="Country"><select name="country" defaultValue="Uganda" className="control !mt-1"><option>Uganda</option><option>Kenya</option><option>Ghana</option><option>Nigeria</option><option>Rwanda</option></select></Field>
+          <Field label="Business type"><select name="businessType" defaultValue="restaurant" className="control !mt-1"><option value="restaurant">Restaurant / Cafe / Bar</option><option value="retail">Supermarket / Retail</option><option value="pharmacy">Pharmacy</option><option value="factory">Industrial / Factory</option><option value="general">General / Mixed</option></select></Field>
+          <Field label="Password"><div className="field !mt-1"><input name="password" autoComplete="new-password" type={show?'text':'password'} placeholder="10+ characters" required minLength={10}/><button type="button" onClick={()=>setShow(v=>!v)} className="text-slate-400">{show?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></Field>
         </div>
-      </section>
-      <form onSubmit={submit} className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,.08)] sm:p-9">
-        <div className="text-xs font-black uppercase tracking-[.18em] text-[#22A53A]">Start free</div>
-        <h2 className="mt-2 text-4xl font-black tracking-[-.04em]">Create your MauzoPOS workspace</h2>
-        <p className="mt-2 text-sm text-slate-500">No credit card required.</p>
-        <div className="mt-7 grid gap-4 sm:grid-cols-2">
-          <Field label="Your name" icon={UserRound}><input name="name" autoComplete="name" value={name} onChange={e=>setName(e.target.value)} className="flex-1 outline-none" placeholder="Full name"/></Field>
-          <Field label="Email address" icon={Mail}><input name="email" autoComplete="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} className="flex-1 outline-none" placeholder="you@example.com"/></Field>
-          <Field label="Business name" icon={Store}><input name="businessName" autoComplete="organization" value={businessName} onChange={e=>setBusinessName(e.target.value)} className="flex-1 outline-none" placeholder="Business / restaurant"/></Field>
-          <label className="text-sm font-bold text-slate-700">Country<select name="country" value={country} onChange={e=>setCountry(e.target.value)} className="control"><option>Uganda</option><option>Kenya</option><option>Ghana</option><option>Nigeria</option><option>Rwanda</option></select></label>
-          <label className="text-sm font-bold text-slate-700 sm:col-span-2">Business type<select name="businessType" value={businessType} onChange={e=>setBusinessType(e.target.value)} className="control"><option value="restaurant">Restaurant / Cafe / Bar</option><option value="retail">Supermarket / Retail</option><option value="pharmacy">Pharmacy</option><option value="factory">Industrial / Factory</option><option value="general">General / Mixed Business</option></select></label>
-        </div>
-        <label className="mt-4 block text-sm font-bold text-slate-700">Password
-          <div className="mt-2 flex h-13 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100"><LockKeyhole size={18} className="text-slate-400"/><input name="password" autoComplete="new-password" type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} className="flex-1 outline-none" placeholder="Minimum 10 characters"/><button type="button" onClick={()=>setShow(v=>!v)}>{show?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
-        </label>
-        {error&&<div className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-        <button disabled={busy||!name.trim()||!email.trim()||!businessName.trim()||password.length<10} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white disabled:opacity-40">{busy?'Creating workspace…':'Start Free Trial'} {!busy&&<ArrowRight size={18}/>}</button>
-        <div className="mt-4 text-center text-xs text-slate-400">By continuing, you create a secure trial workspace. No credit card is requested.</div>
+
+        {error&&<div className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+        <button disabled={busy} className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#22A53A] font-black text-white disabled:opacity-50">{busy?'Creating…':'Start Free Trial'} {!busy&&<ArrowRight size={17}/>}</button>
       </form>
     </main>
   </div>
 }
-function Field({label,icon:Icon,children}:{label:string;icon:any;children:any}){return <label className="text-sm font-bold text-slate-700">{label}<div className="mt-2 flex h-13 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#22A53A] focus-within:ring-4 focus-within:ring-green-100"><Icon size={18} className="text-slate-400"/>{children}</div></label>}
+function Field({label,children}:{label:string;children:any}){return <label className="text-sm font-bold text-slate-700">{label}{children}</label>}
