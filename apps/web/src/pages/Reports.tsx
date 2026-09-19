@@ -45,7 +45,7 @@ export default function Reports({currency}:{currency:string}){
         <label className="text-sm font-medium text-slate-600">From<input type="date" className="control" value={from} onChange={e=>setFrom(e.target.value)}/></label>
         <label className="text-sm font-medium text-slate-600">To<input type="date" className="control" value={to} onChange={e=>setTo(e.target.value)}/></label><label className="text-sm font-medium text-slate-600">Branch<select className="control" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
         <div className="flex items-end gap-2">
-          <button onClick={()=>exp('xlsx')} className="flex-1 rounded-xl bg-emerald-600 px-3 py-3 text-sm font-semibold text-white">{busy==='xlsx'?'...':'Excel'}</button>
+          <button onClick={()=>exp('xlsx')} className="flex-1 rounded-xl bg-emerald-600 px-3 py-3 text-[13px] font-medium text-white">{busy==='xlsx'?'...':'Excel'}</button>
           <button onClick={()=>exp('csv')} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium">CSV</button>
           <button onClick={()=>exp('pdf')} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium"><Printer size={16}/></button>
         </div>
