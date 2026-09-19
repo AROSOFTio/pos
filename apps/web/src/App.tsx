@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, BarChart3, Bell, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, LockKeyhole, LogOut, Mail, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo } from './Brand'
@@ -155,7 +155,7 @@ export default function App(){
       </header>
 
       <main className="mx-auto max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6">
-        <div className="page-enter">{renderView()}</div>
+        <div className="page-enter"><ViewErrorBoundary key={view} onBack={()=>setView(hasRestaurant?'Restaurant':'POS')}>{renderView()}</ViewErrorBoundary></div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[64px] grid-cols-5 border-t border-slate-200 bg-white lg:hidden">
@@ -210,9 +210,19 @@ export default function App(){
           <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
         </div>
       </header>
-      <div className="page-enter px-3 py-4 sm:px-5 lg:px-6 lg:py-5">{renderView()}</div>
+      <div className="page-enter px-3 py-4 sm:px-5 lg:px-6 lg:py-5"><ViewErrorBoundary key={view} onBack={()=>setView('Dashboard')}>{renderView()}</ViewErrorBoundary></div>
     </main>
   </div>
+}
+
+class ViewErrorBoundary extends Component<{children:ReactNode;onBack:()=>void},{error:string}>{
+  state={error:''}
+  static getDerivedStateFromError(error:any){return {error:error?.message||'This screen could not be displayed.'}}
+  componentDidCatch(error:any,info:any){console.error('MauzoPOS view error',error,info)}
+  render(){
+    if(this.state.error)return <div className="mx-auto max-w-2xl rounded-2xl border border-red-100 bg-white p-6 shadow-sm"><div className="text-[15px] font-semibold text-slate-900">This screen hit an error</div><p className="mt-2 text-[12px] leading-5 text-red-600">{this.state.error}</p><button onClick={this.props.onBack} className="mt-4 rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white">Return to working dashboard</button></div>
+    return this.props.children
+  }
 }
 
 function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-emerald-50 font-medium text-[#15803d]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
