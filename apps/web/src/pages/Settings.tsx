@@ -35,7 +35,7 @@ export default function Settings(){
          <Field label="Accent colour"><input type="color" className="control h-12" value={s.document_accent||'#101828'} onChange={e=>patch('document_accent',e.target.value)}/></Field>
          <Field label="Default paper"><select className="control" value={s.document_paper_size||'A4'} onChange={e=>patch('document_paper_size',e.target.value)}><option>A4</option><option>A5</option></select></Field>
        </div>
-       <label className="mt-4 block text-sm font-semibold text-slate-700">Footer / terms<textarea className="control min-h-28" value={s.document_footer||''} onChange={e=>patch('document_footer',e.target.value)}/></label>
+       <label className="mt-4 block text-[13px] font-medium text-slate-700">Footer / terms<textarea className="control min-h-28" value={s.document_footer||''} onChange={e=>patch('document_footer',e.target.value)}/></label>
      </Panel>
 
      <Panel title="Tax & Service Charge" sub="Used as defaults for new POS sales and restaurant orders. Cashiers can see the values; discounts/FOC still require approval.">
@@ -51,7 +51,7 @@ export default function Settings(){
    </div>
 
    <Panel title="Printing" sub="Receipt, kitchen and document printer profiles.">
-     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><Field label="Profile name"><input className="control" value={profileName} onChange={e=>setProfileName(e.target.value)}/></Field><Field label="Document"><select className="control" value={profileType} onChange={e=>setProfileType(e.target.value)}><option value="receipt">Receipt</option><option value="kot">Kitchen Ticket</option><option value="invoice">Invoice</option><option value="z_report">Z Report</option></select></Field><Field label="Paper"><select className="control" value={paperSize} onChange={e=>setPaperSize(e.target.value)}><option>58mm</option><option>80mm</option><option>A5</option><option>A4</option></select></Field><Field label="Printer name"><input className="control" value={printerName} onChange={e=>setPrinterName(e.target.value)} placeholder="Optional"/></Field><Field label="Kitchen station"><select className="control" value={stationId} onChange={e=>setStationId(Number(e.target.value)||'')}><option value="">Any / none</option>{stations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field><button onClick={async()=>{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(await api('/print/profiles'))}} className="mt-6 rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white">Add Profile</button></div>
+     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6"><Field label="Profile name"><input className="control" value={profileName} onChange={e=>setProfileName(e.target.value)}/></Field><Field label="Document"><select className="control" value={profileType} onChange={e=>setProfileType(e.target.value)}><option value="receipt">Receipt</option><option value="kot">Kitchen Ticket</option><option value="invoice">Invoice</option><option value="z_report">Z Report</option></select></Field><Field label="Paper"><select className="control" value={paperSize} onChange={e=>setPaperSize(e.target.value)}><option>58mm</option><option>80mm</option><option>A5</option><option>A4</option></select></Field><Field label="Printer name"><input className="control" value={printerName} onChange={e=>setPrinterName(e.target.value)} placeholder="Optional"/></Field><Field label="Kitchen station"><select className="control" value={stationId} onChange={e=>setStationId(Number(e.target.value)||'')}><option value="">Any / none</option>{stations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field><button onClick={async()=>{if(!profileName.trim())return;await api('/print/profiles',{method:'POST',body:JSON.stringify({name:profileName,documentType:profileType,paperSize,printerName:printerName||null,stationId:stationId||null})});setProfiles(await api('/print/profiles'))}} className="mt-6 rounded-xl bg-slate-950 px-4 py-3 text-[13px] font-medium text-white">Add Profile</button></div>
      <div className="mt-4"><DataTable head={['Profile','Document','Paper','Printer','Station','Status']} rows={profiles.map(p=>[p.name,p.document_type,p.paper_size,p.printer_name||'Browser / PDF',p.station_name||'-',<Badge tone={p.active?'green':'red'}>{p.active?'Active':'Inactive'}</Badge>])}/></div>
    </Panel>
 
@@ -65,14 +65,14 @@ export default function Settings(){
        <Field label="New password"><input className="control" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} autoComplete="new-password"/></Field>
        <Field label="Confirm new password"><input className="control" type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} autoComplete="new-password"/></Field>
      </div>
-     {passwordMessage&&<div className={'mt-3 rounded-xl p-3 text-sm font-semibold '+(passwordMessage.includes('success')?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-800')}>{passwordMessage}</div>}
-     <button onClick={changePassword} disabled={passwordBusy||!currentPassword||!newPassword||!confirmPassword} className="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-bold text-white disabled:opacity-40">{passwordBusy?'Changing…':'Change Password'}</button>
+     {passwordMessage&&<div className={'mt-3 rounded-xl p-3 text-[13px] font-medium '+(passwordMessage.includes('success')?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-800')}>{passwordMessage}</div>}
+     <button onClick={changePassword} disabled={passwordBusy||!currentPassword||!newPassword||!confirmPassword} className="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-medium text-white disabled:opacity-40">{passwordBusy?'Changing…':'Change Password'}</button>
    </Panel>
 
    <div className="mt-4 flex items-center gap-3">
-     <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 text-white px-5 py-3 font-bold">{saving?'Saving…':'Save Settings'}</button>
-     {saved&&<span className="text-sm font-semibold text-emerald-600">Saved</span>}
+     <button onClick={save} disabled={saving} className="rounded-xl bg-slate-900 text-white px-5 py-3 font-medium">{saving?'Saving…':'Save Settings'}</button>
+     {saved&&<span className="text-[13px] font-medium text-emerald-600">Saved</span>}
    </div>
  </div>
 }
-function Field({label,children}:{label:string;children:any}){return <label className="text-sm font-semibold text-slate-700">{label}{children}</label>}
+function Field({label,children}:{label:string;children:any}){return <label className="text-[13px] font-medium text-slate-700">{label}{children}</label>}
