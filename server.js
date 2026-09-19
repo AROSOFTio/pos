@@ -721,7 +721,7 @@ app.put('/api/menu/items/:id/availability',auth,tenant,async(req,res)=>{const bi
 app.get('/api/menu/combos',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const q=await pool.query("SELECT c.*,p.name product_name,p.price,coalesce(json_agg(json_build_object('menuItemId',mi.id,'name',ip.name,'qty',ci.qty,'required',ci.required)) FILTER (WHERE ci.id IS NOT NULL),'[]'::json) items FROM menu_combos c JOIN products p ON p.id=c.product_id LEFT JOIN menu_combo_items ci ON ci.combo_id=c.id LEFT JOIN menu_items mi ON mi.id=ci.menu_item_id LEFT JOIN products ip ON ip.id=mi.product_id WHERE c.business_id=$1 AND c.active=true GROUP BY c.id,p.name,p.price ORDER BY c.name",[bid]);res.json(q.rows)});
 app.post('/api/menu/combos',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const {id=null,productId,name,description=null,items=[]}=req.body||{};if(!productId||!name?.trim()||!Array.isArray(items)||!items.length)return res.status(400).json({error:'Combo product, name and component items are required'});const client=await pool.connect();try{await client.query('BEGIN');let c;if(id){c=await client.query('UPDATE menu_combos SET product_id=$1,name=$2,description=$3,active=true WHERE id=$4 AND business_id=$5 RETURNING *',[productId,name.trim(),description||null,id,bid]);if(!c.rowCount)throw new Error('Combo not found')}else c=await client.query("INSERT INTO menu_combos(business_id,product_id,name,description) VALUES($1,$2,$3,$4) ON CONFLICT(business_id,product_id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,active=true RETURNING *",[bid,productId,name.trim(),description||null]);await client.query('DELETE FROM menu_combo_items WHERE combo_id=$1',[c.rows[0].id]);for(const x of items){if(!x.menuItemId||!(Number(x.qty)>0))continue;await client.query('INSERT INTO menu_combo_items(combo_id,menu_item_id,qty,required) VALUES($1,$2,$3,$4)',[c.rows[0].id,x.menuItemId,Number(x.qty),x.required!==false])}await client.query('COMMIT');res.json(c.rows[0])}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
 
-app.get('/api/menu/available',auth,tenant,async(req,res)=>{const bid=await getBiz(req),orderType=String(req.query.orderType||'counter'),branchId=Number(req.query.branchId||0);let branch=branchId;if(!branch){const b=await pool.query('SELECT id FROM branches WHERE business_id=$1 AND active=true ORDER BY id LIMIT 1',[bid]);branch=Number(b.rows[0]?.id||0)}const q=await pool.query("SELECT p.id,p.name,p.sku,p.product_code,p.barcode,p.stock,p.price base_price,mi.id menu_item_id,mi.description,mi.image_url,mi.category_id,c.name category_name,mi.sold_out,mi.available,coalesce((SELECT mp.price FROM menu_item_prices mp WHERE mp.menu_item_id=mi.id AND mp.branch_id=$2 AND mp.order_type IN ($3,'all') ORDER BY CASE WHEN mp.order_type=$3 THEN 0 ELSE 1 END LIMIT 1),p.price)::numeric resolved_price FROM products p LEFT JOIN menu_items mi ON mi.product_id=p.id AND mi.business_id=p.business_id LEFT JOIN menu_categories c ON c.id=mi.category_id WHERE p.business_id=$1 AND p.active=true AND p.sellable=true AND (mi.id IS NULL OR (mi.available=true AND mi.sold_out=false)) AND (mi.id IS NULL OR NOT EXISTS(SELECT 1 FROM menu_item_schedules ms WHERE ms.menu_item_id=mi.id AND ms.active=true) OR EXISTS(SELECT 1 FROM menu_item_schedules ms WHERE ms.menu_item_id=mi.id AND ms.active=true AND ms.day_of_week=extract(dow from now())::int AND current_time BETWEEN ms.start_time AND ms.end_time)) ORDER BY coalesce(c.sort_order,999),coalesce(mi.sort_order,999),p.name",[bid,branch,orderType]);res.json(q.rows)});
+app.get('/api/menu/available',auth,tenant,async(req,res)=>{const bid=await getBiz(req),orderType=String(req.query.orderType||'counter'),branchId=Number(req.query.branchId||0);let branch=branchId;if(!branch){const b=await pool.query('SELECT id FROM branches WHERE business_id=$1 AND active=true ORDER BY id LIMIT 1',[bid]);branch=Number(b.rows[0]?.id||0)}const q=await pool.query("SELECT p.id,p.name,p.sku,p.product_code,p.barcode,p.stock,p.price base_price,mi.id menu_item_id,mi.description,coalesce(mi.image_url,p.image_url) image_url,mi.category_id,c.name category_name,mi.sold_out,mi.available,coalesce((SELECT mp.price FROM menu_item_prices mp WHERE mp.menu_item_id=mi.id AND mp.branch_id=$2 AND mp.order_type IN ($3,'all') ORDER BY CASE WHEN mp.order_type=$3 THEN 0 ELSE 1 END LIMIT 1),p.price)::numeric resolved_price FROM products p LEFT JOIN menu_items mi ON mi.product_id=p.id AND mi.business_id=p.business_id LEFT JOIN menu_categories c ON c.id=mi.category_id WHERE p.business_id=$1 AND p.active=true AND p.sellable=true AND (mi.id IS NULL OR (mi.available=true AND mi.sold_out=false)) AND (mi.id IS NULL OR NOT EXISTS(SELECT 1 FROM menu_item_schedules ms WHERE ms.menu_item_id=mi.id AND ms.active=true) OR EXISTS(SELECT 1 FROM menu_item_schedules ms WHERE ms.menu_item_id=mi.id AND ms.active=true AND ms.day_of_week=extract(dow from now())::int AND current_time BETWEEN ms.start_time AND ms.end_time)) ORDER BY coalesce(c.sort_order,999),coalesce(mi.sort_order,999),p.name",[bid,branch,orderType]);res.json(q.rows)});
 
 app.get('/api/units',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT * FROM units_of_measure WHERE business_id=$1 AND active=true ORDER BY unit_type,name',[bid])).rows)});
 app.post('/api/units',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const {name,symbol,unitType='count',baseFactor=1}=req.body||{};if(!name?.trim()||!symbol?.trim()||!(Number(baseFactor)>0))return res.status(400).json({error:'Name, symbol and positive conversion factor are required'});try{const q=await pool.query('INSERT INTO units_of_measure(business_id,name,symbol,unit_type,base_factor) VALUES($1,$2,$3,$4,$5) RETURNING *',[bid,name.trim(),symbol.trim(),unitType,Number(baseFactor)]);res.json(q.rows[0])}catch(e){res.status(400).json({error:e.message})}});
@@ -896,23 +896,28 @@ function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
 }
 function thermalItems(doc,biz,paper,items){
   const width=thermalWidth(paper)-20,qtyW=paper==='58mm'?24:28,totalW=paper==='58mm'?52:62,nameW=width-qtyW-totalW;
-  doc.font('Courier-Bold').fontSize(paper==='58mm'?6.7:7.3).fillColor('#111')
-    .text('ITEM',10,doc.y,{width:nameW,continued:true})
-    .text('QTY',{width:qtyW,continued:true,align:'right'})
-    .text('TOTAL',{width:totalW,align:'right'});
-  doc.font('Courier').fontSize(7).text(thermalRule(paper),{align:'center'});
+  const xName=10,xQty=xName+nameW,xTotal=xQty+qtyW;
+  let y=doc.y;
+  doc.font('Courier-Bold').fontSize(paper==='58mm'?6.7:7.3).fillColor('#111');
+  doc.text('ITEM',xName,y,{width:nameW});
+  doc.text('QTY',xQty,y,{width:qtyW,align:'right'});
+  doc.text('TOTAL',xTotal,y,{width:totalW,align:'right'});
+  doc.y=y+12;
+  doc.font('Courier').fontSize(7).text(thermalRule(paper),10,doc.y,{width:width,align:'center'});
   for(const i of items){
     const name=String(i.product_name||i.name||'ITEM').toUpperCase();
     const qty=Number(i.qty||0),total=Number(i.line_total??i.total??0);
-    doc.font('Courier-Bold').fontSize(paper==='58mm'?7.2:7.8).text(name,10,doc.y,{width:nameW});
-    doc.font('Courier').fontSize(paper==='58mm'?6.8:7.2)
-      .text('',10,doc.y,{width:nameW,continued:true})
-      .text(qty%1===0?String(qty):qty.toFixed(2),{width:qtyW,continued:true,align:'right'})
-      .text(Number(total).toLocaleString(),{width:totalW,align:'right'});
-    if(i.notes)doc.font('Courier-Oblique').fontSize(6.4).fillColor('#555').text('  '+String(i.notes),10,doc.y,{width:width-4});
-    doc.moveDown(.08);
+    y=doc.y;
+    doc.font('Courier-Bold').fontSize(paper==='58mm'?7.2:7.8).fillColor('#111').text(name,xName,y,{width:nameW});
+    const nameBottom=doc.y;
+    doc.font('Courier').fontSize(paper==='58mm'?6.8:7.2).fillColor('#111');
+    doc.text(qty%1===0?String(qty):qty.toFixed(2),xQty,y,{width:qtyW,align:'right'});
+    doc.text(Number(total).toLocaleString(),xTotal,y,{width:totalW,align:'right'});
+    doc.y=Math.max(nameBottom,y+12);
+    if(i.notes)doc.font('Courier-Oblique').fontSize(6.4).fillColor('#555').text('  '+String(i.notes),xName,doc.y,{width:width-4});
+    doc.y+=2;
   }
-  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),{align:'center'});
+  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),10,doc.y,{width:width,align:'center'});
 }
 function thermalTotals(doc,biz,paper,rows,totalLabel,total){
   for(const [label,value] of rows){if(Math.abs(Number(value||0))<.0001)continue;thermalPair(doc,paper,String(label).toUpperCase(),Number(value).toLocaleString(),{size:7.4})}
