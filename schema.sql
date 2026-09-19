@@ -1303,3 +1303,5 @@ BEGIN
   END IF;
 END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_business_receipt_no ON sales(business_id,receipt_no);
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'Africa/Kampala';
