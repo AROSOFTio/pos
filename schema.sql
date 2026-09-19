@@ -1038,3 +1038,36 @@ SELECT b.id,'void','wrong_product','Wrong product / item entry' FROM businesses 
 
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS credit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
 ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS credit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT 'restaurant';
+ALTER TABLE module_catalog ADD COLUMN IF NOT EXISTS sector TEXT NOT NULL DEFAULT 'shared';
+ALTER TABLE module_catalog ADD COLUMN IF NOT EXISTS maturity TEXT NOT NULL DEFAULT 'available';
+ALTER TABLE module_catalog ADD COLUMN IF NOT EXISTS icon TEXT;
+ALTER TABLE module_catalog ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 100;
+
+UPDATE module_catalog SET sector='shared',sort_order=10 WHERE code='pos';
+UPDATE module_catalog SET sector='shared',sort_order=20 WHERE code='products';
+UPDATE module_catalog SET sector='shared',sort_order=30 WHERE code='customers';
+UPDATE module_catalog SET sector='shared',sort_order=40 WHERE code='expenses';
+UPDATE module_catalog SET sector='shared',sort_order=50 WHERE code='reports';
+UPDATE module_catalog SET sector='shared',sort_order=60 WHERE code='purchasing';
+UPDATE module_catalog SET sector='restaurant',sort_order=100,maturity='live' WHERE code='restaurant';
+UPDATE module_catalog SET sector='pharmacy',sort_order=200,maturity='planned' WHERE code='pharmacy';
+UPDATE module_catalog SET sector='workforce',sort_order=300,maturity='planned' WHERE code='payroll';
+UPDATE module_catalog SET sector='factory',sort_order=400,maturity='planned' WHERE code='production';
+UPDATE module_catalog SET sector='distribution',sort_order=500,maturity='planned' WHERE code='route_sales';
+
+INSERT INTO module_catalog(code,name,description,monthly_price,core,active,sector,maturity,sort_order)
+VALUES
+('retail','Supermarket / Retail','Retail checkout, barcode-led supermarket operations and fast-moving stock workflows',0,false,true,'retail','planned',150)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,sector=EXCLUDED.sector,maturity=EXCLUDED.maturity,sort_order=EXCLUDED.sort_order;
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id,created_at DESC);
