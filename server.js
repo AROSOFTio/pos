@@ -848,21 +848,79 @@ function pdfTable(doc,biz,columns,rows,opts={}){
   });
   doc.moveDown(.4);
 }
-function thermalReceiptHeader(doc,biz,title,number,meta=[]){
-  const logo=String(biz.logo_url||'');
-  const local=logo.startsWith('/uploads/')?logo.replace(/^\/uploads\//,'uploads/'):null;
-  if(logo&&drawBusinessLogo(doc,biz,{fit:[70,70],align:'center'}))doc.moveDown(.2);
-  if(!logo||biz.receipt_show_business_name)doc.fillColor('#111').font('Helvetica-Bold').fontSize(12).text(biz.name||'Business',{align:'center'});
-  if(biz.receipt_header_note)doc.font('Helvetica').fontSize(7.5).text(biz.receipt_header_note,{align:'center'});
-  const contact=[biz.address,biz.phone,biz.email].filter(Boolean).join(' | ');
-  if(contact)doc.font('Helvetica').fontSize(7).text(contact,{align:'center'});
-  doc.moveDown(.35).text('----------------------------------------',{align:'center'});
-  doc.font('Helvetica-Bold').fontSize(10).text(title||biz.receipt_title||'ORDER BILL',{align:'center'});
-  doc.font('Helvetica').fontSize(7.5);
-  if(number)doc.text('TICKET: '+number);
-  for(const line of meta.filter(Boolean))doc.text(line);
-  doc.text('----------------------------------------',{align:'center'}).moveDown(.25);
+function thermalWidth(paper){return paper==='58mm'?164:226}
+function thermalChars(paper){return paper==='58mm'?30:42}
+function thermalRule(paper,ch='-'){return ch.repeat(thermalChars(paper))}
+function thermalPair(doc,paper,left,right,{bold=false,size=8}={}){
+  const width=thermalWidth(paper)-20,rightW=paper==='58mm'?66:88,leftW=width-rightW;
+  doc.font(bold?'Courier-Bold':'Courier').fontSize(size).fillColor('#111111')
+    .text(String(left||''),10,doc.y,{width:leftW,continued:true})
+    .text(String(right||''),{width:rightW,align:'right'});
 }
+function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
+  const width=thermalWidth(paper),logo=String(biz.logo_url||'');
+  if(logo&&drawBusinessLogo(doc,biz,{fit:[paper==='58mm'?48:58,paper==='58mm'?38:44],align:'center'}))doc.moveDown(.15);
+  if(!logo||biz.receipt_show_business_name)doc.font('Courier-Bold').fontSize(paper==='58mm'?9:10).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),{align:'center'});
+  const contact=[biz.address,biz.phone,biz.email].filter(Boolean).join(' | ');
+  if(contact)doc.font('Courier').fontSize(paper==='58mm'?6.2:6.8).fillColor('#333').text(contact,{align:'center'});
+  if(biz.tax_id)doc.font('Courier').fontSize(6.5).fillColor('#444').text('TIN: '+biz.tax_id,{align:'center'});
+  doc.moveDown(.2).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper,'='),{align:'center'});
+  doc.font('Courier-Bold').fontSize(paper==='58mm'?10:11).text(String(title||biz.receipt_title||'RECEIPT').toUpperCase(),{align:'center'});
+  if(number)doc.font('Courier-Bold').fontSize(8).text('# '+number,{align:'center'});
+  if(biz.receipt_header_note)doc.font('Courier').fontSize(6.5).fillColor('#444').text(biz.receipt_header_note,{align:'center'});
+  doc.moveDown(.15).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),{align:'center'});
+  doc.font('Courier').fontSize(7).fillColor('#222');
+  for(const line of meta.filter(Boolean))doc.text(String(line).toUpperCase());
+  doc.text(thermalRule(paper),{align:'center'}).moveDown(.1);
+}
+function thermalItems(doc,biz,paper,items){
+  const width=thermalWidth(paper)-20,qtyW=paper==='58mm'?24:28,totalW=paper==='58mm'?52:62,nameW=width-qtyW-totalW;
+  doc.font('Courier-Bold').fontSize(paper==='58mm'?6.7:7.3).fillColor('#111')
+    .text('ITEM',10,doc.y,{width:nameW,continued:true})
+    .text('QTY',{width:qtyW,continued:true,align:'right'})
+    .text('TOTAL',{width:totalW,align:'right'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper),{align:'center'});
+  for(const i of items){
+    const name=String(i.product_name||i.name||'ITEM').toUpperCase();
+    const qty=Number(i.qty||0),total=Number(i.line_total??i.total??0);
+    doc.font('Courier-Bold').fontSize(paper==='58mm'?7.2:7.8).text(name,10,doc.y,{width:nameW});
+    doc.font('Courier').fontSize(paper==='58mm'?6.8:7.2)
+      .text('',10,doc.y,{width:nameW,continued:true})
+      .text(qty%1===0?String(qty):qty.toFixed(2),{width:qtyW,continued:true,align:'right'})
+      .text(Number(total).toLocaleString(),{width:totalW,align:'right'});
+    if(i.notes)doc.font('Courier-Oblique').fontSize(6.4).fillColor('#555').text('  '+String(i.notes),10,doc.y,{width:width-4});
+    doc.moveDown(.08);
+  }
+  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),{align:'center'});
+}
+function thermalTotals(doc,biz,paper,rows,totalLabel,total){
+  for(const [label,value] of rows){if(Math.abs(Number(value||0))<.0001)continue;thermalPair(doc,paper,String(label).toUpperCase(),Number(value).toLocaleString(),{size:7.4})}
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});
+  thermalPair(doc,paper,String(totalLabel).toUpperCase(),String(biz.currency||'')+' '+Number(total||0).toLocaleString(),{bold:true,size:paper==='58mm'?9:10});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});
+}
+function thermalFooter(doc,biz,paper){
+  if(biz.receipt_payment_options){doc.moveDown(.2).font('Courier-Bold').fontSize(6.7).text('PAYMENT OPTIONS',{align:'center'});doc.font('Courier').fontSize(6.3).fillColor('#333').text(String(biz.receipt_payment_options),{align:'center'});}
+  if(biz.document_footer)doc.moveDown(.35).font('Courier').fontSize(6.4).fillColor('#555').text(String(biz.document_footer),{align:'center'});
+  doc.moveDown(.2).font('Courier').fontSize(5.8).fillColor('#999').text('Powered by MauzoPOS',{align:'center'});
+}
+function thermalPageHeight(itemCount=1,extraLines=0,paper='80mm'){
+  const base=paper==='58mm'?330:350,row=paper==='58mm'?25:23;
+  return Math.max(base,Math.min(1500,base+Math.max(0,itemCount-1)*row+extraLines*12));
+}
+function thermalKotHeader(doc,biz,x,paper='80mm'){
+  const logo=String(biz.logo_url||'');
+  if(logo&&drawBusinessLogo(doc,biz,{fit:[48,34],align:'center'}))doc.moveDown(.1);
+  doc.font('Courier-Bold').fontSize(13).fillColor('#111').text('KITCHEN ORDER TICKET',{align:'center'});
+  doc.font('Courier-Bold').fontSize(9).text('# '+x.ticket_no,{align:'center'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});
+  doc.font('Courier-Bold').fontSize(8).text('STATION: '+String(x.station_name||'KITCHEN').toUpperCase());
+  doc.text('ORDER:   '+String(x.order_no||'').toUpperCase());
+  if(x.table_name)doc.fontSize(10).text('TABLE:   '+String(x.table_name).toUpperCase());
+  doc.font('Courier').fontSize(7).text('TIME:    '+new Date().toLocaleString());
+  doc.text(thermalRule(paper,'='),{align:'center'});
+}
+
 app.get('/api/documents/purchase-order/:id/pdf',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const [biz,h,items]=await Promise.all([pool.query('SELECT * FROM businesses WHERE id=$1',[bid]),pool.query("SELECT po.*,s.name supplier_name,b.name branch_name FROM purchase_orders po JOIN suppliers s ON s.id=po.supplier_id LEFT JOIN branches b ON b.id=po.branch_id WHERE po.id=$1 AND po.business_id=$2",[id,bid]),pool.query('SELECT * FROM purchase_order_items WHERE purchase_order_id=$1 ORDER BY id',[id])]);if(!h.rowCount)return res.status(404).json({error:'Purchase order not found'});const b=biz.rows[0],po=h.rows[0];res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','inline; filename="'+po.po_no+'.pdf"');const doc=new PDFDocument({size:b.document_paper_size||'A4',margin:42});doc.pipe(res);pdfHeader(doc,b,'PURCHASE ORDER',po.po_no);doc.fontSize(10).text('Supplier: '+po.supplier_name);doc.text('Branch: '+(po.branch_name||'-'));doc.text('Status: '+po.status);doc.text('Created: '+new Date(po.created_at).toLocaleString());if(po.notes)doc.text('Notes: '+po.notes);doc.moveDown();doc.font('Helvetica-Bold').text('Item                                      Qty        Unit Cost        Total');doc.moveTo(42,doc.y+3).lineTo(doc.page.width-42,doc.y+3).stroke();doc.moveDown(.5).font('Helvetica');for(const x of items.rows)doc.text((x.product_name||'').slice(0,38).padEnd(40)+' '+Number(x.qty_ordered).toFixed(3).padStart(8)+' '+Number(x.unit_cost).toFixed(2).padStart(14)+' '+Number(x.line_total).toFixed(2).padStart(14));doc.moveDown().font('Helvetica-Bold').fontSize(12).text('TOTAL: '+b.currency+' '+Number(po.total).toLocaleString(),{align:'right'});pdfFooter(doc,b);doc.end()});
 app.get('/api/documents/expense/:id/pdf',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const [biz,e]=await Promise.all([pool.query('SELECT * FROM businesses WHERE id=$1',[bid]),pool.query("SELECT e.*,s.name supplier_name,po.po_no,g.grn_no FROM expenses e LEFT JOIN suppliers s ON s.id=e.supplier_id LEFT JOIN purchase_orders po ON po.id=e.purchase_order_id LEFT JOIN goods_receipts g ON g.id=e.grn_id WHERE e.id=$1 AND e.business_id=$2",[id,bid])]);if(!e.rowCount)return res.status(404).json({error:'Expense not found'});const b=biz.rows[0],x=e.rows[0];res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','inline; filename="'+(x.reference_no||('EXP-'+x.id))+'.pdf"');const doc=new PDFDocument({size:b.document_paper_size||'A4',margin:42});doc.pipe(res);pdfHeader(doc,b,'EXPENSE / COST VOUCHER',x.reference_no||('EXP-'+x.id));doc.fontSize(11).text('Date: '+String(x.expense_date).slice(0,10));doc.text('Category: '+x.category);doc.text('Description: '+x.description);if(x.supplier_name)doc.text('Supplier: '+x.supplier_name);if(x.po_no)doc.text('Purchase Order: '+x.po_no);if(x.grn_no)doc.text('GRN: '+x.grn_no);doc.text('Source: '+(x.auto_generated?'Automatically generated from '+x.source_type:'Manual entry'));doc.text('Accounting treatment: '+String(x.accounting_treatment||'operating_expense').replaceAll('_',' '));doc.moveDown().font('Helvetica-Bold').fontSize(16).text('AMOUNT: '+b.currency+' '+Number(x.amount).toLocaleString(),{align:'right'});pdfFooter(doc,b);doc.end()});
 
