@@ -36,6 +36,7 @@ export default function App(){
   const [sidebar,setSidebar]=useState(false)
   const [currency,setCurrency]=useState('UGX')
   const [business,setBusiness]=useState('Your Business')
+  const [businessLogo,setBusinessLogo]=useState('')
   const [enabled,setEnabled]=useState<Set<string>>(new Set())
   const [businessRole,setBusinessRole]=useState('')
   const [businessRoles,setBusinessRoles]=useState<string[]>([])
@@ -51,13 +52,15 @@ export default function App(){
       setCurrency(d.business?.currency||'UGX');setBusiness(d.business?.name||'Your Business')
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
       setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
-      const accent=String(theme?.document_accent||'#22A53A');document.documentElement.style.setProperty('--brand-primary',accent);document.documentElement.style.setProperty('--brand-primary-soft',accent+'14')
+      setBusinessLogo(String(theme?.logo_url||''))
+      applyTheme(String(theme?.theme_key||'green'),String(theme?.theme_mode||'light'),String(theme?.document_accent||''))
     }).catch(()=>{})
   },[user])
   useEffect(()=>{
-    const role=businessRole||user?.role||''
-    if(['cashier','waiter','kitchen','bar'].includes(role))setWorkspace('operations')
-  },[businessRole,user?.role])
+    const roles=businessRoles.length?businessRoles:[businessRole||user?.role||'']
+    const managementRoleSet=['owner','administrator','admin','branch_manager','restaurant_manager','storekeeper','accountant','auditor']
+    if(!roles.some(r=>managementRoleSet.includes(r)))setWorkspace('operations')
+  },[businessRole,businessRoles,user?.role])
 
   const navigate=(next:string)=>{window.history.pushState({},'',next);setPath(next)}
   const authenticated=(u:User)=>{window.history.replaceState({},'', '/app');setPath('/app');setUser(u)}
@@ -87,9 +90,12 @@ export default function App(){
   const hasRestaurant=enabled.has('restaurant')
   const operationRoles=['cashier','waiter','kitchen','bar']
   const managerRoles=['branch_manager','restaurant_manager']
-  const isOpsOnly=businessRoles.length>0&&businessRoles.every(r=>operationRoles.includes(r))
+  const managementRoleSet=['owner','administrator','admin','branch_manager','restaurant_manager','storekeeper','accountant','auditor']
+  const hasManagementAccess=elevated||businessRoles.some(r=>managementRoleSet.includes(r))
+  const isOpsOnly=!hasManagementAccess
 
   const managementRows=(administration.filter(([name])=>{
+    if(!hasManagementAccess)return false
     if(name==='Purchasing'&&!enabled.has('purchasing'))return false
     if(name==='Approvals')return elevated||businessRoles.some(r=>managerRoles.includes(r))
     if(name==='Reports')return can('reports.profit')
@@ -117,37 +123,50 @@ export default function App(){
     return false
   })
 
+  const managementViews=new Set<ViewKey>(['Dashboard','Approvals','Products','Inventory','Suppliers','Purchasing','Expenses','Reports','Staff','Branches','Settings'])
+  const canAccessView=(v:ViewKey)=>{
+    if(managementViews.has(v))return hasManagementAccess&&(v==='Dashboard'||managementRows.some(([name]:any)=>name===v))
+    return allowedOps.some(([name]:any)=>name===v)
+  }
+  const safeGo=(v:ViewKey)=>{
+    if(canAccessView(v)){setView(v);setSidebar(false);return}
+    const fallback=(allowedOps[0]?.[0]||'POS') as ViewKey
+    setWorkspace('operations');setView(fallback);setSidebar(false)
+  }
+
   const renderView=()=> <>
-    {view==='Dashboard'&&<Dashboard currency={currency} go={go}/>}
+    {view==='Dashboard'&&hasManagementAccess&&<Dashboard currency={currency} go={safeGo}/>}
     {view==='POS'&&<POS currency={currency}/>}
     {view==='Sales'&&<Sales currency={currency}/>}
     {view==='Orders'&&hasRestaurant&&<Orders currency={currency}/>}
     {view==='Kitchen'&&hasRestaurant&&<Kitchen/>}
-    {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={go}/>}
+    {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={safeGo}/>}
     {view==='Customers'&&<Customers currency={currency}/>}
-    {view==='Approvals'&&<Approvals currency={currency}/>}
-    {view==='Inventory'&&<Inventory currency={currency}/>}
-    {view==='Purchasing'&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
-    {view==='Expenses'&&<Expenses currency={currency}/>}
-    {view==='Products'&&<Products currency={currency}/>}
-    {view==='Suppliers'&&<Suppliers currency={currency}/>}
+    {view==='Approvals'&&canAccessView('Approvals')&&<Approvals currency={currency}/>}
+    {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency}/>}
+    {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
+    {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
+    {view==='Products'&&canAccessView('Products')&&<Products currency={currency}/>}
+    {view==='Suppliers'&&canAccessView('Suppliers')&&<Suppliers currency={currency}/>}
     {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}
-    {view==='Reports'&&<Reports currency={currency}/>}
-    {view==='Staff'&&<Staff/>}
-    {view==='Branches'&&<Branches/>}
-    {view==='Settings'&&<Settings/>}
+    {view==='Reports'&&canAccessView('Reports')&&<Reports currency={currency}/>}
+    {view==='Staff'&&canAccessView('Staff')&&<Staff/>}
+    {view==='Branches'&&canAccessView('Branches')&&<Branches/>}
+    {view==='Settings'&&canAccessView('Settings')&&<Settings/>}
   </>
 
   if(workspace==='operations'){
-    return <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
+    if(!hasManagementAccess){const fallback=(allowedOps[0]?.[0]||'POS') as ViewKey;setTimeout(()=>{setWorkspace('operations');if(managementViews.has(view))setView(fallback)},0);return <div className="min-h-screen grid place-items-center bg-[var(--app-bg)] text-slate-500">Loading operations…</div>}
+
+  return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/98">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
-          <MauzoLogo compact/>
+          <BusinessBrand name={business} logo={businessLogo}/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
-            {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>go(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(view===name?'bg-emerald-50 font-medium text-[#169B36]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
+            {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {!isOpsOnly&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
+            {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
             <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
             <div className="hidden items-center gap-2 sm:flex"><div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500"><UserRound size={14}/></div><div className="leading-tight"><div className="max-w-32 truncate text-[11px] font-medium">{user.name}</div><div className="max-w-44 truncate text-[9px] text-slate-400">{(businessRoles.length?businessRoles:[businessRole||user.role]).map(nice).join(' · ')}</div></div></div>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
@@ -160,18 +179,18 @@ export default function App(){
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[64px] grid-cols-5 border-t border-slate-200 bg-white lg:hidden">
-        <MobileNav icon={ShoppingCart} label="POS" active={view==='POS'} onClick={()=>go('POS')}/>
-        <MobileNav icon={ClipboardList} label="Orders" active={view==='Orders'} onClick={()=>go(hasRestaurant?'Orders':'Sales')}/>
-        <MobileNav icon={ChefHat} label="Kitchen" active={view==='Kitchen'} onClick={()=>go(hasRestaurant?'Kitchen':'Sales')}/>
-        <MobileNav icon={ReceiptText} label="History" active={view==='Sales'} onClick={()=>go('Sales')}/>
+        <MobileNav icon={ShoppingCart} label="POS" active={view==='POS'} onClick={()=>safeGo('POS')}/>
+        <MobileNav icon={ClipboardList} label="Orders" active={view==='Orders'} onClick={()=>safeGo(hasRestaurant?'Orders':'Sales')}/>
+        <MobileNav icon={ChefHat} label="Kitchen" active={view==='Kitchen'} onClick={()=>safeGo(hasRestaurant?'Kitchen':'Sales')}/>
+        <MobileNav icon={ReceiptText} label="History" active={view==='Sales'} onClick={()=>safeGo('Sales')}/>
         <MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/>
       </nav>
 
       {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/20 lg:hidden" onClick={()=>setSidebar(false)}>
         <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white p-3 shadow-2xl" onClick={e=>e.stopPropagation()}>
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"/>
-          <div className="grid grid-cols-3 gap-2">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>go(name as ViewKey)} className="rounded-xl border border-slate-100 p-3 text-center text-[11px] text-slate-600"><Icon size={18} className="mx-auto mb-1"/>{name}</button>)}</div>
-          {!isOpsOnly&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mt-3 w-full rounded-xl bg-slate-950 py-3 text-[12px] font-medium text-white">Open Management</button>}
+          <div className="grid grid-cols-3 gap-2">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className="rounded-xl border border-slate-100 p-3 text-center text-[11px] text-slate-600"><Icon size={18} className="mx-auto mb-1"/>{name}</button>)}</div>
+          {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mt-3 w-full rounded-xl bg-slate-950 py-3 text-[12px] font-medium text-white">Open Management</button>}
         </div>
       </div>}
     </div>
@@ -182,32 +201,33 @@ export default function App(){
 
     <aside className={'fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-slate-200 bg-[#fbfcfd] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
       <div className="flex h-[62px] items-center border-b border-slate-100 px-4">
-        <MauzoLogo compact/>
+        <BusinessBrand name={business} logo={businessLogo}/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
       </div>
       <div className="px-3 pt-4">
         <div className="px-2"><div className="text-[9px] uppercase tracking-[.12em] text-slate-400">Business</div><div className="mt-1 truncate text-[12px] font-medium text-slate-700">{business}</div></div>
       </div>
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
-        <div className="mt-4"><button onClick={()=>go('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-emerald-50 font-medium text-[#15803d]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
-        <NavGroup title="Management" rows={managementRows} view={view} go={go}/>
+        <div className="mt-4"><button onClick={()=>go('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
+        {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>} 
       </nav>
       <div className="border-t border-slate-100 p-3">
-        <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="mb-2 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[11px] font-medium text-emerald-700">Open Operations</button>
+        <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="mb-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--brand-primary)]">Open Operations</button>
         <div className="flex items-center gap-2 rounded-xl px-2 py-2">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><UserRound size={15}/></div>
           <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div>
           <button onClick={logout} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
         </div>
+        <div className="mt-1 px-2 text-center text-[8.5px] text-slate-300">Powered by MauzoPOS</div>
       </div>
     </aside>
 
     <main className="min-w-0 lg:ml-[236px]">
       <header className="sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b border-slate-200/80 bg-white px-3 sm:px-5 lg:px-6">
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
-        <div className="min-w-0"><div className="text-[10px] text-slate-400">Management</div><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
+        <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="hidden rounded-lg bg-[#22A53A] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
+          <button onClick={()=>{setWorkspace('operations');setView('POS')}} className="hidden rounded-lg bg-[var(--brand-primary)] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
           <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
         </div>
       </header>
@@ -226,8 +246,38 @@ class ViewErrorBoundary extends Component<{children:ReactNode;onBack:()=>void},{
   }
 }
 
-function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-emerald-50 font-medium text-[#15803d]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
-function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[#22A53A]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
+function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
+function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[var(--brand-primary)]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
+
+function BusinessBrand({name,logo}:{name:string;logo:string}){
+  return <div className="flex min-w-0 items-center gap-2">
+    {logo?<div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white p-1 ring-1 ring-slate-200"><img src={logo} alt="" className="max-h-full max-w-full object-contain"/></div>:<MauzoLogo compact className="max-w-[150px] overflow-hidden"/>}
+    {logo&&<div className="min-w-0"><div className="max-w-[160px] truncate text-[12px] font-semibold text-slate-800">{name}</div><div className="text-[8px] text-slate-300">MauzoPOS</div></div>}
+  </div>
+}
+
+const themePalettes:Record<string,{primary:string;soft:string;border:string;bg:string;surface:string;text:string;muted:string;sidebar:string}>={
+  green:{primary:'#22A53A',soft:'#ECF8EF',border:'#BDE7C5',bg:'#F7F9F7',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FBFCFB'},
+  blue:{primary:'#2563EB',soft:'#EFF6FF',border:'#BFDBFE',bg:'#F6F8FC',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FAFBFD'},
+  maroon:{primary:'#8B1E3F',soft:'#FBEFF3',border:'#E9BAC8',bg:'#FAF7F8',surface:'#FFFFFF',text:'#23171B',muted:'#74636A',sidebar:'#FDFBFC'},
+  gold:{primary:'#B7791F',soft:'#FFF8E7',border:'#EED7A2',bg:'#FAF9F5',surface:'#FFFFFF',text:'#211D15',muted:'#716856',sidebar:'#FEFDF9'},
+  dark:{primary:'#A3E635',soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
+}
+function applyTheme(key:string,mode:string,customAccent=''){
+  const p=themePalettes[key]||themePalettes.green
+  const primary=customAccent||p.primary
+  const root=document.documentElement
+  root.style.setProperty('--brand-primary',primary)
+  root.style.setProperty('--brand-soft',p.soft)
+  root.style.setProperty('--brand-border',p.border)
+  root.style.setProperty('--app-bg',p.bg)
+  root.style.setProperty('--app-surface',p.surface)
+  root.style.setProperty('--app-text',p.text)
+  root.style.setProperty('--app-muted',p.muted)
+  root.style.setProperty('--app-sidebar',p.sidebar)
+  root.dataset.theme=key
+  root.dataset.mode=mode
+}
 
 function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)=>void}){
   const [showPassword,setShowPassword]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[forgot,setForgot]=useState(false),[sent,setSent]=useState(false)
