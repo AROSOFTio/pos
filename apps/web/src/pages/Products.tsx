@@ -6,7 +6,7 @@ import BarcodeScanner from '../components/BarcodeScanner'
 
 const blank={name:'',sku:'',barcode:'',category:'',cost:'',price:'',stock:'',reorderLevel:'',supplierIds:[] as number[]}
 
-export default function Products({currency}:{currency:string}){
+export default function Products({currency,allowScanning=false}:{currency:string;allowScanning?:boolean}){
  const [rows,setRows]=useState<any[]|null>(null),[suppliers,setSuppliers]=useState<any[]>([]),[open,setOpen]=useState(false),[form,setForm]=useState(blank)
  const [image,setImage]=useState<File|null>(null),[preview,setPreview]=useState(''),[saving,setSaving]=useState(false),[query,setQuery]=useState('')
  const [error,setError]=useState(''),[success,setSuccess]=useState(''),[createdId,setCreatedId]=useState<number|null>(null),[editing,setEditing]=useState<any>(null)
@@ -112,7 +112,7 @@ export default function Products({currency}:{currency:string}){
         <Field label="Product name" required><input className="control" autoFocus value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Chicken Burger"/></Field>
         <Field label="Category"><div className="flex gap-2"><select className="control mt-0 flex-1" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}><option value="">Choose category</option>{categories.map(x=><option key={x.id} value={x.name}>{x.name}</option>)}</select><button type="button" onClick={()=>setCategoryOpen(true)} className="rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600">+ Category</button></div></Field>
         <Field label="Product code / SKU"><input className="control" value={editing?(form.sku||editing.product_code||''):'Generated automatically after save'} disabled/></Field>
-        <Field label="Barcode / QR code"><div className="flex gap-2"><input className="control mt-0 flex-1" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Scan or enter barcode"/><button type="button" onClick={()=>setScannerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600"><ScanLine size={14}/>Scan</button></div></Field>
+        {allowScanning&&<Field label="Barcode"><div className="flex gap-2"><input className="control mt-0 flex-1" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Scan or enter barcode"/><button type="button" onClick={()=>setScannerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600"><ScanLine size={14}/>Scan</button></div></Field>}
         <Field label={'Cost ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.cost} onChange={e=>setForm({...form,cost:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter cost"/></Field>
         <Field label={'Selling price ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.price} onChange={e=>setForm({...form,price:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter selling price"/></Field>
         <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter opening quantity"/>{editing&&<span className="mt-1 block text-[9.5px] font-normal text-slate-400">Adjust stock from Inventory to keep the movement ledger correct.</span>}</Field>
@@ -132,7 +132,7 @@ export default function Products({currency}:{currency:string}){
     </div>
   </Modal>}
 
-  <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={code=>setForm({...form,barcode:code})} title="Scan product barcode / QR"/>
+  {allowScanning&&<BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={code=>setForm({...form,barcode:code})} title="Scan product barcode"/>}
 
   {categoryOpen&&<Modal title="Add Product Category" onClose={()=>setCategoryOpen(false)} size="sm">
     <Field label="Category name" required><input className="control" autoFocus value={newCategory} onChange={e=>setNewCategory(e.target.value)} placeholder="e.g. Drinks"/></Field>
