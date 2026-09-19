@@ -40,6 +40,7 @@ export default function App(){
   const [businessRole,setBusinessRole]=useState('')
   const [permissions,setPermissions]=useState<Set<string>>(new Set())
   const [path,setPath]=useState(window.location.pathname)
+  const [workspace,setWorkspace]=useState<'management'|'operations'>('management')
 
   useEffect(()=>{const onPop=()=>setPath(window.location.pathname);window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[])
   useEffect(()=>{const token=localStorage.getItem('pos_token');if(!token){setLoading(false);return}api('/me').then(setUser).catch(()=>localStorage.removeItem('pos_token')).finally(()=>setLoading(false))},[])
@@ -51,6 +52,10 @@ export default function App(){
       setBusinessRole(a.businessRole||user.role);setPermissions(new Set(a.permissions||[]))
     }).catch(()=>{})
   },[user])
+  useEffect(()=>{
+    const role=businessRole||user?.role||''
+    if(['cashier','waiter','kitchen','bar'].includes(role))setWorkspace('operations')
+  },[businessRole,user?.role])
 
   const navigate=(next:string)=>{window.history.pushState({},'',next);setPath(next)}
   const authenticated=(u:User)=>{window.history.replaceState({},'', '/app');setPath('/app');setUser(u)}
@@ -80,9 +85,6 @@ export default function App(){
   const operationRoles=['cashier','waiter','kitchen','bar']
   const managerRoles=['branch_manager','restaurant_manager']
   const isOpsOnly=operationRoles.includes(businessRole)
-  const [workspace,setWorkspace]=useState<'management'|'operations'>(isOpsOnly?'operations':'management')
-
-  useEffect(()=>{if(isOpsOnly)setWorkspace('operations')},[businessRole])
 
   const managementRows=(administration.filter(([name])=>{
     if(name==='Purchasing'&&!enabled.has('purchasing'))return false
