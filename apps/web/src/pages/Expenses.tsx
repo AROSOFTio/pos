@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, Eye, FileText } from 'lucide-react'
+import { Plus, Eye, FileText, Bot, PencilLine, WalletCards } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
-import { PageHeading, Panel, DataTable, Badge, Loading, Modal } from '../components'
+import { PageHeading, Panel, DataTable, Badge, Loading, Modal, Stat } from '../components'
 
 export default function Expenses({currency}:{currency:string}){
  const [rows,setRows]=useState<any[]|null>(null)
@@ -18,9 +18,13 @@ export default function Expenses({currency}:{currency:string}){
    }finally{setSaving(false)}
  }
  if(!rows)return <Loading/>
+ const total=rows.reduce((n,x)=>n+Number(x.amount||0),0)
+ const autoRows=rows.filter(x=>x.auto_generated)
+ const manualRows=rows.filter(x=>!x.auto_generated)
  return <div>
    <PageHeading eyebrow="Financial control" title="Expenses & Cost Register" sub="Manual operating expenses and automatically reconciled system costs." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>Record Expense</button>}/>
-   <Panel title="Expense register" sub={rows.length+' recent entries'}>
+   <div className="mb-4 grid gap-3 sm:grid-cols-3"><Stat label="Recorded Costs" value={money(total,currency)} sub={rows.length+' entries'} icon={WalletCards}/><Stat label="Automatic" value={autoRows.length} sub="Captured from system activity" icon={Bot} tone="blue"/><Stat label="Manual" value={manualRows.length} sub="Entered by management" icon={PencilLine} tone="violet"/></div>
+   <Panel title="Expense register" sub="Automatic operational costs and occasional manual expenses">
      <DataTable head={['Reference','Date','Category','Description','Source','Treatment','Amount','Document']} rows={rows.map(x=>[
        <b>{x.reference_no||'EXP-'+x.id}</b>,
        String(x.expense_date).slice(0,10),
