@@ -1183,7 +1183,8 @@ INSERT INTO permission_catalog(code,name,section) VALUES
 ('reports.export','Export reports','Reports'),
 ('shift.close','Close cash shifts','Cash'),
 ('branch.all','View all branches','Branches'),
-('settings.manage','Manage organisation settings','Settings')
+('settings.manage','Manage organisation settings','Settings'),
+('staff.manage','Manage staff and roles','Staff')
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
 INSERT INTO terminals(business_id,branch_id,name,code)
 SELECT b.business_id,b.id,'Front Counter','MAIN-'||b.id FROM branches b
