@@ -66,9 +66,13 @@ export default function App(){
     return <Marketing navigate={navigate}/>
   }
 
-  if(user.role==='saas_admin')return <div className="min-h-screen bg-[#f4f7fb]">
-    <header className="sticky top-0 z-30 flex h-[72px] items-center border-b border-slate-200 bg-white px-5 lg:px-8"><MauzoLogo compact/><div className="ml-5 hidden border-l border-slate-200 pl-5 sm:block"><div className="text-[10px] font-black uppercase tracking-[.15em] text-[#22A53A]">Platform Owner</div><div className="text-sm font-bold text-slate-700">SaaS Administration</div></div><div className="ml-auto flex items-center gap-3"><div className="hidden text-right sm:block"><div className="text-xs font-bold">{user.name}</div><div className="text-[10px] text-slate-400">{user.email}</div></div><button onClick={logout} className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 hover:text-red-600"><LogOut size={17}/></button></div></header>
-    <main className="mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8"><SaaSAdmin/></main>
+  if(user.role==='saas_admin')return <div className="min-h-screen bg-[#f7f8fa]">
+    <header className="sticky top-0 z-30 flex h-[60px] items-center border-b border-slate-200 bg-white px-4 sm:px-6">
+      <MauzoLogo compact/>
+      <div className="ml-4 hidden border-l border-slate-200 pl-4 sm:block"><div className="text-[9px] font-medium uppercase tracking-[.12em] text-[#22A53A]">Platform</div><div className="text-[12px] font-medium text-slate-600">SaaS Administration</div></div>
+      <div className="ml-auto flex items-center gap-2"><div className="hidden text-right sm:block"><div className="text-[11px] font-medium text-slate-700">{user.name}</div><div className="text-[9px] text-slate-400">{user.email}</div></div><button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={16}/></button></div>
+    </header>
+    <main className="mx-auto max-w-[1480px] px-3 py-4 sm:px-5 lg:px-6"><SaaSAdmin/></main>
   </div>
 
   const go=(v:ViewKey)=>{setView(v);setSidebar(false)}
