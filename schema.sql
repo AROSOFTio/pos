@@ -1209,3 +1209,10 @@ ON CONFLICT(business_id,role,permission_code) DO NOTHING;
 INSERT INTO terminals(business_id,branch_id,name,code)
 SELECT b.business_id,b.id,'Front Counter','MAIN-'||b.id FROM branches b
 ON CONFLICT(business_id,code) DO NOTHING;
+
+
+-- Receipt / document branding controls
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_title TEXT NOT NULL DEFAULT 'ORDER BILL';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_payment_options TEXT NOT NULL DEFAULT 'CASH | MTN MOMO | AIRTEL MONEY | CARD';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_header_note TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS receipt_show_logo BOOLEAN NOT NULL DEFAULT true;
