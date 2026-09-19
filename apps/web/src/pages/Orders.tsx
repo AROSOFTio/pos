@@ -52,7 +52,7 @@ export default function Orders({currency}:{currency:string}){
    const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
    await refreshDetail();await load()
    const tickets=Array.isArray(out?.tickets)?out.tickets:[]
-   for(const t of tickets)await openPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
+   for(const t of tickets)await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
  }
  async function holdResume(){
    const action=detail.order.held?'resume':'hold';await api('/restaurant/orders/'+detail.order.id+'/'+action,{method:'POST',body:'{}'});await refreshDetail();await load()
