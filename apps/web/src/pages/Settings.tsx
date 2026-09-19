@@ -54,7 +54,7 @@ export default function Settings(){
  })
 
  useEffect(()=>{load().catch((e:any)=>setError(e.message||'Settings could not be loaded.'))},[])
- const patch=(k:string,v:any)=>setS({...s,[k]:v})
+ const patch=(k:string,v:any)=>setS((prev:any)=>({...prev,[k]:v}))
  const menuProductIds=useMemo(()=>new Set(menu.map(x=>Number(x.product_id))),[menu])
  const availableProducts=products.filter(p=>!menuProductIds.has(Number(p.id))||Number(editingMenu?.product_id)===Number(p.id))
 
@@ -151,12 +151,12 @@ export default function Settings(){
         <div className="mt-5 border-t border-slate-100 pt-4">
           <div className="text-[12px] font-semibold text-slate-700">Interface theme</div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {themes.map(t=><button key={t.key} type="button" onClick={()=>{patch('theme_key',t.key);patch('document_accent',t.primary);applyLocalTheme(t.key,t.primary)}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
+            {themes.map(t=><button key={t.key} type="button" onClick={()=>{setS((prev:any)=>({...prev,theme_key:t.key,theme_mode:t.key==='dark'?'dark':'light',document_accent:t.primary}));applyLocalTheme(t.key,t.primary)}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
               <div className="h-12 rounded-lg border border-black/5" style={{background:t.soft}}><div className="m-2 h-5 w-10 rounded-md" style={{background:t.primary}}/></div>
               <div className="mt-2 text-[11px] font-semibold text-slate-700">{t.name}</div>
             </button>)}
           </div>
-          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{patch('document_accent',e.target.value);applyLocalTheme(s.theme_key||'green',e.target.value)}}/></Field></div>
+          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v)}}/></Field></div>
         </div>
         <SaveButton saving={saving} onClick={save}/>
       </Panel>}
