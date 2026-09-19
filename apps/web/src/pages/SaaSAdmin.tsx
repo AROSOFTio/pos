@@ -98,7 +98,7 @@ export default function SaaSAdmin(){
         Number(t.users||0),
         t.trial_ends_at?new Date(t.trial_ends_at).toLocaleDateString():'—',
         <Badge tone={t.status==='active'?'green':'red'}>{nice(t.status)}</Badge>,
-        <button onClick={()=>openTenant(t)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold"><Eye size={14}/>Manage</button>
+        <button onClick={()=>openTenant(t)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium"><Eye size={14}/>Manage</button>
       ])}/>
     </Panel></div>
 
@@ -112,10 +112,10 @@ export default function SaaSAdmin(){
         <Field label="Business status">
           <select className="control" value={selected.status||'active'} onChange={e=>updateTenant({status:e.target.value})}><option value="active">Active</option><option value="suspended">Suspended</option></select>
         </Field>
-        <div className="rounded-xl bg-slate-950 p-3 text-white"><div className="text-[10px] uppercase tracking-wider text-slate-400">Enabled modules</div><div className="mt-1 text-xl font-black">{liveModules.length}</div></div>
+        <div className="rounded-xl bg-slate-950 p-3 text-white"><div className="text-[10px] uppercase tracking-wider text-slate-400">Enabled modules</div><div className="mt-1 text-xl font-semibold">{liveModules.length}</div></div>
       </div>
 
-      <div className="mt-6 text-xs font-black uppercase tracking-[.14em] text-slate-400">Sector & module access</div>
+      <div className="mt-6 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Sector & module access</div>
       <div className="mt-3 space-y-5 max-h-[470px] overflow-y-auto pr-1">
         {Object.entries(sectorNames).map(([sector,label])=>{
           const mods=tenantModules.filter(x=>(x.sector||'shared')===sector)
@@ -123,7 +123,7 @@ export default function SaaSAdmin(){
           return <div key={sector}>
             <div className="mb-2 flex items-center justify-between"><b className="text-sm">{label}</b><span className="text-[10px] text-slate-400">{mods.filter(x=>x.enabled).length}/{mods.length} enabled</span></div>
             <div className="grid gap-2">
-              {mods.map(m=><div key={m.code} className="rounded-2xl border border-slate-200 p-4">
+              {mods.map(m=><div key={m.code} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><b className="text-sm">{m.name}</b>{m.core&&<Badge tone="green">Core</Badge>}<Badge tone={m.maturity==='live'?'green':m.maturity==='planned'?'amber':'slate'}>{nice(m.maturity||'available')}</Badge></div>
@@ -134,13 +134,13 @@ export default function SaaSAdmin(){
                   </button>
                 </div>
                 {!m.core&&<div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <label className="text-[11px] font-bold text-slate-500">Trial
+                  <label className="text-[11px] font-medium text-slate-500">Trial
                     <select className="control !mt-1 !py-2 text-xs" value={m.trial?'yes':'no'} onChange={e=>updateModuleMeta(m,{trial:e.target.value==='yes'})}><option value="no">No</option><option value="yes">Yes</option></select>
                   </label>
-                  <label className="text-[11px] font-bold text-slate-500">Price override
+                  <label className="text-[11px] font-medium text-slate-500">Price override
                     <input className="control !mt-1 !py-2 text-xs" type="number" min="0" defaultValue={m.price_override??''} onBlur={e=>updateModuleMeta(m,{priceOverride:e.target.value===''?null:Number(e.target.value)})} placeholder={String(m.monthly_price||0)}/>
                   </label>
-                  <label className="text-[11px] font-bold text-slate-500">Expires
+                  <label className="text-[11px] font-medium text-slate-500">Expires
                     <input className="control !mt-1 !py-2 text-xs" type="date" defaultValue={m.expires_at?String(m.expires_at).slice(0,10):''} onBlur={e=>updateModuleMeta(m,{expiresAt:e.target.value?new Date(e.target.value+'T23:59:59Z').toISOString():null})}/>
                   </label>
                 </div>}
@@ -150,19 +150,19 @@ export default function SaaSAdmin(){
         })}
       </div>
 
-      <div className="mt-6 text-xs font-black uppercase tracking-[.14em] text-slate-400">Business users & account recovery</div>
+      <div className="mt-6 text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Business users & account recovery</div>
       <div className="mt-3 max-h-52 overflow-y-auto space-y-2">
         {users.map(u=><div key={u.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
           <div><b className="text-sm">{u.name}</b><div className="text-xs text-slate-400">{u.email} · {nice(u.business_role||u.role)}</div></div>
-          <button onClick={()=>generateReset(u)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold"><RefreshCcw size={14}/>Reset Link</button>
+          <button onClick={()=>generateReset(u)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium"><RefreshCcw size={14}/>Reset Link</button>
         </div>)}
       </div>
       {resetLink&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-        <div className="text-xs font-bold text-emerald-700">{message}</div>
+        <div className="text-xs font-medium text-emerald-700">{message}</div>
         <div className="mt-2 flex gap-2"><input readOnly value={resetLink} className="control !mt-0 text-xs"/><button onClick={()=>navigator.clipboard.writeText(resetLink)} className="rounded-xl bg-slate-950 px-3 text-white"><Copy size={15}/></button></div>
       </div>}
     </Modal>}
   </div>
 }
-function Field({label,children}:{label:string;children:any}){return <label className="text-xs font-bold text-slate-500">{label}{children}</label>}
-function Kpi({label,value,icon:Icon}:{label:string;value:string;icon:any}){return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><div className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</div><div className="mt-2 text-3xl font-black">{value}</div></div><div className="grid h-11 w-11 place-items-center rounded-xl bg-green-50 text-[#22A53A]"><Icon size={20}/></div></div></div>}
+function Field({label,children}:{label:string;children:any}){return <label className="text-xs font-medium text-slate-500">{label}{children}</label>}
+function Kpi({label,value,icon:Icon}:{label:string;value:string;icon:any}){return <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><div className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</div><div className="mt-2 text-3xl font-semibold">{value}</div></div><div className="grid h-11 w-11 place-items-center rounded-xl bg-green-50 text-[#22A53A]"><Icon size={20}/></div></div></div>}
