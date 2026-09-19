@@ -72,6 +72,7 @@ app.get('/api/health',async(req,res)=>{try{await pool.query('SELECT 1');res.json
 
 app.post('/api/register',async(req,res)=>{
   const {name,email,password,businessName,country='Uganda',currency='UGX',businessType='general'}=req.body||{};
+  console.log('AUTH_DIAG register name_len='+String(name||'').trim().length+' email_len='+String(email||'').trim().length+' business_len='+String(businessName||'').trim().length+' password_len='+String(password||'').length+' type='+String(businessType||''));
   const cleanName=String(name||'').trim(),cleanEmail=String(email||'').trim().toLowerCase(),cleanBusiness=String(businessName||'').trim(),cleanType=String(businessType||'general').trim().toLowerCase();
   if(!cleanName||!cleanEmail||!password||!cleanBusiness)return res.status(400).json({error:'Please complete name, email, business name and password'});
   if(String(password).length<10)return res.status(400).json({error:'Password must be at least 10 characters'});
@@ -109,7 +110,8 @@ app.post('/api/auth/forgot-password',async(req,res)=>{const email=String(req.bod
 app.post('/api/auth/reset-password',async(req,res)=>{const token=String(req.body?.token||''),password=String(req.body?.password||'');if(token.length<20)return res.status(400).json({error:'Invalid or expired reset link'});if(password.length<10)return res.status(400).json({error:'Password must be at least 10 characters'});const hash=crypto.createHash('sha256').update(token).digest('hex'),client=await pool.connect();try{await client.query('BEGIN');const q=await client.query("SELECT prt.*,u.email FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id WHERE prt.token_hash=$1 AND prt.used_at IS NULL AND prt.expires_at>now() FOR UPDATE",[hash]);if(!q.rowCount)throw new Error('Invalid or expired reset link');const pw=await bcrypt.hash(password,12);await client.query('UPDATE users SET password_hash=$1 WHERE id=$2',[pw,q.rows[0].user_id]);await client.query('UPDATE password_reset_tokens SET used_at=now() WHERE id=$1',[q.rows[0].id]);await client.query('COMMIT');res.json({ok:true})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
 
 app.post('/api/login',async(req,res)=>{
-  const {email,password}=req.body||{}; const q=await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[email||'']);
+  const {email,password}=req.body||{};
+  console.log('AUTH_DIAG login email='+String(email||'').trim().toLowerCase()+' password_len='+String(password||'').length); const q=await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[email||'']);
   if(!q.rowCount||!(await bcrypt.compare(password||'',q.rows[0].password_hash)))return res.status(401).json({error:'Invalid email or password'});
   const u=q.rows[0]; let businessId=null;
   if(u.role!=='saas_admin'){const m=await pool.query('SELECT business_id FROM user_businesses WHERE user_id=$1 AND active=true ORDER BY business_id LIMIT 1',[u.id]);businessId=m.rows[0]?.business_id||null}
