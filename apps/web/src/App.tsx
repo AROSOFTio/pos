@@ -194,7 +194,7 @@ export default function App(){
     </div>
   }
 
-  return <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
+  return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
     <aside className={'fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-slate-200 bg-[var(--app-sidebar)] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
@@ -206,7 +206,7 @@ export default function App(){
         <div className="px-2"><div className="text-[9px] uppercase tracking-[.12em] text-slate-400">Business</div><div className="mt-1 truncate text-[12px] font-medium text-slate-700">{business}</div></div>
       </div>
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
-        <div className="mt-4"><button onClick={()=>go('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
+        <div className="mt-4"><button onClick={()=>safeGo('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
         {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>} 
       </nav>
       <div className="border-t border-slate-100 p-3">
@@ -244,7 +244,7 @@ class ViewErrorBoundary extends Component<{children:ReactNode;onBack:()=>void},{
   }
 }
 
-function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
+function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
 function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[var(--brand-primary)]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
 
 function BusinessBrand({name,logo}:{name:string;logo:string}){
