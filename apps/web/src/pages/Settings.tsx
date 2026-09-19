@@ -67,7 +67,7 @@ export default function Settings(){
        defaultTaxRate:Number(s.default_tax_rate||0),taxInclusive:!!s.tax_inclusive,
        defaultServiceChargeRate:Number(s.default_service_charge_rate||0),
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
-       receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,
+       receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,receiptShowBusinessName:!!s.receipt_show_business_name,
        themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light'
      })})
      setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'');setMessage('Settings saved successfully.')
@@ -188,7 +188,10 @@ export default function Settings(){
             <div className="md:col-span-2"><Field label="Payment options shown"><input className="control" value={s.receipt_payment_options||''} onChange={e=>patch('receipt_payment_options',e.target.value)}/></Field></div>
             <div className="md:col-span-2"><Field label="Footer / message"><textarea className="control min-h-24" value={s.document_footer||''} onChange={e=>patch('document_footer',e.target.value)}/></Field></div>
           </div>
-          <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[10.5px] text-slate-500">Business logo is automatically used on printed documents when a logo is uploaded.</div>
+          <div className="mt-3 flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-3">
+            <div className="text-[10.5px] text-slate-500">The uploaded logo is used automatically on printed documents.</div>
+            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-600"><input type="checkbox" checked={!!s.receipt_show_business_name} onChange={e=>patch('receipt_show_business_name',e.target.checked)} className="accent-[var(--brand-primary)]"/>Also show business name with the logo</label>
+          </div>
           <SaveButton saving={saving} onClick={save}/>
         </Panel>
         <Panel title="Printer Profiles" sub="Receipt, KOT and report printer mapping.">
