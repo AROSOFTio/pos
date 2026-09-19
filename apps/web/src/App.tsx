@@ -83,16 +83,12 @@ export default function App(){
     <main className="mx-auto max-w-[1480px] px-3 py-4 sm:px-5 lg:px-6"><SaaSAdmin/></main>
   </div>
 
-  const go=(v:ViewKey)=>{setView(v);setSidebar(false)}
   const hasRole=(...roles:string[])=>businessRoles.some(r=>roles.includes(r))||roles.includes(businessRole)
   const elevated=hasRole('owner','administrator','admin')
   const can=(p:string)=>elevated||permissions.has(p)
   const hasRestaurant=enabled.has('restaurant')
-  const operationRoles=['cashier','waiter','kitchen','bar']
-  const managerRoles=['branch_manager','restaurant_manager']
   const managementRoleSet=['owner','administrator','admin','branch_manager','restaurant_manager','storekeeper','accountant','auditor']
   const hasManagementAccess=elevated||businessRoles.some(r=>managementRoleSet.includes(r))
-  const isOpsOnly=!hasManagementAccess
 
   const managementRows=(administration.filter(([name])=>{
     if(!hasManagementAccess)return false
