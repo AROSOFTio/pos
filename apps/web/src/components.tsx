@@ -50,8 +50,8 @@ export function Loading(){return <div className="py-10 text-center text-[12px] t
 
 export function Modal({title,onClose,children,size='md'}:{title:string;onClose:()=>void;children:ReactNode;size?:'sm'|'md'|'lg'|'xl'}) {
   const widths={sm:'sm:max-w-md',md:'sm:max-w-lg',lg:'sm:max-w-2xl',xl:'sm:max-w-3xl'}[size]
-  return <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-slate-950/30 p-3 sm:p-5 lg:p-7" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
-    <div className={'modal-scroll my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,.15)] sm:max-h-[calc(100dvh-2.5rem)] lg:max-h-[calc(100dvh-3.5rem)] '+widths}>
+  return <div className="modal-backdrop fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-slate-950/30 p-3 sm:p-5 lg:p-7" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div className={'modal-surface modal-scroll my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,.15)] sm:max-h-[calc(100dvh-2.5rem)] lg:max-h-[calc(100dvh-3.5rem)] '+widths}>
       <div className="sticky top-0 z-20 flex min-h-[54px] items-center justify-between border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:px-5">
         <span className="min-w-0 truncate pr-3 text-[14px] font-semibold">{title}</span>
         <button onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X size={16}/></button>
