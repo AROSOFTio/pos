@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, ImagePlus, Package, Plus, Search, X } from '
 import { api, money } from '../api'
 import { PageHeading, Panel, DataTable, Loading, Modal, Badge } from '../components'
 
-const blank={name:'',sku:'',barcode:'',category:'General',cost:0,price:0,stock:0,reorderLevel:0,supplierIds:[] as number[]}
+const blank={name:'',sku:'',barcode:'',category:'',cost:'',price:'',stock:'',reorderLevel:'',supplierIds:[] as number[]}
 
 export default function Products({currency}:{currency:string}){
  const [rows,setRows]=useState<any[]|null>(null),[suppliers,setSuppliers]=useState<any[]>([]),[open,setOpen]=useState(false),[form,setForm]=useState(blank)
@@ -39,12 +39,12 @@ export default function Products({currency}:{currency:string}){
  async function save(){
    setError('');setSuccess('')
    if(!form.name.trim()){setError('Product name is required.');return}
-   if(Number(form.cost)<0||Number(form.price)<0||Number(form.stock)<0||Number(form.reorderLevel)<0){setError('Cost, price and stock values cannot be negative.');return}
+   if([form.cost,form.price,form.stock,form.reorderLevel].some(v=>v!==''&&Number(v)<0)){setError('Cost, price and stock values cannot be negative.');return}
    setSaving(true)
    try{
      let id=createdId
      if(!id){
-       const p=await api('/products',{method:'POST',body:JSON.stringify({...form,name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General'})})
+       const p=await api('/products',{method:'POST',body:JSON.stringify({...form,name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0)})})
        id=Number(p.id);setCreatedId(id)
      }
      if(image)await uploadProductImage(id,image)
@@ -72,7 +72,7 @@ export default function Products({currency}:{currency:string}){
   </Panel>
 
   {open&&<Modal title="Add product" onClose={close} size="lg">
-    <div className="space-y-4">
+    <div className="space-y-5">
       {error&&<div className="flex items-start gap-2.5 rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-[12px] text-red-700"><AlertCircle size={16} className="mt-0.5 shrink-0"/><span>{error}</span></div>}
       {success&&<div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-[12px] text-emerald-700"><CheckCircle2 size={16}/><span>{success}</span></div>}
 
@@ -91,15 +91,15 @@ export default function Products({currency}:{currency:string}){
         </div>
       </div>
 
-      <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
+      <div className="grid gap-x-4 gap-y-4 md:grid-cols-2">
         <Field label="Product name" required><input className="control" autoFocus value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Chicken Burger"/></Field>
-        <Field label="Category"><input className="control" value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="General"/></Field>
+        <Field label="Category"><input className="control" value={form.category} onChange={e=>setForm({...form,category:e.target.value})} placeholder="e.g. Burgers, Drinks, General"/></Field>
         <Field label="SKU"><input className="control" value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})} placeholder="Optional"/></Field>
         <Field label="Barcode"><input className="control" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Optional"/></Field>
-        <Field label="Cost"><div className="relative"><span className="pointer-events-none absolute left-3 top-[18px] text-[10px] text-slate-400">{currency}</span><input className="control pl-12" inputMode="decimal" type="number" min="0" step="0.01" value={form.cost} onChange={e=>setForm({...form,cost:Number(e.target.value)})}/></div></Field>
-        <Field label="Selling price"><div className="relative"><span className="pointer-events-none absolute left-3 top-[18px] text-[10px] text-slate-400">{currency}</span><input className="control pl-12" inputMode="decimal" type="number" min="0" step="0.01" value={form.price} onChange={e=>setForm({...form,price:Number(e.target.value)})}/></div></Field>
-        <Field label="Opening stock"><input className="control" inputMode="decimal" type="number" min="0" step="0.001" value={form.stock} onChange={e=>setForm({...form,stock:Number(e.target.value)})}/></Field>
-        <Field label="Reorder level"><input className="control" inputMode="decimal" type="number" min="0" step="0.001" value={form.reorderLevel} onChange={e=>setForm({...form,reorderLevel:Number(e.target.value)})}/></Field>
+        <Field label={'Cost ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.cost} onChange={e=>setForm({...form,cost:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter cost"/></Field>
+        <Field label={'Selling price ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.price} onChange={e=>setForm({...form,price:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter selling price"/></Field>
+        <Field label="Opening stock"><input className="control" inputMode="decimal" type="text" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter opening quantity"/></Field>
+        <Field label="Reorder level"><input className="control" inputMode="decimal" type="text" value={form.reorderLevel} onChange={e=>setForm({...form,reorderLevel:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Optional"/></Field>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-3.5">
@@ -108,9 +108,9 @@ export default function Products({currency}:{currency:string}){
         {suppliers.length?<div className="mt-3 grid max-h-32 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{suppliers.map(s=><label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-700 transition hover:border-slate-200"><input type="checkbox" className="h-4 w-4 accent-[#22A53A]" checked={form.supplierIds.includes(Number(s.id))} onChange={e=>setForm({...form,supplierIds:e.target.checked?[...form.supplierIds,Number(s.id)]:form.supplierIds.filter(id=>id!==Number(s.id))})}/><span className="truncate">{s.name}</span></label>)}</div>:<div className="mt-3 rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] text-slate-400">No suppliers have been added yet.</div>}
       </div>
 
-      <div className="sticky -bottom-4 z-10 -mx-4 mt-1 flex items-center justify-end gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur">
-        <button type="button" onClick={close} disabled={saving} className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-        <button onClick={save} disabled={saving||!form.name.trim()} className="min-w-36 rounded-lg bg-[#22A53A] px-5 py-2.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[#1d9132] disabled:opacity-40">{saving?'Saving product…':'Save Product'}</button>
+      <div className="sticky bottom-0 z-10 mt-2 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 pt-4 backdrop-blur sm:flex-row sm:items-center sm:justify-end">
+        <button type="button" onClick={close} disabled={saving} className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-[12px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 sm:w-auto">Cancel</button>
+        <button onClick={save} disabled={saving||!form.name.trim()} className="w-full min-w-36 rounded-lg bg-[#22A53A] px-5 py-3 text-[12px] font-semibold text-white shadow-sm transition hover:bg-[#1d9132] disabled:opacity-40 sm:w-auto">{saving?'Saving product…':'Save Product'}</button>
       </div>
     </div>
   </Modal>}
