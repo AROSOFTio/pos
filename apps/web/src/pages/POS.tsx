@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Clock3, Printer, ScanLine, Share2, ShoppingCart, SlidersHorizontal } from 'lucide-react'
+import { CheckCircle2, Clock3, Printer, Share2, ShoppingCart, SlidersHorizontal } from 'lucide-react'
 import { api, money, nice, printPdf, sharePdf } from '../api'
 import { Badge, Modal, PageHeading, Panel } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
-import BarcodeScanner, { useHardwareScanner } from '../components/BarcodeScanner'
 
 type Adjustment={id:number;reference_no:string;adjustment_type:'discount'|'foc';requested_amount:number;requested_percent:number;status:string}
 
@@ -14,8 +13,7 @@ export default function POS({currency}:{currency:string}){
  const [customers,setCustomers]=useState<any[]>([]),[customerId,setCustomerId]=useState(0)
  const [chargesOpen,setChargesOpen]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustment,setAdjustment]=useState<Adjustment|null>(null),[adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
- const [query,setQuery]=useState(''),[scannerOpen,setScannerOpen]=useState(false),[scanMessage,setScanMessage]=useState('')
- const [requestOpen,setRequestOpen]=useState(false),[requestName,setRequestName]=useState(''),[requestCode,setRequestCode]=useState(''),[requestNote,setRequestNote]=useState(''),[requestBusy,setRequestBusy]=useState(false)
+ const [query,setQuery]=useState('')
 
  const load=()=>api('/menu/available?orderType='+type).then(setItems)
  async function loadDefaults(){
@@ -25,7 +23,7 @@ export default function POS({currency}:{currency:string}){
  useEffect(()=>{setCart([]);setAdjustment(null);setCustomerId(0);load();loadDefaults()},[type])
 
  const cats=['All',...Array.from(new Set(items.map(x=>x.category_name||'Other')))]
- const shown=items.filter(x=>(category==='All'||(x.category_name||'Other')===category)&&(!query.trim()||[x.name,x.sku,x.product_code,x.barcode,x.category_name].some(v=>String(v||'').toLowerCase().includes(query.trim().toLowerCase()))))
+ const shown=items.filter(x=>(category==='All'||(x.category_name||'Other')===category)&&(!query.trim()||[x.name,x.category_name].some(v=>String(v||'').toLowerCase().includes(query.trim().toLowerCase()))))
  const subtotal=cart.reduce((n,x)=>n+x.price*x.qty,0)
 
  const approved=adjustment?.status==='approved'
@@ -44,25 +42,6 @@ export default function POS({currency}:{currency:string}){
    setAdjustment(null)
  }
  const add=(p:any)=>{invalidateApproval();setCart(c=>{const i=c.findIndex(x=>x.id===p.id);if(i<0)return [...c,{id:p.id,name:p.name,price:Number(p.resolved_price),qty:1}];return c.map((x,k)=>k===i?{...x,qty:x.qty+1}:x)})}
- async function useScannedCode(raw:string){
-   const code=raw.trim();if(!code)return
-   setScanMessage('')
-   const local=items.find(x=>[x.barcode,x.sku,x.product_code].some(v=>String(v||'').trim()===code))
-   if(local){add(local);setQuery('');return}
-   try{
-     const found=await api('/products/lookup?code='+encodeURIComponent(code))
-     setScanMessage(found?.name?found.name+' exists but is not available in this operation.':'Product is not available.')
-   }catch{
-     setRequestCode(code);setRequestName('');setRequestNote('');setRequestOpen(true)
-   }
- }
- async function submitRequest(){
-   if(!requestName.trim()&&!requestCode.trim())return
-   setRequestBusy(true)
-   try{await api('/product-requests',{method:'POST',body:JSON.stringify({name:requestName.trim()||null,scannedCode:requestCode.trim()||null,notes:requestNote.trim()||null})});setRequestOpen(false);setScanMessage('New item request sent to management.')}finally{setRequestBusy(false)}
- }
- useHardwareScanner(useScannedCode,!scannerOpen&&!requestOpen&&!paymentOpen)
-
  const qty=(i:number,d:number)=>{invalidateApproval();setCart(c=>c.map((x,k)=>k===i?{...x,qty:x.qty+d}:x).filter(x=>x.qty>0))}
 
  async function openBalances(){
@@ -122,7 +101,7 @@ export default function POS({currency}:{currency:string}){
   <PageHeading
     eyebrow="Fast checkout"
     title="Sales"
-    sub="Quick checkout, payments and customer balances."
+    sub="Quick item selection, payments and customer balances."
     action={<div className="flex gap-2">
       <button onClick={openBalances} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Clock3 size={16}/>Open Balances</button>
       <select value={type} onChange={e=>setType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium"><option value="counter">Counter</option><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option></select>
@@ -132,12 +111,7 @@ export default function POS({currency}:{currency:string}){
   <div className="grid xl:grid-cols-[1fr_410px] gap-3">
     <Panel title="Menu" sub={shown.length+' items available'}>
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <div className="flex-1"><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&query.trim())useScannedCode(query)}} placeholder="Search products by name, SKU or barcode" className="control mt-0"/></div>
-        <button onClick={()=>setScannerOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[12px] font-semibold text-slate-700"><ScanLine size={15}/>Scan Item</button>
-      </div>
-      <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2">
-        <div className="flex items-center gap-2 text-[10px] text-slate-500"><ScanLine size={13} className="text-[var(--brand-primary)]"/>Scanner ready · scan anytime</div>
-        {scanMessage&&<div className="truncate text-[10px] font-medium text-slate-600">{scanMessage}</div>}
+        <div className="flex-1"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0"/></div>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-3">{cats.map(c=><button key={c} onClick={()=>setCategory(c)} className={'whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium '+(category===c?'bg-slate-900 text-white':'bg-slate-100 text-slate-600')}>{c}</button>)}</div>
       <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">{shown.map(p=><button key={p.id} onClick={()=>add(p)} className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-[var(--brand-border)] hover:shadow-sm"><div className="h-28 bg-slate-50">{p.image_url?<img src={p.image_url} alt={p.name} className="h-full w-full object-contain p-2.5"/>:<div className="grid h-full place-items-center text-[10px] font-medium text-slate-300">No image</div>}</div><div className="p-3"><div className="line-clamp-2 text-[13px] font-medium text-slate-800">{p.name}</div><div className="mt-0.5 text-[10px] text-slate-400">{p.category_name||'Other'}</div><div className="mt-2 text-[13px] font-semibold text-[var(--brand-primary)]">{money(p.resolved_price,currency)}</div></div></button>)}</div>
@@ -221,15 +195,6 @@ export default function POS({currency}:{currency:string}){
       <button onClick={()=>sharePdf('/documents/sale/'+success.sale.id+'/pdf?paper=80mm',success.sale.receipt_no+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
       <button onClick={()=>setSuccess(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
     </div>
-  </Modal>}
-  <BarcodeScanner open={scannerOpen} onClose={()=>setScannerOpen(false)} onDetected={useScannedCode} title="Scan item"/>
-  {requestOpen&&<Modal title="Request New Item" onClose={()=>!requestBusy&&setRequestOpen(false)} size="sm">
-    <div className="grid gap-3">
-      <Field label="Item name"><input className="control" value={requestName} onChange={e=>setRequestName(e.target.value)} placeholder="Item name"/></Field>
-      <Field label="Scanned code"><input className="control" value={requestCode} onChange={e=>setRequestCode(e.target.value)} placeholder="Barcode / QR code"/></Field>
-      <Field label="Note"><textarea className="control min-h-20" value={requestNote} onChange={e=>setRequestNote(e.target.value)} placeholder="Optional note"/></Field>
-    </div>
-    <button onClick={submitRequest} disabled={requestBusy||(!requestName.trim()&&!requestCode.trim())} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{requestBusy?'Sending…':'Send Request to Management'}</button>
   </Modal>}
  </div>
 }
