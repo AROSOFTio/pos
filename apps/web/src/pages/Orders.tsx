@@ -48,7 +48,10 @@ export default function Orders({currency}:{currency:string}){
    setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');await refreshDetail()
  }
  async function sendKitchen(){
-   await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})});await refreshDetail();await load()
+   const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
+   await refreshDetail();await load()
+   const tickets=Array.isArray(out?.tickets)?out.tickets:[]
+   for(const t of tickets)await openPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
  }
  async function holdResume(){
    const action=detail.order.held?'resume':'hold';await api('/restaurant/orders/'+detail.order.id+'/'+action,{method:'POST',body:'{}'});await refreshDetail();await load()
@@ -133,7 +136,7 @@ export default function Orders({currency}:{currency:string}){
       </div>
     </div>
     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-      {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send Kitchen"/>}
+      {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send & Print KOT"/>}
       <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
       {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer"/>}
       {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}
@@ -141,8 +144,8 @@ export default function Orders({currency}:{currency:string}){
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&detail.order.customer_id&&Number(detail.order.balance_due||0)>0.005&&<Action onClick={chargeBalanceToCredit} icon={CheckCircle2} label="Charge Balance to Credit"/>}
-      <Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=proforma&paper=A4')} icon={ReceiptIcon} label="Proforma"/>
-      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Interim Bill"/>}
+      <Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=proforma&paper=A4')} icon={ReceiptIcon} label="A4 Proforma"/>
+      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Preview Bill / Receipt"/>}
       {['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=invoice&paper=A4')} icon={ReceiptIcon} label="Invoice"/>}
       <Action onClick={()=>sharePdf('/documents/order/'+detail.order.id+'/pdf?type='+( ['paid','closed'].includes(detail.order.status)?'invoice':'proforma')+'&paper=A4',detail.order.order_no+'.pdf')} icon={ReceiptIcon} label="Share PDF"/>
       {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
