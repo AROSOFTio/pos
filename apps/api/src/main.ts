@@ -39,8 +39,15 @@ async function bootstrap() {
       else res.end();
     });
 
-    if (body) proxy.end(body);
-    else proxy.end();
+    if (body) {
+      proxy.end(body);
+    } else if (!['GET', 'HEAD'].includes(req.method)) {
+      // Multipart uploads and other unparsed bodies must be streamed through
+      // unchanged. Ending the proxy here used to truncate product image uploads.
+      req.pipe(proxy);
+    } else {
+      proxy.end();
+    }
   });
 
   await app.listen(Number(process.env.PORT || 3001), '0.0.0.0');
