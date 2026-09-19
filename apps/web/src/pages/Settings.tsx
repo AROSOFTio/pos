@@ -15,6 +15,14 @@ const nav:Array<[Section,string,any,string]>=[
  ['security','Security',ShieldCheck,'Password and account security'],
 ]
 
+const themes=[
+ {key:'green',name:'Green',primary:'#22A53A',soft:'#ECF8EF'},
+ {key:'blue',name:'Blue',primary:'#2563EB',soft:'#EFF6FF'},
+ {key:'maroon',name:'Maroon',primary:'#8B1E3F',soft:'#FBEFF3'},
+ {key:'gold',name:'Gold',primary:'#B7791F',soft:'#FFF8E7'},
+ {key:'dark',name:'Dark',primary:'#A3E635',soft:'#171D23'},
+]
+
 export default function Settings(){
  const [section,setSection]=useState<Section>('business')
  const [s,setS]=useState<any>(null),[saving,setSaving]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
@@ -59,9 +67,10 @@ export default function Settings(){
        defaultTaxRate:Number(s.default_tax_rate||0),taxInclusive:!!s.tax_inclusive,
        defaultServiceChargeRate:Number(s.default_service_charge_rate||0),
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
-       receiptHeaderNote:s.receipt_header_note,receiptShowLogo:s.receipt_show_logo!==false
+       receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,
+       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light'
      })})
-     setS(next);if(next?.document_accent)document.documentElement.style.setProperty('--brand-primary',next.document_accent);setMessage('Settings saved successfully.')
+     setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'');setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
  }
 
@@ -106,7 +115,7 @@ export default function Settings(){
  const current=nav.find(x=>x[0]===section)!
 
  return <div>
-  <PageHeading eyebrow="Management setup" title="Settings" sub="Choose a settings section from the menu. Only the selected configuration area is shown."/>
+  <PageHeading eyebrow="Management setup" title="Settings" sub="Business configuration"/>
 
   {(message||error)&&<div className={'mb-4 rounded-lg border px-3 py-2.5 text-[12px] '+(error?'border-red-100 bg-red-50 text-red-700':'border-emerald-100 bg-emerald-50 text-emerald-700')}>{error||message}</div>}
 
@@ -138,7 +147,16 @@ export default function Settings(){
           <Field label="Phone"><input className="control" value={s.phone||''} onChange={e=>patch('phone',e.target.value)}/></Field>
           <Field label="Email"><input className="control" value={s.email||''} onChange={e=>patch('email',e.target.value)}/></Field>
           <Field label="TIN / Tax ID"><input className="control" value={s.tax_id||''} onChange={e=>patch('tax_id',e.target.value)}/></Field>
-          <Field label="Accent colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>patch('document_accent',e.target.value)}/></Field>
+        </div>
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <div className="text-[12px] font-semibold text-slate-700">Interface theme</div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {themes.map(t=><button key={t.key} type="button" onClick={()=>{patch('theme_key',t.key);patch('document_accent',t.primary);applyLocalTheme(t.key,t.primary)}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
+              <div className="h-12 rounded-lg border border-black/5" style={{background:t.soft}}><div className="m-2 h-5 w-10 rounded-md" style={{background:t.primary}}/></div>
+              <div className="mt-2 text-[11px] font-semibold text-slate-700">{t.name}</div>
+            </button>)}
+          </div>
+          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{patch('document_accent',e.target.value);applyLocalTheme(s.theme_key||'green',e.target.value)}}/></Field></div>
         </div>
         <SaveButton saving={saving} onClick={save}/>
       </Panel>}
@@ -170,7 +188,7 @@ export default function Settings(){
             <div className="md:col-span-2"><Field label="Payment options shown"><input className="control" value={s.receipt_payment_options||''} onChange={e=>patch('receipt_payment_options',e.target.value)}/></Field></div>
             <div className="md:col-span-2"><Field label="Footer / message"><textarea className="control min-h-24" value={s.document_footer||''} onChange={e=>patch('document_footer',e.target.value)}/></Field></div>
           </div>
-          <label className="mt-3 flex items-center gap-2 text-[12px] text-slate-600"><input type="checkbox" checked={s.receipt_show_logo!==false} onChange={e=>patch('receipt_show_logo',e.target.checked)} className="accent-[#22A53A]"/>Show logo on printable documents</label>
+          <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[10.5px] text-slate-500">Business logo is automatically used on printed documents when a logo is uploaded.</div>
           <SaveButton saving={saving} onClick={save}/>
         </Panel>
         <Panel title="Printer Profiles" sub="Receipt, KOT and report printer mapping.">
@@ -231,6 +249,18 @@ export default function Settings(){
     <Field label="Kitchen station"><select className="control" value={menuForm.kitchenStationId} onChange={e=>setMenuForm({...menuForm,kitchenStationId:Number(e.target.value)})}><option value="0">Use category/default</option>{stations.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
   </div><div className="mt-3 flex flex-wrap gap-4"><label className="flex items-center gap-2 text-[12px] text-slate-600"><input type="checkbox" checked={menuForm.available} onChange={e=>setMenuForm({...menuForm,available:e.target.checked})}/>Available</label><label className="flex items-center gap-2 text-[12px] text-slate-600"><input type="checkbox" checked={menuForm.soldOut} onChange={e=>setMenuForm({...menuForm,soldOut:e.target.checked})}/>Sold out</label></div><button onClick={saveMenu} disabled={!menuForm.productId} className="mt-4 w-full rounded-lg bg-[#22A53A] py-3 text-[12px] font-semibold text-white disabled:opacity-40">Save Menu Item</button></Modal>}
  </div>
+}
+
+function applyLocalTheme(key:string,primary:string){
+ const map:any={
+  green:{soft:'#ECF8EF',border:'#BDE7C5',bg:'#F7F9F7',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FBFCFB'},
+  blue:{soft:'#EFF6FF',border:'#BFDBFE',bg:'#F6F8FC',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FAFBFD'},
+  maroon:{soft:'#FBEFF3',border:'#E9BAC8',bg:'#FAF7F8',surface:'#FFFFFF',text:'#23171B',muted:'#74636A',sidebar:'#FDFBFC'},
+  gold:{soft:'#FFF8E7',border:'#EED7A2',bg:'#FAF9F5',surface:'#FFFFFF',text:'#211D15',muted:'#716856',sidebar:'#FEFDF9'},
+  dark:{soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
+ }[key]||{}
+ const r=document.documentElement
+ r.style.setProperty('--brand-primary',primary||'#22A53A');r.style.setProperty('--brand-soft',map.soft||'#ECF8EF');r.style.setProperty('--brand-border',map.border||'#BDE7C5');r.style.setProperty('--app-bg',map.bg||'#F7F9F7');r.style.setProperty('--app-surface',map.surface||'#fff');r.style.setProperty('--app-text',map.text||'#172033');r.style.setProperty('--app-muted',map.muted||'#64748B');r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB');r.dataset.theme=key
 }
 
 function SaveButton({saving,onClick}:{saving:boolean;onClick:()=>void}){return <div className="mt-5 flex justify-end"><button onClick={onClick} disabled={saving} className="rounded-lg bg-[#22A53A] px-5 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Saving…':'Save Changes'}</button></div>}
