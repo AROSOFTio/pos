@@ -121,11 +121,7 @@ export default function Orders({currency}:{currency:string}){
   </Modal>}
 
   {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)} size="lg">
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <div className="flex flex-wrap gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
-      {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<div className="flex items-center gap-2"><div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-soft)] px-2.5 py-1 text-[9.5px] font-medium text-[var(--brand-primary)]"><ScanLine size={12}/>Scanner ready</div><button onClick={()=>setScannerOpen(true)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-medium text-slate-600">Camera</button></div>}
-    </div>
-    {scanNotice&&<div className="mb-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-[10.5px] font-medium text-slate-600">{scanNotice}</div>}
+    <div className="mb-3 flex flex-wrap items-center gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
     <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">{detail.items.length?detail.items.map((x:any)=><div key={x.id} className="py-3 flex justify-between gap-3"><div><b className="text-sm">{Number(x.qty)} × {x.product_name}{x.variant_name?' · '+x.variant_name:''}</b>{x.modifiers?.length>0&&<div className="text-xs text-slate-400 mt-1">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="text-xs text-amber-700 mt-1">{x.notes}</div>}</div><div className="text-right"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge><div className="text-sm font-medium mt-1">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div></div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
     <div className="mt-4 rounded-xl bg-slate-900 text-white p-4">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
