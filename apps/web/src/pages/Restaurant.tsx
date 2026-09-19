@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Plus, ClipboardList, ReceiptText, ChefHat, BarChart3, Settings as SettingsIcon, UsersRound, Table2 } from 'lucide-react'
+import { Plus, ClipboardList, ReceiptText, ChefHat, BarChart3, Settings as SettingsIcon, UsersRound, Table2 } from 'lucide-react'
 import { api, money } from '../api'
 import { Badge, Loading } from '../components'
 import type { ViewKey } from '../App'
@@ -46,9 +46,8 @@ export default function Restaurant({currency,go}:{currency:string;go:(v:ViewKey)
 
  return <div className="min-h-[calc(100vh-110px)]">
    <div className="mb-3 flex flex-col gap-2 lg:flex-row">
-     <div className="relative flex-1">
-       <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-       <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search tables, areas or menu items…" className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-[13px] outline-none focus:border-[#22A53A] focus:ring-2 focus:ring-[#22A53A]/10"/>
+     <div className="flex-1">
+       <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search tables, areas or menu items…" className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-[13px] outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10"/>
      </div>
      <button className="h-12 rounded-xl border border-slate-200 bg-white px-5 text-[12px] font-semibold text-slate-700"><Table2 size={15} className="mr-2 inline"/>Dine In</button>
    </div>
@@ -84,10 +83,10 @@ export default function Restaurant({currency,go}:{currency:string;go:(v:ViewKey)
 
        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
-           <button onClick={()=>setCategoryId(0)} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold '+(!categoryId?'bg-[#22A53A] text-white':'bg-slate-100 text-slate-600')}>All Menu</button>
-           {categories.map(c=><button key={c.id} onClick={()=>setCategoryId(Number(c.id))} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold '+(categoryId===Number(c.id)?'bg-[#22A53A] text-white':'bg-slate-100 text-slate-600')}>{c.name}</button>)}
+           <button onClick={()=>setCategoryId(0)} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold '+(!categoryId?'bg-[var(--brand-primary)] text-white':'bg-slate-100 text-slate-600')}>All Menu</button>
+           {categories.map(c=><button key={c.id} onClick={()=>setCategoryId(Number(c.id))} className={'shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold '+(categoryId===Number(c.id)?'bg-[var(--brand-primary)] text-white':'bg-slate-100 text-slate-600')}>{c.name}</button>)}
          </div>
-         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{filteredMenu.slice(0,20).map(item=><div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5"><div className="truncate text-[11px] font-semibold text-slate-800">{item.name}</div><div className="mt-0.5 truncate text-[9px] text-slate-400">{item.category_name||'Other'}</div><div className="mt-2 text-[11px] font-semibold text-[#169B36]">{money(item.resolved_price,currency)}</div></div>)}</div>
+         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{filteredMenu.slice(0,20).map(item=><div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5"><div className="truncate text-[11px] font-semibold text-slate-800">{item.name}</div><div className="mt-0.5 truncate text-[9px] text-slate-400">{item.category_name||'Other'}</div><div className="mt-2 text-[11px] font-semibold text-[var(--brand-primary)]">{money(item.resolved_price,currency)}</div></div>)}</div>
        </div>
      </div>
 
