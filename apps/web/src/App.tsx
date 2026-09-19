@@ -122,7 +122,7 @@ export default function App(){
     {view==='Sales'&&<Sales currency={currency}/>}
     {view==='Orders'&&hasRestaurant&&<Orders currency={currency}/>}
     {view==='Kitchen'&&hasRestaurant&&<Kitchen/>}
-    {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency}/>}
+    {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={go}/>}
     {view==='Customers'&&<Customers currency={currency}/>}
     {view==='Approvals'&&<Approvals currency={currency}/>}
     {view==='Inventory'&&<Inventory currency={currency}/>}
