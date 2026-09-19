@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, SlidersHorizontal } from 'lucide-react'
-import { api, money, nice } from '../api'
+import { api, money, nice, openPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 
@@ -141,6 +141,10 @@ export default function Orders({currency}:{currency:string}){
       {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
       {['bill_requested','partially_paid'].includes(detail.order.status)&&detail.order.customer_id&&Number(detail.order.balance_due||0)>0.005&&<Action onClick={chargeBalanceToCredit} icon={CheckCircle2} label="Charge Balance to Credit"/>}
+      <Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=proforma&paper=A4')} icon={ReceiptIcon} label="Proforma"/>
+      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Interim Bill"/>}
+      {['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=invoice&paper=A4')} icon={ReceiptIcon} label="Invoice"/>}
+      <Action onClick={()=>sharePdf('/documents/order/'+detail.order.id+'/pdf?type='+( ['paid','closed'].includes(detail.order.status)?'invoice':'proforma')+'&paper=A4',detail.order.order_no+'.pdf')} icon={ReceiptIcon} label="Share PDF"/>
       {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
       {!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}
     </div>
