@@ -27,6 +27,18 @@ CREATE TABLE IF NOT EXISTS user_businesses (
   active BOOLEAN NOT NULL DEFAULT true,
   PRIMARY KEY(user_id,business_id)
 );
+
+CREATE TABLE IF NOT EXISTS user_business_roles (
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(user_id,business_id,role)
+);
+INSERT INTO user_business_roles(user_id,business_id,role,is_primary)
+SELECT user_id,business_id,role,true FROM user_businesses WHERE active=true
+ON CONFLICT(user_id,business_id,role) DO UPDATE SET is_primary=EXCLUDED.is_primary;
 CREATE TABLE IF NOT EXISTS module_catalog (
   code TEXT PRIMARY KEY,
   name TEXT NOT NULL,
