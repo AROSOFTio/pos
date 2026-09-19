@@ -10,14 +10,15 @@ export default function Register({onLogin,navigate}:{onLogin:(u:User)=>void;navi
   async function submit(e:React.FormEvent<HTMLFormElement>){
     e.preventDefault();setBusy(true);setError('')
     try{
-      const fd=new FormData(e.currentTarget)
+      const form=e.currentTarget
+      const val=(name:string)=>String((form.elements.namedItem(name) as HTMLInputElement|HTMLSelectElement|null)?.value||'')
       const payload={
-        name:String(fd.get('name')||'').trim(),
-        email:String(fd.get('email')||'').trim(),
-        businessName:String(fd.get('businessName')||'').trim(),
-        country:String(fd.get('country')||'Uganda'),
-        businessType:String(fd.get('businessType')||'restaurant'),
-        password:String(fd.get('password')||''),
+        name:val('name').trim(),
+        email:val('email').trim(),
+        businessName:val('businessName').trim(),
+        country:val('country')||'Uganda',
+        businessType:val('businessType')||'restaurant',
+        password:val('password'),
       }
       if(!payload.name||!payload.email||!payload.businessName||!payload.password)throw new Error('Complete all required fields')
       if(payload.password.length<10)throw new Error('Password must be at least 10 characters')
