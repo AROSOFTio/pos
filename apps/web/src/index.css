@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root{
+  --brand-primary:#22A53A;
+  --brand-primary-soft:rgba(34,165,58,.08);
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:#172033;
   background:#f7f8fa;
@@ -104,3 +106,10 @@ input.control,select.control,textarea.control{max-width:100%}
 @keyframes modalRise{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 button,.control,.field{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease,background-color .15s ease,color .15s ease}
 button:active:not(:disabled){transform:translateY(1px) scale(.995)}
+
+
+/* Tenant theme mapping for legacy Tailwind accent utilities */
+[class*="bg-[#22A53A]"],[class*="bg-[#169B36]"]{background-color:var(--brand-primary)!important}
+[class*="text-[#22A53A]"],[class*="text-[#169B36]"],[class*="text-[#15803d]"]{color:var(--brand-primary)!important}
+[class*="border-[#22A53A]"]{border-color:var(--brand-primary)!important}
+[class*="ring-[#22A53A]"]{--tw-ring-color:color-mix(in srgb,var(--brand-primary) 18%,transparent)!important}
