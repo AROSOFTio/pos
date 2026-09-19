@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ArrowRight, BarChart3, Boxes, CreditCard, ShoppingCart, Store, UsersRound, CheckCircle2, UtensilsCrossed, Pill, Factory, Sparkles } from 'lucide-react'
+import { ArrowRight, BarChart3, Boxes, CreditCard, ShoppingCart, Store, UsersRound, CheckCircle2, UtensilsCrossed, Pill, Sparkles } from 'lucide-react'
 import { MauzoLogo } from './Brand'
 
 const modules=[
