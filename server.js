@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
+import crypto from 'crypto';
 
 const app=express(),port=Number(process.env.PORT||3000);
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});
@@ -28,6 +29,21 @@ async function tenant(req,res,next){
   const q=await pool.query('SELECT ub.business_id,b.status,b.trial_ends_at FROM user_businesses ub JOIN businesses b ON b.id=ub.business_id WHERE ub.user_id=$1 AND ub.active=true ORDER BY ub.business_id LIMIT 1',[req.user.id]);
   if(!q.rowCount)return res.status(403).json({error:'No active tenant'});
   req.businessId=q.rows[0].business_id; req.tenant=q.rows[0]; next();
+}
+
+async function createPasswordReset(userId){
+  const raw=crypto.randomBytes(32).toString('hex');
+  const hash=crypto.createHash('sha256').update(raw).digest('hex');
+  await pool.query("UPDATE password_reset_tokens SET used_at=now() WHERE user_id=$1 AND used_at IS NULL",[userId]);
+  await pool.query("INSERT INTO password_reset_tokens(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '30 minutes')",[userId,hash]);
+  return raw;
+}
+async function sendResetEmail(to,link){
+  const key=process.env.RESEND_API_KEY||'';
+  const from=process.env.RESET_FROM_EMAIL||'';
+  if(!key||!from)return false;
+  const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({from,to:[to],subject:'Reset your MauzoPOS password',html:'<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto"><h2>MauzoPOS password reset</h2><p>Use the button below to create a new password. This link expires in 30 minutes.</p><p><a href="'+link+'" style="display:inline-block;background:#22A53A;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">Reset password</a></p><p style="color:#667085;font-size:12px">If you did not request this, ignore this email.</p></div>'})});
+  return r.ok;
 }
 
 async function getBusinessRole(req,bid){
@@ -71,6 +87,9 @@ app.post('/api/register',async(req,res)=>{
     res.json({token,user:u.rows[0],business:b.rows[0],trialDays:14});
   }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
 });
+app.post('/api/auth/forgot-password',async(req,res)=>{const email=String(req.body?.email||'').trim().toLowerCase();if(!email)return res.json({ok:true});const q=await pool.query('SELECT id,email FROM users WHERE lower(email)=lower($1) AND active=true',[email]);if(q.rowCount){const raw=await createPasswordReset(q.rows[0].id);const origin=process.env.PUBLIC_APP_URL||'https://pos.owltechsolutionsltd.com';const link=origin.replace(/\/$/,'')+'/reset-password?token='+encodeURIComponent(raw);await sendResetEmail(q.rows[0].email,link).catch(()=>false)}res.json({ok:true,message:'If that account exists, reset instructions have been sent.'})});
+app.post('/api/auth/reset-password',async(req,res)=>{const token=String(req.body?.token||''),password=String(req.body?.password||'');if(token.length<20)return res.status(400).json({error:'Invalid or expired reset link'});if(password.length<10)return res.status(400).json({error:'Password must be at least 10 characters'});const hash=crypto.createHash('sha256').update(token).digest('hex'),client=await pool.connect();try{await client.query('BEGIN');const q=await client.query("SELECT prt.*,u.email FROM password_reset_tokens prt JOIN users u ON u.id=prt.user_id WHERE prt.token_hash=$1 AND prt.used_at IS NULL AND prt.expires_at>now() FOR UPDATE",[hash]);if(!q.rowCount)throw new Error('Invalid or expired reset link');const pw=await bcrypt.hash(password,12);await client.query('UPDATE users SET password_hash=$1 WHERE id=$2',[pw,q.rows[0].user_id]);await client.query('UPDATE password_reset_tokens SET used_at=now() WHERE id=$1',[q.rows[0].id]);await client.query('COMMIT');res.json({ok:true})}catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}});
+
 app.post('/api/login',async(req,res)=>{
   const {email,password}=req.body||{}; const q=await pool.query('SELECT * FROM users WHERE lower(email)=lower($1) AND active=true',[email||'']);
   if(!q.rowCount||!(await bcrypt.compare(password||'',q.rows[0].password_hash)))return res.status(401).json({error:'Invalid email or password'});
