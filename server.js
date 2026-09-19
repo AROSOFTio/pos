@@ -288,7 +288,7 @@ async function ensureRestaurantSale(client,bid,order,userName){
   const items=await client.query("SELECT oi.*,coalesce(sum(m.line_total),0)::numeric modifier_total FROM restaurant_order_items oi LEFT JOIN restaurant_order_item_modifiers m ON m.order_item_id=oi.id WHERE oi.order_id=$1 AND oi.status<>'cancelled' GROUP BY oi.id ORDER BY oi.id",[order.id]);
   for(const item of items.rows){
     const qty=Number(item.qty),lineTotal=Number(item.line_total)+Number(item.modifier_total||0),unitPrice=qty>0?lineTotal/qty:Number(item.unit_price);
-    const lineCost=await consumeSoldItem(client,{bid,productId:item.product_id,qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName});
+    const lineCost=await consumeSoldItem(client,{bid,productId:item.product_id,qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName,branchId:Number(order.branch_id||0)});
     await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,item.product_id,item.product_name,qty,unitPrice,qty>0?lineCost/qty:0,lineTotal]);
   }
   await client.query('UPDATE restaurant_orders SET sale_id=$1 WHERE id=$2',[s.rows[0].id,order.id]);
@@ -366,7 +366,7 @@ app.post('/api/sales',auth,tenant,async(req,res)=>{
 
     for(const i of clean){
       const pr=map.get(i.productId);
-      const lineCost=await consumeSoldItem(client,{bid,productId:pr.id,qty:i.qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName:req.user.name,userId:req.user.id});
+      const lineCost=await consumeSoldItem(client,{bid,productId:pr.id,qty:i.qty,referenceId:Number(s.rows[0].id),referenceNo:receipt,userName:req.user.name,userId:req.user.id,branchId:branch||null});
       await client.query('INSERT INTO sale_items(sale_id,product_id,product_name,qty,unit_price,unit_cost,line_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[s.rows[0].id,pr.id,pr.name,i.qty,pr.sale_price,lineCost/i.qty,Number(pr.sale_price)*i.qty]);
     }
 
@@ -562,7 +562,7 @@ async function recipeRequirements(client,bid,productId,portionQty=1){
   const multiplier=Number(portionQty)/Number(recipe.yield_qty||1);
   return {recipeId:Number(recipe.id),locationId:recipe.consumption_location_id?Number(recipe.consumption_location_id):null,lines:lines.rows.map(x=>{const lineBase=Number(x.quantity)*Number(x.line_factor||1),ingredientBaseFactor=Number(x.base_factor||1),qty=(lineBase/ingredientBaseFactor)*multiplier*(1+Number(x.waste_percent||0)/100);return {ingredientProductId:Number(x.ingredient_product_id),ingredientName:x.ingredient_name,qty,unitCost:Number(x.cost||0)}})};
 }
-async function consumeSoldItem(client,{bid,productId,qty,referenceId,referenceNo,userName}){
+async function consumeSoldItem(client,{bid,productId,qty,referenceId,referenceNo,userName,branchId=null}){
   const recipe=await recipeRequirements(client,bid,productId,qty);
   if(recipe){
     const locationId=await operationalStockLocation(client,bid,recipe.locationId);
@@ -575,11 +575,16 @@ async function consumeSoldItem(client,{bid,productId,qty,referenceId,referenceNo
     }
     return totalCost;
   }
-  const locationId=await operationalStockLocation(client,bid,null);
-  const c=await client.query('SELECT avg_cost FROM inventory_balances WHERE location_id=$1 AND product_id=$2',[locationId,productId]);
+  let locationId=await operationalStockLocation(client,bid,null);
+  const needed=Number(qty),preferred=await client.query('SELECT qty,avg_cost FROM inventory_balances WHERE location_id=$1 AND product_id=$2',[locationId,productId]);
+  if(Number(preferred.rows[0]?.qty||0)+0.000001<needed){
+    const alt=await client.query("SELECT ib.location_id,ib.avg_cost FROM inventory_balances ib JOIN inventory_locations l ON l.id=ib.location_id WHERE ib.business_id=$1 AND ib.product_id=$2 AND ib.qty >= $3 AND l.active=true AND ($4::bigint IS NULL OR l.branch_id=$4) ORDER BY l.is_default DESC,CASE l.location_type WHEN 'main' THEN 0 WHEN 'store' THEN 1 ELSE 2 END,l.id LIMIT 1",[bid,productId,needed,branchId||null]);
+    if(alt.rowCount)locationId=Number(alt.rows[0].location_id)
+  }
+  const costRow=await client.query('SELECT avg_cost FROM inventory_balances WHERE location_id=$1 AND product_id=$2',[locationId,productId]);
   const p=await client.query('SELECT cost FROM products WHERE id=$1 AND business_id=$2',[productId,bid]);
-  const unitCost=Number(c.rows[0]?.avg_cost||p.rows[0]?.cost||0);
-  await inventoryBalanceChange(client,{bid,locationId,productId,delta:-Number(qty),unitCost,movementType:'sale_consumption',referenceType:'SALE',referenceId,referenceNo,notes:'Sale stock consumption',userName,fromLocationId:locationId,reason:'Sale'});
+  const unitCost=Number(costRow.rows[0]?.avg_cost||p.rows[0]?.cost||0);
+  await inventoryBalanceChange(client,{bid,locationId,productId,delta:-needed,unitCost,movementType:'sale_consumption',referenceType:'SALE',referenceId,referenceNo,notes:'Sale stock consumption',userName,fromLocationId:locationId,reason:'Sale'});
   return Number(qty)*unitCost;
 }
 
