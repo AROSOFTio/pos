@@ -2,11 +2,17 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import type { Request, Response } from 'express';
 import http from 'node:http';
+import express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: true });
   const expressApp = app.getHttpAdapter().getInstance();
   const legacyBase = process.env.LEGACY_URL || 'http://legacy:3002';
+
+  // Parse request bodies before the legacy proxy. Without this, POST/PUT/PATCH
+  // requests can reach the proxy with an empty req.body and credentials/forms vanish.
+  expressApp.use(express.json({ limit: '10mb' }));
+  expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   expressApp.use('/api', (req: Request, res: Response) => {
     const target = new URL(req.originalUrl, legacyBase);
