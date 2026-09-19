@@ -32,3 +32,21 @@ export async function openPdf(path:string) {
   window.open(url,'_blank','noopener,noreferrer')
   window.setTimeout(()=>URL.revokeObjectURL(url),120000)
 }
+
+
+export async function downloadFile(path:string, filename?:string) {
+  const token=localStorage.getItem('pos_token')||''
+  const response=await fetch('/api'+path,{headers:{Authorization:'Bearer '+token}})
+  if(!response.ok){
+    const type=response.headers.get('content-type')||''
+    const body=type.includes('application/json')?await response.json():await response.text()
+    throw new Error(body?.error||body||'Download failed')
+  }
+  const blob=await response.blob()
+  const disp=response.headers.get('content-disposition')||''
+  const match=/filename="?([^"]+)"?/i.exec(disp)
+  const name=filename||match?.[1]||'download'
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()
+  setTimeout(()=>URL.revokeObjectURL(url),120000)
+}
