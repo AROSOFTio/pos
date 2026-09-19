@@ -18,7 +18,7 @@ export default function Staff(){
  async function savePerms(){setSavingPerms(true);try{await api('/roles/'+permRole+'/permissions',{method:'PUT',body:JSON.stringify({permissions:selected})});await load()}finally{setSavingPerms(false)}}
  if(!rows)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Access control" title="Staff & Permissions" sub="Users, roles, branch access and approval rights." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={15} className="mr-1 inline"/>Add Staff</button>}/>
+  <PageHeading eyebrow="Access control" title="Staff & Permissions" sub="Users, roles, branch access and approval rights." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-950 px-4 py-2.5 text-[13px] font-medium text-white"><Plus size={15} className="mr-1 inline"/>Add Staff</button>}/>
   <Panel title="Staff"><DataTable head={['Name','Email','Role','Status','Action']} rows={rows.map((x:any)=>[
     <div className="flex items-center gap-2"><UserRound size={15}/><span>{x.name}</span></div>,x.email,nice(x.role),<Badge tone={x.active?'green':'red'}>{x.active?'Active':'Disabled'}</Badge>,<button onClick={()=>toggleActive(x)} className="text-xs font-medium text-slate-600">{x.active?'Disable':'Enable'}</button>
   ])}/></Panel>
@@ -26,9 +26,9 @@ export default function Staff(){
   <div className="mt-4"><Panel title="Role Permission Matrix" sub="Choose exactly what each operational role can approve, view or export.">
     <div className="mb-4 flex flex-wrap items-end gap-3">
       <label className="text-sm font-medium text-slate-600">Role<select className="control min-w-56" value={permRole} onChange={e=>setPermRole(e.target.value)}>{roles.filter(r=>r!=='owner').map(r=><option key={r} value={r}>{nice(r)}</option>)}</select></label>
-      <button onClick={savePerms} disabled={savingPerms} className="rounded-xl bg-[#22A53A] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{savingPerms?'Saving…':'Save Permissions'}</button>
+      <button onClick={savePerms} disabled={savingPerms} className="rounded-xl bg-[#22A53A] px-4 py-3 text-[13px] font-medium text-white disabled:opacity-50">{savingPerms?'Saving…':'Save Permissions'}</button>
     </div>
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{Object.entries(grouped).map(([section,items]:any)=><div key={section} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={15}/>{section}</div><div className="mt-3 space-y-2">{items.map((p:any)=><label key={p.code} className="flex items-start gap-2 text-sm text-slate-600"><input className="mt-1" type="checkbox" checked={selected.includes(p.code)} onChange={e=>setSelected(e.target.checked?[...selected,p.code]:selected.filter(x=>x!==p.code))}/><span>{p.name}<small className="block text-[10px] text-slate-400">{p.code}</small></span></label>)}</div></div>)}</div>
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{Object.entries(grouped).map(([section,items]:any)=><div key={section} className="rounded-xl border border-slate-200 p-4"><div className="flex items-center gap-2 text-[13px] font-medium"><ShieldCheck size={15}/>{section}</div><div className="mt-3 space-y-2">{items.map((p:any)=><label key={p.code} className="flex items-start gap-2 text-sm text-slate-600"><input className="mt-1" type="checkbox" checked={selected.includes(p.code)} onChange={e=>setSelected(e.target.checked?[...selected,p.code]:selected.filter(x=>x!==p.code))}/><span>{p.name}<small className="block text-[10px] text-slate-400">{p.code}</small></span></label>)}</div></div>)}</div>
   </Panel></div>
 
   {open&&<Modal title="Add Staff" onClose={()=>setOpen(false)}>
