@@ -1724,3 +1724,6 @@ CREATE TABLE IF NOT EXISTS supplier_transactions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_transactions ON supplier_transactions(business_id,supplier_id,created_at,id);
+
+ALTER TABLE user_businesses ADD COLUMN IF NOT EXISTS staff_status TEXT NOT NULL DEFAULT 'active';
+UPDATE user_businesses SET staff_status=CASE WHEN active THEN 'active' ELSE 'disabled' END WHERE staff_status IS NULL OR staff_status='';

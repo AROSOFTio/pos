@@ -50,27 +50,27 @@ export default function Staff(){
   }catch(e:any){setError(e.message||'Staff account could not be saved.')}finally{setSaving(false)}
  }
 
- async function toggleActive(x:any){await api('/staff/'+x.id,{method:'PUT',body:JSON.stringify({active:!x.active})});await load()}
+ async function setStaffStatus(x:any,staffStatus:'active'|'disabled'|'retired'){await api('/staff/'+x.id,{method:'PUT',body:JSON.stringify({staffStatus})});await load()}
  async function savePerms(){setSavingPerms(true);try{await api('/roles/'+permRole+'/permissions',{method:'PUT',body:JSON.stringify({permissions:selected})});await load()}finally{setSavingPerms(false)}}
  async function savePin(){if(!pinUser||!/^\d{4,8}$/.test(pin))return;setPinBusy(true);try{await api('/staff/'+pinUser.id+'/pin',{method:'POST',body:JSON.stringify({pin})});setPinUser(null);setPin('')}finally{setPinBusy(false)}}
  async function toggleClock(){setClockBusy(true);try{await api('/staff/timeclock/toggle',{method:'POST',body:JSON.stringify({branchId:branches[0]?.id||null})});await load()}finally{setClockBusy(false)}}
  if(!rows)return <Loading/>
 
  return <div>
-  <PageHeading eyebrow="People & access" title="Staff" sub="Users, roles, quick PINs and attendance." action={section==='staff'?<button onClick={newStaff} className="rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white"><Plus size={14} className="mr-1 inline"/>Add Staff</button>:section==='attendance'?<button onClick={toggleClock} disabled={clockBusy} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium text-white disabled:opacity-40"><Clock3 size={14} className="mr-1 inline"/>{clockBusy?'Working…':'Clock In / Out'}</button>:null}/>
+  <PageHeading eyebrow="People & access" title="Staff" sub="Users, roles, lifecycle, quick PINs and attendance." action={section==='staff'?<button onClick={newStaff} className="rounded-lg bg-slate-950 px-4 py-2.5 text-[12px] font-medium text-white"><Plus size={14} className="mr-1 inline"/>Add Staff</button>:section==='attendance'?<button onClick={toggleClock} disabled={clockBusy} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2.5 text-[12px] font-medium text-white disabled:opacity-40"><Clock3 size={14} className="mr-1 inline"/>{clockBusy?'Working…':'Clock In / Out'}</button>:null}/>
   <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
     <button onClick={()=>setSection('staff')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='staff'?'bg-slate-950 text-white':'text-slate-500')}>Staff</button>
     <button onClick={()=>setSection('permissions')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='permissions'?'bg-slate-950 text-white':'text-slate-500')}>Permissions</button>
     <button onClick={()=>setSection('attendance')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='attendance'?'bg-slate-950 text-white':'text-slate-500')}>Attendance</button>
   </div>
 
-  {section==='staff'&&<Panel title="Staff" sub="One account can carry multiple roles.">
+  {section==='staff'&&<Panel title="Staff" sub="One account can carry multiple roles. Set a Quick PIN here before using “Switch Staff by PIN” on a shared terminal.">
    <DataTable head={['Name','Email','Roles','Status','Action']} rows={rows.map((x:any)=>[
     <div className="flex items-center gap-2"><UserRound size={15}/><span>{x.name}</span></div>,
     x.email,
     <div className="flex max-w-[320px] flex-wrap gap-1">{(Array.isArray(x.roles)&&x.roles.length?x.roles:[x.role]).map((r:string)=><Badge key={r} tone={r==='cashier'?'green':r==='restaurant_manager'?'blue':'slate'}>{nice(r)}</Badge>)}</div>,
-    <Badge tone={x.active?'green':'red'}>{x.active?'Active':'Disabled'}</Badge>,
-    <div className="flex gap-2"><button onClick={()=>editStaff(x)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600"><Pencil size={12}/>Roles</button><button onClick={()=>{setPinUser(x);setPin('')}} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600"><KeyRound size={12}/>PIN</button><button onClick={()=>toggleActive(x)} className="text-[11px] font-medium text-slate-500">{x.active?'Disable':'Enable'}</button></div>
+    <Badge tone={x.staff_status==='active'?'green':x.staff_status==='retired'?'slate':'red'}>{nice(x.staff_status||'active')}</Badge>,
+    <div className="flex flex-wrap gap-2"><button onClick={()=>editStaff(x)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600"><Pencil size={12}/>Roles</button><button onClick={()=>{setPinUser(x);setPin('')}} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600"><KeyRound size={12}/>{x.pin_set?'Change PIN':'Set PIN'}</button>{x.staff_status==='active'?<><button onClick={()=>setStaffStatus(x,'disabled')} className="text-[11px] font-medium text-amber-600">Disable</button><button onClick={()=>setStaffStatus(x,'retired')} className="text-[11px] font-medium text-slate-500">Retire</button></>:<button onClick={()=>setStaffStatus(x,'active')} className="text-[11px] font-medium text-[var(--brand-primary)]">Re-enable</button>}</div>
    ])}/>
   </Panel>}
 

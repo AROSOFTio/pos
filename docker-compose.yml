@@ -27,6 +27,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SAAS_ADMIN_EMAIL: ${SAAS_ADMIN_EMAIL:-admin@owltechsolutionsltd.com}
       SAAS_ADMIN_PASSWORD: ${SAAS_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-10.0.1.1}
+      SMTP_PORT: ${SMTP_PORT:-25}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      MAIL_FROM: ${MAIL_FROM:-info@owltechsolutionsltd.com}
+      RESET_FROM_EMAIL: ${RESET_FROM_EMAIL:-info@owltechsolutionsltd.com}
+      REPORT_FROM_EMAIL: ${REPORT_FROM_EMAIL:-info@owltechsolutionsltd.com}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://pos.owltechsolutionsltd.com}
     depends_on:
       db:
         condition: service_healthy
