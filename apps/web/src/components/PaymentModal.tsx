@@ -49,15 +49,10 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
 
   const patch=(id:number,patch:Partial<PaymentLine>)=>setLines(v=>v.map(x=>x.id===id?{...x,...patch}:x))
   const add=()=>setLines(v=>{
-    if(!v.length)return [createLine(Date.now(),balance)]
-    if(remaining>0.005)return [...v,createLine(Date.now()+v.length,remaining)]
-    if(v.length===1&&balance>0){
-      const first=Math.max(0,Number(v[0].amount||0))
-      const left=Math.max(0,Math.round((first/2)*100)/100)
-      const right=Math.max(0,Math.round((balance-left)*100)/100)
-      return [{...v[0],amount:left,tenderedAmount:v[0].method==='cash'?left:left},createLine(Date.now()+1,right)]
-    }
-    return v
+    const allocated=v.reduce((n,x)=>n+Math.max(0,Number(x.amount||0)),0)
+    const due=Math.max(0,Math.round((balance-allocated)*100)/100)
+    if(due<=0.005||v.length>=6)return v
+    return [...v,createLine(Date.now()+v.length,due)]
   })
   const remove=(id:number)=>setLines(v=>v.filter(x=>x.id!==id))
 
@@ -117,7 +112,7 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
     </div>
 
     <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-100 bg-white px-4 pb-1 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0"><div className="flex flex-wrap items-center justify-between gap-3">
-      <button onClick={add} disabled={balance<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Add payment method</button>
+      <button onClick={add} disabled={remaining<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Add payment method</button>
       <div className="text-right">
         <div className="text-[11px] text-slate-400">After this payment</div>
         <div className={'text-lg font-semibold '+(remaining<=0.005?'text-[var(--brand-primary)]':'text-slate-700')}>{remaining<=0.005?'Fully paid':money(remaining,currency)+' due'}</div>

@@ -40,20 +40,24 @@ a{color:inherit}
   font-weight:400;font-size:.84rem;
 }
 .control:hover{border-color:#cbd5e1}
-.control:focus{border-color:var(--brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-primary) 12%,transparent)}
+.control:focus,.control:focus-visible{border-color:var(--brand-primary);box-shadow:none;outline:none}
 .control:disabled{background:#f8fafc;color:#94a3b8;cursor:not-allowed}
 textarea.control{min-height:88px;resize:vertical}
+select.control{-webkit-appearance:none;appearance:none;background-color:var(--app-surface)}
 
 .field{
   margin-top:.35rem;min-height:42px;display:flex;align-items:center;gap:.6rem;border:1px solid #e2e8f0;
   border-radius:.65rem;background:#fff;padding:0 .72rem;color:#94a3b8;transition:border-color .15s ease,box-shadow .15s ease;
 }
 .field:hover{border-color:#cbd5e1}
-.field:focus-within{border-color:var(--brand-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-primary) 12%,transparent);color:var(--app-muted)}
+.field:focus-within{border-color:var(--brand-primary);box-shadow:none;outline:none;color:var(--app-muted)}
 .field input{min-width:0;flex:1;border:0;outline:none;background:transparent;color:#172033;font-weight:400;font-size:.84rem}
 
-button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
-  outline:2px solid color-mix(in srgb,var(--brand-primary) 65%,transparent);outline-offset:2px;
+button:focus-visible,a:focus-visible{
+  outline:2px solid color-mix(in srgb,var(--brand-primary) 55%,transparent);outline-offset:2px;
+}
+input:focus,input:focus-visible,select:focus,select:focus-visible,textarea:focus,textarea:focus-visible{
+  outline:none!important;
 }
 button:disabled{cursor:not-allowed}
 
