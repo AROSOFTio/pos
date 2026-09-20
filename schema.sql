@@ -1682,3 +1682,45 @@ ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
 
 
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_applied_at TIMESTAMPTZ;
+
+
+CREATE TABLE IF NOT EXISTS purchase_returns (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+  purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE SET NULL,
+  grn_id BIGINT REFERENCES goods_receipts(id) ON DELETE SET NULL,
+  return_no TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'posted',
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,return_no)
+);
+CREATE TABLE IF NOT EXISTS purchase_return_items (
+  id BIGSERIAL PRIMARY KEY,
+  purchase_return_id BIGINT REFERENCES purchase_returns(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  qty NUMERIC(14,3) NOT NULL CHECK(qty>0),
+  unit_cost NUMERIC(14,4) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  lot_id BIGINT REFERENCES inventory_lots(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS supplier_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE CASCADE,
+  transaction_type TEXT NOT NULL,
+  source_type TEXT,
+  source_id BIGINT,
+  reference_no TEXT,
+  debit NUMERIC(14,2) NOT NULL DEFAULT 0,
+  credit NUMERIC(14,2) NOT NULL DEFAULT 0,
+  balance_after NUMERIC(14,2) NOT NULL DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_supplier_transactions ON supplier_transactions(business_id,supplier_id,created_at,id);
