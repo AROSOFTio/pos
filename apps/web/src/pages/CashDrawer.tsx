@@ -128,7 +128,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  if(session===undefined)return <Loading/>
 
  return <div>
-  <PageHeading eyebrow="Cash accountability" title="Shifts & Counter" sub="Opening float, cash movements, reconciliation and handover in one auditable flow." action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
+  <PageHeading eyebrow="Cash accountability" title="Shifts & Counter" sub="Open, reconcile and hand over cash." action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
 
   {(error||message)&&<div className={'mb-4 rounded-xl border px-3.5 py-3 text-[12px] '+(error?'border-red-100 bg-red-50 text-red-700':'border-emerald-100 bg-emerald-50 text-emerald-700')}>{error||message}</div>}
 
@@ -151,7 +151,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         </div>)}</div>
       </div>}
     </Panel>
-    <Panel title="Recent Shifts" sub="Completed shifts remain available for review.">
+    <Panel title="Recent Shifts" sub="Closed shifts.">
       {history.length?<DataTable head={['Shift','Opened','Variance','Destination']} rows={history.slice(0,7).map(x=>[x.shift_no||('#'+x.id),new Date(x.opened_at).toLocaleString(),x.status==='closed'?money(x.variance||0,currency):'-',x.status==='closed'?nice(x.close_destination||'safe'):<Badge tone="green">Open</Badge>])}/>:<Empty text="No previous shifts yet."/>}
     </Panel>
   </div>:<>
@@ -163,7 +163,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     </div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-      <Panel title="Counter Actions" sub="Every cash movement is recorded against this shift.">
+      <Panel title="Counter Actions" sub="Record cash added or removed.">
         <div className="grid gap-2 sm:grid-cols-2">
           <Action icon={ArrowDownLeft} title="Add Float" sub="Additional cash into till" onClick={()=>beginMove('additional_float')}/>
           <Action icon={WalletCards} title="Pay Out" sub="Small expense from counter" onClick={()=>beginMove('expense')}/>
@@ -176,15 +176,15 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         </div>
       </Panel>
 
-      <Panel title="Live Reconciliation" sub="Expected cash is calculated automatically.">
-        <div className="space-y-3">
-          <Line label="Opening float" value={money(session.opening_cash||0,currency)}/>
-          <Line label="Cash sales" value={'+'+money(session.cashSales||0,currency)}/>
-          <Line label="Cash refunds" value={'-'+money(session.refunds||0,currency)}/>
-          <Line label="Additional float" value={'+'+money(breakdown.extraFloat,currency)}/>
-          <Line label="Counter payouts" value={'-'+money(breakdown.expenses,currency)}/>
-          <Line label="Drops / deposits" value={'-'+money(breakdown.drops,currency)}/>
-          <div className="border-t border-slate-100 pt-3"><Line label="Expected cash" value={money(session.expectedCash||0,currency)} strong/></div>
+      <Panel title="Expected Cash">
+        <div className="space-y-2.5">
+          <Line label="Opening" value={money(session.opening_cash||0,currency)}/>
+          <Line label="+ Cash sales" value={money(session.cashSales||0,currency)}/>
+          {Number(session.refunds||0)>0&&<Line label="− Refunds" value={money(session.refunds||0,currency)}/>}
+          {Number(breakdown.extraFloat||0)>0&&<Line label="+ Cash added" value={money(breakdown.extraFloat,currency)}/>}
+          {Number(breakdown.expenses||0)>0&&<Line label="− Payouts" value={money(breakdown.expenses,currency)}/>}
+          {Number(breakdown.drops||0)>0&&<Line label="− Drops / deposits" value={money(breakdown.drops,currency)}/>}
+          <div className="mt-2 border-t border-slate-100 pt-3"><Line label="Expected in drawer" value={money(session.expectedCash||0,currency)} strong/></div>
         </div>
       </Panel>
     </div>
@@ -194,7 +194,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     </Panel></div>
   </>}
 
-  {history.length>0&&session&&<div className="mt-4"><Panel title="Recent Shift History" sub="Closed shifts are immutable and remain auditable."><DataTable head={['Shift','Branch','Closed','Actual','Variance','Destination']} rows={history.filter(x=>Number(x.id)!==Number(session.id)).slice(0,10).map(x=>[x.shift_no||('#'+x.id),x.branch_name||'-',x.closed_at?new Date(x.closed_at).toLocaleString():'-',money(x.closing_cash||0,currency),money(x.variance||0,currency),nice(x.close_destination||'safe')])}/></Panel></div>}
+  {history.length>0&&session&&<div className="mt-4"><Panel title="Recent Shift History" sub="Closed shifts."><DataTable head={['Shift','Branch','Closed','Actual','Variance','Destination']} rows={history.filter(x=>Number(x.id)!==Number(session.id)).slice(0,10).map(x=>[x.shift_no||('#'+x.id),x.branch_name||'-',x.closed_at?new Date(x.closed_at).toLocaleString():'-',money(x.closing_cash||0,currency),money(x.variance||0,currency),nice(x.close_destination||'safe')])}/></Panel></div>}
 
   {openModal&&<Modal title="Open Shift" onClose={()=>!busy&&setOpenModal(false)} size="md">
     <div className="grid gap-4">
