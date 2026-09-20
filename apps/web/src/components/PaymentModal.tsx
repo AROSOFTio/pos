@@ -97,18 +97,18 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
 
           <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
             <label className="text-xs font-medium text-slate-600">Payment method
-              <select value={line.method} onChange={e=>patch(line.id,{method:e.target.value,tenderedAmount:Number(line.amount||0)})} className="control border-slate-200 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-soft)]">
+              <select value={line.method} onChange={e=>patch(line.id,{method:e.target.value,tenderedAmount:Number(line.amount||0)})} className="control">
                 {METHODS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
             </label>
             <label className="text-xs font-medium text-slate-600">Amount
-              <input type="number" min="0" step="0.01" value={line.amount||''} onChange={e=>patch(line.id,{amount:Number(e.target.value),tenderedAmount:line.method==='cash'?Number(e.target.value):Number(e.target.value)})} className="control border-slate-200 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-soft)]"/>
+              <input type="number" min="0" step="0.01" value={line.amount||''} onChange={e=>patch(line.id,{amount:Number(e.target.value),tenderedAmount:line.method==='cash'?Number(e.target.value):Number(e.target.value)})} className="control"/>
             </label>
             {line.method==='cash'&&<label className="text-xs font-medium text-slate-600">Cash tendered
-              <input type="number" min="0" step="0.01" value={line.tenderedAmount||''} onChange={e=>patch(line.id,{tenderedAmount:Number(e.target.value)})} className="control border-slate-200 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-soft)]"/>
+              <input type="number" min="0" step="0.01" value={line.tenderedAmount||''} onChange={e=>patch(line.id,{tenderedAmount:Number(e.target.value)})} className="control"/>
             </label>}
             {line.method!=='cash'&&<label className="text-xs font-medium text-slate-600">Reference / transaction ID
-              <input value={line.reference} onChange={e=>patch(line.id,{reference:e.target.value})} className="control border-slate-200 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-soft)]" placeholder="Optional reference"/>
+              <input value={line.reference} onChange={e=>patch(line.id,{reference:e.target.value})} className="control" placeholder="Optional reference"/>
             </label>}
           </div>
           {line.method==='cash'&&Number(line.tenderedAmount)>Number(line.amount)&&<div className="mt-2 text-right text-xs font-medium text-[var(--brand-primary)]">Change: {money(Number(line.tenderedAmount)-Number(line.amount),currency)}</div>}
