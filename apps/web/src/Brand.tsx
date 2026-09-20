@@ -12,36 +12,23 @@ function FallbackMark({light=false,className=''}:{light?:boolean;className?:stri
 
 export function MauzoMark({className=''}:{light?:boolean;className?:string}){
   return <span className={'relative inline-grid place-items-center overflow-hidden rounded-xl '+className}>
-    <img
-      src="/brand/mauzopos-icon.png"
-      alt="MauzoPOS"
-      className="absolute inset-0 h-full w-full object-cover"
-      onError={e=>{e.currentTarget.style.display='none'}}
-    />
     <FallbackMark className="h-full w-full"/>
+    <img src="/brand/mauzopos-icon.png" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={e=>{e.currentTarget.style.display='none'}}/>
   </span>
 }
 
 export function MauzoLogo({compact=false,light=false,className=''}:LogoProps){
   const source=light?'/brand/mauzopos-logo-dark.png':'/brand/mauzopos-logo-light.png'
   return <div className={'relative inline-flex items-center '+className}>
-    <div className={'relative overflow-hidden '+(compact?'h-10 w-[168px]':'h-14 w-[230px]')}>
-      <img
-        src={source}
-        alt="MauzoPOS"
-        className="absolute inset-0 h-full w-full object-cover object-center"
-        onError={e=>{e.currentTarget.style.display='none'}}
-        onLoad={e=>{const n=e.currentTarget.nextElementSibling as HTMLElement|null;if(n)n.style.visibility='hidden'}}
-      />
-      <div className="absolute inset-0 flex items-center gap-2">
+    <div className={compact?'relative h-10 w-[168px]':'relative h-14 w-[230px]'}>
+      <div className="flex h-full items-center gap-2">
         <FallbackMark light={light} className={compact?'h-9 w-9 shrink-0':'h-11 w-11 shrink-0'}/>
         <div className="leading-none">
-          <div className={(compact?'text-[20px]':'text-[26px]')+' font-black tracking-[-0.045em] '+(light?'text-white':'text-[#0F172A]')}>
-            Mauzo<span className="text-[#22A53A]">POS</span>
-          </div>
+          <div className={(compact?'text-[20px]':'text-[26px]')+' font-black tracking-[-0.045em] '+(light?'text-white':'text-[#0F172A]')}>Mauzo<span className="text-[#22A53A]">POS</span></div>
           {!compact&&<div className={'mt-1 text-[10px] font-medium '+(light?'text-slate-400':'text-slate-500')}>Sell smarter. Grow faster.</div>}
         </div>
       </div>
+      <img src={source} alt="MauzoPOS" className="absolute inset-0 h-full w-full object-contain object-left" onError={e=>{e.currentTarget.style.display='none'}}/>
     </div>
   </div>
 }

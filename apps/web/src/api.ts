@@ -4,6 +4,7 @@ export async function api(path:string, options:RequestInit = {}) {
   const token = localStorage.getItem('pos_token') || ''
   const response = await fetch('/api' + path, {
     ...options,
+    cache: 'no-store',
     headers: {
       'Content-Type':'application/json',
       Authorization:'Bearer ' + token,

@@ -43,7 +43,8 @@ export default function Staff(){
    if(editing){
     await api('/staff/'+editing.id,{method:'PUT',body:JSON.stringify({roles:selectedRoles,branchIds})})
    }else{
-    await api('/staff',{method:'POST',body:JSON.stringify({name:name.trim(),email:email.trim(),password,roles:selectedRoles,branchIds})})
+    const result=await api('/staff',{method:'POST',body:JSON.stringify({name:name.trim(),email:email.trim(),password,roles:selectedRoles,branchIds})})
+    if(result?.existingAccount)setError('Existing MauzoPOS account linked to this business successfully.')
    }
    setOpen(false);await load()
   }catch(e:any){setError(e.message||'Staff account could not be saved.')}finally{setSaving(false)}
