@@ -6,7 +6,7 @@ import { PageHeading, Stat, Panel, DataTable, Badge, Loading, Modal } from '../c
 type DraftItem={productId:number;name:string;qty:number;unitCost:number}
 
 export default function Purchasing({currency}:{currency:string}){
- const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
+ const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[returns,setReturns]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
  const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false)
  const [suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([]),[supplierProducts,setSupplierProducts]=useState<any[]>([])
  const [supplierId,setSupplierId]=useState<number>(0),[branchId,setBranchId]=useState<number>(0),[selectedProduct,setSelectedProduct]=useState<number>(0),[notes,setNotes]=useState('')
