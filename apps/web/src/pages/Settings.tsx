@@ -74,9 +74,9 @@ export default function Settings(){
        defaultServiceChargeRate:Number(s.default_service_charge_rate||0),
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
        receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,receiptShowBusinessName:!!s.receipt_show_business_name,
-       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light'
+       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light',themeBackground:s.theme_background||'clean',themeBackgroundScope:s.theme_background_scope||'operations'
      })})
-     setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'');setMessage('Settings saved successfully.')
+     setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'',next?.theme_background||'clean',next?.theme_background_scope||'operations');setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
  }
 
@@ -175,12 +175,24 @@ export default function Settings(){
         <div className="mt-5 border-t border-slate-100 pt-4">
           <div className="text-[12px] font-semibold text-slate-700">Interface theme</div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {themes.map(t=><button key={t.key} type="button" onClick={()=>{setS((prev:any)=>({...prev,theme_key:t.key,theme_mode:t.key==='dark'?'dark':'light',document_accent:t.primary}));applyLocalTheme(t.key,t.primary)}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
+            {themes.map(t=><button key={t.key} type="button" onClick={()=>{setS((prev:any)=>({...prev,theme_key:t.key,theme_mode:t.key==='dark'?'dark':'light',document_accent:t.primary}));applyLocalTheme(t.key,t.primary,s.theme_background||'clean',s.theme_background_scope||'operations')}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
               <div className="h-12 rounded-lg border border-black/5" style={{background:t.soft}}><div className="m-2 h-5 w-10 rounded-md" style={{background:t.primary}}/></div>
               <div className="mt-2 text-[11px] font-semibold text-slate-700">{t.name}</div>
             </button>)}
           </div>
-          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v)}}/></Field></div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <div className="text-[11.5px] font-medium text-slate-600">Workspace background</div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {[['clean','Clean'],['soft','Soft Theme'],['rich','Rich Theme']].map(([key,label])=><button key={key} type="button" onClick={()=>{const next={...s,theme_background:key};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',key,next.theme_background_scope||'operations')}} className={'rounded-lg border p-2 text-left '+((s.theme_background||'clean')===key?'border-[var(--brand-primary)]':'border-slate-200')}>
+                  <div className="h-8 rounded-md border border-slate-200" style={{background:key==='clean'?'#EEF2F5':key==='rich'?'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 10%, #F5F7F9)':'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 5%, #F5F7F9)'}}/>
+                  <div className="mt-1.5 text-[10.5px] font-semibold text-slate-700">{label}</div>
+                </button>)}
+              </div>
+            </div>
+            <Field label="Apply background to"><select className="control" value={s.theme_background_scope||'operations'} onChange={e=>{const scope=e.target.value;const next={...s,theme_background_scope:scope};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background||'clean',scope)}}><option value="operations">Operations only</option><option value="all">Entire system</option></select></Field>
+          </div>
+          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v,s.theme_background||'clean',s.theme_background_scope||'operations')}}/></Field></div>
         </div>
         <SaveButton saving={saving} onClick={save}/>
       </Panel>}
@@ -306,7 +318,7 @@ export default function Settings(){
  </div>
 }
 
-function applyLocalTheme(key:string,primary:string){
+function applyLocalTheme(key:string,primary:string,background='clean',scope='operations'){
  const map:any={
   green:{soft:'#ECF8EF',border:'#BDE7C5',bg:'#F7F9F7',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FBFCFB'},
   blue:{soft:'#EFF6FF',border:'#BFDBFE',bg:'#F6F8FC',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FAFBFD'},
@@ -315,7 +327,21 @@ function applyLocalTheme(key:string,primary:string){
   dark:{soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
  }[key]||{}
  const r=document.documentElement
- const p=primary||'#22A53A';r.style.setProperty('--brand-primary',p);r.style.setProperty('--brand-soft',key==='dark'?(map.soft||'#263119'):`color-mix(in srgb, ${p} 9%, white)`);r.style.setProperty('--brand-border',key==='dark'?(map.border||'#3F4B2C'):`color-mix(in srgb, ${p} 28%, white)`);r.style.setProperty('--app-bg',map.bg||'#F7F9F7');r.style.setProperty('--app-surface',map.surface||'#fff');r.style.setProperty('--app-text',map.text||'#172033');r.style.setProperty('--app-muted',map.muted||'#64748B');r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB');r.dataset.theme=key
+ const p=primary||'#22A53A'
+ r.style.setProperty('--brand-primary',p)
+ r.style.setProperty('--brand-soft',key==='dark'?(map.soft||'#263119'):'color-mix(in srgb, '+p+' 9%, white)')
+ r.style.setProperty('--brand-border',key==='dark'?(map.border||'#3F4B2C'):'color-mix(in srgb, '+p+' 28%, white)')
+ r.style.setProperty('--app-surface',map.surface||'#fff')
+ r.style.setProperty('--app-text',map.text||'#172033')
+ r.style.setProperty('--app-muted',map.muted||'#64748B')
+ r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB')
+ const cleanBg=key==='dark'?(map.bg||'#0F1419'):'#EEF2F5'
+ const tinted=key==='dark'?(background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg):(background==='rich'?'color-mix(in srgb, '+p+' 10%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+p+' 5%, #F5F7F9)':cleanBg)
+ r.style.setProperty('--theme-workspace-bg',tinted)
+ r.style.setProperty('--app-bg',scope==='all'?tinted:cleanBg)
+ r.dataset.theme=key
+ r.dataset.background=background
+ r.dataset.backgroundScope=scope
 }
 
 function Toggle({label,checked,onChange}:{label:string;checked:boolean;onChange:(v:boolean)=>void}){return <label className={'flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-[11px] font-medium '+(checked?'border-[var(--brand-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200 text-slate-600')}><span>{label}</span><input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked)} className="accent-[var(--brand-primary)]"/></label>}

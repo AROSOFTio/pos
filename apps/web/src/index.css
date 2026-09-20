@@ -153,7 +153,7 @@ button:active:not(:disabled){transform:translateY(1px) scale(.995)}
 *,*::before,*::after{background-image:none!important}
 .glass,[class*="backdrop-blur"],[class*="blur-"]{backdrop-filter:none!important;filter:none!important}
 :root{--app-bg:#EEF2F5;--app-sidebar:#F7F9FB}
-body{background:#EEF2F5}
+body{background:var(--app-bg)}
 .premium-shadow{box-shadow:0 2px 10px rgba(15,23,42,.045)}
 
 /* Keep operational text legible. Tiny helper text is raised to a usable minimum. */
@@ -169,7 +169,7 @@ body{background:#EEF2F5}
 
 
 /* Operations terminal UI */
-.ops-ui{font-variant-numeric:tabular-nums lining-nums}
+.ops-ui{font-variant-numeric:tabular-nums lining-nums;background:var(--theme-workspace-bg,var(--app-bg))}
 .ops-ui h1,.ops-ui h2,.ops-ui h3{letter-spacing:-.015em}
 .ops-ui button{font-weight:600}
 .ops-ui .control{min-height:46px;border-radius:9px;border-color:#d7dde4;font-size:15px}

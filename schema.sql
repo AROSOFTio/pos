@@ -1792,3 +1792,6 @@ ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
 INSERT INTO role_permissions(business_id,role,permission_code,allowed)
 SELECT b.id,'accountant',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('shift.manage','shift.payout.approve')
 ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_background TEXT NOT NULL DEFAULT 'clean';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_background_scope TEXT NOT NULL DEFAULT 'operations';
