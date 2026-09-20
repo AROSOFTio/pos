@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Truck, WalletCards, ClipboardList, AlertTriangle, Plus, Eye, FileText } from 'lucide-react'
+import { Truck, WalletCards, ClipboardList, AlertTriangle, Plus, Eye, FileText, ReceiptText, CreditCard } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
 import { PageHeading, Stat, Panel, DataTable, Badge, Loading, Modal } from '../components'
 
 type DraftItem={productId:number;name:string;qty:number;unitCost:number}
 
 export default function Purchasing({currency}:{currency:string}){
- const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([])
+ const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'>('orders')
  const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false)
  const [suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([]),[supplierProducts,setSupplierProducts]=useState<any[]>([])
  const [supplierId,setSupplierId]=useState<number>(0),[branchId,setBranchId]=useState<number>(0),[selectedProduct,setSelectedProduct]=useState<number>(0),[notes,setNotes]=useState('')
  const [items,setItems]=useState<DraftItem[]>([]),[saving,setSaving]=useState(false)
  const [submitPo,setSubmitPo]=useState<any>(null),[submitNote,setSubmitNote]=useState(''),[urgent,setUrgent]=useState(false)
+ const [invoiceOpen,setInvoiceOpen]=useState(false),[invoicePay,setInvoicePay]=useState<any>(null),[invoiceSupplier,setInvoiceSupplier]=useState(0),[invoicePo,setInvoicePo]=useState(0),[invoiceGrn,setInvoiceGrn]=useState(0),[invoiceNo,setInvoiceNo]=useState(''),[invoiceDate,setInvoiceDate]=useState(''),[dueDate,setDueDate]=useState(''),[invoiceTax,setInvoiceTax]=useState(0),[invoiceItems,setInvoiceItems]=useState<any[]>([{description:'',qty:1,unitCost:0}]),[payAmount,setPayAmount]=useState(0),[payMethod,setPayMethod]=useState('cash'),[payReference,setPayReference]=useState('')
 
- const load=()=>Promise.all([api('/purchasing/overview'),api('/purchase-orders'),api('/grns')]).then(([o,p,g])=>{setO(o);setPos(p);setGrns(g)})
+ const load=()=>Promise.all([api('/purchasing/overview'),api('/purchase-orders'),api('/grns'),api('/purchasing/invoices').catch(()=>[])]).then(([o,p,g,i])=>{setO(o);setPos(p);setGrns(g);setInvoices(Array.isArray(i)?i:[])})
  useEffect(()=>{load()},[])
  const total=useMemo(()=>items.reduce((n,x)=>n+x.qty*x.unitCost,0),[items])
 
@@ -41,10 +42,26 @@ export default function Purchasing({currency}:{currency:string}){
    await api('/purchase-orders/'+submitPo.id+'/submit',{method:'POST',body:JSON.stringify({comment:submitNote,urgent})})
    setSubmitPo(null);setSubmitNote('');setUrgent(false);await load()
  }
+ async function openInvoice(){
+   const [s,b]=await Promise.all([api('/suppliers'),api('/branches')]);setSuppliers(s);setBranches(b);setInvoiceSupplier(0);setInvoicePo(0);setInvoiceGrn(0);setInvoiceNo('');setInvoiceDate('');setDueDate('');setInvoiceTax(0);setInvoiceItems([{description:'',qty:1,unitCost:0}]);setInvoiceOpen(true)
+ }
+ const invoiceSubtotal=invoiceItems.reduce((n,x)=>n+Number(x.qty||0)*Number(x.unitCost||0),0)
+ async function saveInvoice(){
+   if(!invoiceSupplier||!invoiceNo.trim()||!invoiceItems.some(x=>x.description.trim()))return
+   setSaving(true)
+   try{await api('/purchasing/invoices',{method:'POST',body:JSON.stringify({branchId:branchId||null,supplierId:invoiceSupplier,purchaseOrderId:invoicePo||null,grnId:invoiceGrn||null,invoiceNo:invoiceNo.trim(),invoiceDate:invoiceDate||null,dueDate:dueDate||null,tax:invoiceTax,items:invoiceItems.filter(x=>x.description.trim())})});setInvoiceOpen(false);await load()}finally{setSaving(false)}
+ }
+ async function payInvoice(){
+   if(!invoicePay||!(payAmount>0))return
+   setSaving(true)
+   try{await api('/purchasing/invoices/'+invoicePay.id+'/payments',{method:'POST',body:JSON.stringify({amount:payAmount,paymentMethod:payMethod,reference:payReference})});setInvoicePay(null);await load()}finally{setSaving(false)}
+ }
 
  if(!o)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Procurement" title="Purchasing & Receiving" sub="Supplier-controlled purchase orders, approval status and goods receiving." action={<button onClick={openCreate} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>New Purchase Order</button>}/>
+  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receiving, supplier invoices and payments." action={<div className="flex gap-2"><button onClick={section==='orders'?openCreate:openInvoice} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>{section==='orders'?'New Purchase Order':'Supplier Invoice'}</button></div>}/>
+  <div className="mb-4 flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button onClick={()=>setSection('orders')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='orders'?'bg-slate-950 text-white':'text-slate-500')}>Purchase Orders</button><button onClick={()=>setSection('invoices')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='invoices'?'bg-slate-950 text-white':'text-slate-500')}>Supplier Invoices</button></div>
+  {section==='orders'&&<>
   <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
     <Stat label="Open POs" value={o.openOrders} sub="Draft / approval / partial" icon={Truck}/>
     <Stat label="Month Purchases" value={money(o.purchaseValueMonth,currency)} sub="Purchase order value" icon={WalletCards} tone="blue"/>
@@ -64,7 +81,22 @@ export default function Purchasing({currency}:{currency:string}){
       </div>
     ])}/></Panel>
     <Panel title="Recent GRNs"><DataTable head={['GRN','Supplier','Total']} rows={grns.slice(0,12).map(x=>[<b>{x.grn_no}</b>,x.supplier_name,money(x.total,currency)])}/></Panel>
-  </div>
+  </div>  </>}
+
+  {section==='invoices'&&<>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Stat label="Open Invoices" value={invoices.filter(x=>x.status!=='paid').length} sub="Payables outstanding" icon={ReceiptText}/>
+      <Stat label="Outstanding" value={money(invoices.reduce((n,x)=>n+Number(x.balance_due||0),0),currency)} sub="Supplier balance due" icon={WalletCards} tone="amber"/>
+      <Stat label="Paid" value={invoices.filter(x=>x.status==='paid').length} sub="Fully settled" icon={CreditCard} tone="emerald"/>
+    </div>
+    <div className="mt-4"><Panel title="Supplier invoices" sub={invoices.length+' invoice'+(invoices.length===1?'':'s')}>
+      {invoices.length?<DataTable head={['Invoice','Supplier','PO / GRN','Date','Due','Total','Balance','Status','']} rows={invoices.map(x=>[
+        <b>{x.invoice_no}</b>,x.supplier_name,<div className="text-[10px]">{x.po_no||'-'}<div className="text-slate-400">{x.grn_no||''}</div></div>,new Date(x.invoice_date).toLocaleDateString(),x.due_date?new Date(x.due_date).toLocaleDateString():'-',money(x.total,currency),money(x.balance_due,currency),<Badge tone={x.status==='paid'?'green':x.status==='partially_paid'?'amber':'blue'}>{nice(x.status)}</Badge>,Number(x.balance_due)>0?<button onClick={()=>{setInvoicePay(x);setPayAmount(Number(x.balance_due));setPayMethod('cash');setPayReference('')}} className="rounded-lg bg-slate-950 px-3 py-1.5 text-[10px] font-medium text-white">Pay</button>:''
+      ])}/>:<div className="py-10 text-center text-[11px] text-slate-400">No supplier invoices yet.</div>}
+    </Panel></div>
+  </>}
+
+
 
   {createOpen&&<Modal title={preview?'Preview Purchase Order':'New Purchase Order'} onClose={()=>setCreateOpen(false)}>
     {!preview?<div className="space-y-4">
@@ -89,6 +121,29 @@ export default function Purchasing({currency}:{currency:string}){
       </div>
       <div className="mt-4 flex justify-end gap-2"><button onClick={()=>setPreview(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium">Back</button><button onClick={savePO} disabled={saving} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium">{saving?'Saving…':'Save Draft PO'}</button></div>
     </div>}
+  </Modal>}
+
+  {invoiceOpen&&<Modal title="Supplier Invoice" onClose={()=>!saving&&setInvoiceOpen(false)} size="lg">
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="text-[11px] font-medium text-slate-600">Supplier<select className="control" value={invoiceSupplier} onChange={e=>setInvoiceSupplier(Number(e.target.value))}><option value="0">Choose supplier</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <label className="text-[11px] font-medium text-slate-600">Invoice number<input className="control" value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)}/></label>
+      <label className="text-[11px] font-medium text-slate-600">Invoice date<input type="date" className="control" value={invoiceDate} onChange={e=>setInvoiceDate(e.target.value)}/></label>
+      <label className="text-[11px] font-medium text-slate-600">Due date<input type="date" className="control" value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label>
+      <label className="text-[11px] font-medium text-slate-600">Purchase order<select className="control" value={invoicePo} onChange={e=>setInvoicePo(Number(e.target.value))}><option value="0">Not linked</option>{pos.filter(x=>!invoiceSupplier||Number(x.supplier_id)===invoiceSupplier).map(x=><option key={x.id} value={x.id}>{x.po_no}</option>)}</select></label>
+      <label className="text-[11px] font-medium text-slate-600">Goods receipt<select className="control" value={invoiceGrn} onChange={e=>setInvoiceGrn(Number(e.target.value))}><option value="0">Not linked</option>{grns.filter(x=>!invoiceSupplier||Number(x.supplier_id)===invoiceSupplier).map(x=><option key={x.id} value={x.id}>{x.grn_no}</option>)}</select></label>
+    </div>
+    <div className="mt-4 space-y-2">{invoiceItems.map((x,i)=><div key={i} className="grid grid-cols-[1fr_90px_120px_30px] gap-2"><input className="control mt-0" value={x.description} onChange={e=>setInvoiceItems(v=>v.map((z,k)=>k===i?{...z,description:e.target.value}:z))} placeholder="Item / charge"/><input className="control mt-0" type="number" min="0" step="0.001" value={x.qty} onChange={e=>setInvoiceItems(v=>v.map((z,k)=>k===i?{...z,qty:Number(e.target.value)}:z))}/><input className="control mt-0" type="number" min="0" value={x.unitCost} onChange={e=>setInvoiceItems(v=>v.map((z,k)=>k===i?{...z,unitCost:Number(e.target.value)}:z))}/><button onClick={()=>setInvoiceItems(v=>v.filter((_,k)=>k!==i))} className="text-slate-400">×</button></div>)}</div>
+    <button onClick={()=>setInvoiceItems(v=>[...v,{description:'',qty:1,unitCost:0}])} className="mt-2 text-[10px] font-medium text-[var(--brand-primary)]">+ Add line</button>
+    <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-[11px] font-medium text-slate-600">Tax<input className="control" type="number" min="0" value={invoiceTax} onChange={e=>setInvoiceTax(Number(e.target.value))}/></label><div className="rounded-xl bg-slate-50 p-3 text-right"><div className="text-[9px] text-slate-400">TOTAL</div><div className="mt-1 text-lg font-semibold">{money(invoiceSubtotal+invoiceTax,currency)}</div></div></div>
+    <button onClick={saveInvoice} disabled={saving||!invoiceSupplier||!invoiceNo.trim()||!invoiceItems.some(x=>x.description.trim())} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Saving…':'Post Supplier Invoice'}</button>
+  </Modal>}
+
+  {invoicePay&&<Modal title={'Pay '+invoicePay.invoice_no} onClose={()=>!saving&&setInvoicePay(null)} size="sm">
+    <div className="rounded-xl bg-slate-950 p-4 text-white"><div className="text-[9px] text-slate-400">OUTSTANDING</div><div className="mt-1 text-xl font-semibold">{money(invoicePay.balance_due,currency)}</div></div>
+    <label className="mt-3 block text-[11px] font-medium text-slate-600">Amount<input className="control" type="number" min="0" max={Number(invoicePay.balance_due)} value={payAmount} onChange={e=>setPayAmount(Number(e.target.value))}/></label>
+    <label className="mt-3 block text-[11px] font-medium text-slate-600">Method<select className="control" value={payMethod} onChange={e=>setPayMethod(e.target.value)}><option value="cash">Cash</option><option value="mobile money">Mobile Money</option><option value="bank transfer">Bank Transfer</option><option value="card">Card</option></select></label>
+    <label className="mt-3 block text-[11px] font-medium text-slate-600">Reference<input className="control" value={payReference} onChange={e=>setPayReference(e.target.value)}/></label>
+    <button onClick={payInvoice} disabled={saving||!(payAmount>0)||payAmount>Number(invoicePay.balance_due)} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Posting…':'Post Supplier Payment'}</button>
   </Modal>}
 
   {submitPo&&<Modal title={(submitPo.status==='rejected'?'Resubmit ':'Submit ')+submitPo.po_no+' for Approval'} onClose={()=>setSubmitPo(null)}>
