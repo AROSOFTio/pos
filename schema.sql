@@ -1339,3 +1339,343 @@ WHERE sa.status='posted' AND sa.adjustment_type IN ('wastage','spoilage')
 GROUP BY sa.id
 HAVING sum(abs(sai.qty_change*sai.unit_cost))>0
 ON CONFLICT(business_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL DO NOTHING;
+
+
+-- Advanced Restaurant Operations 2026-09
+ALTER TABLE restaurant_order_items ADD COLUMN IF NOT EXISTS seat_no INT;
+ALTER TABLE restaurant_order_items ADD COLUMN IF NOT EXISTS course_no INT NOT NULL DEFAULT 1;
+ALTER TABLE restaurant_order_items ADD COLUMN IF NOT EXISTS course_name TEXT NOT NULL DEFAULT 'Main';
+ALTER TABLE restaurant_order_items ADD COLUMN IF NOT EXISTS fired_at TIMESTAMPTZ;
+ALTER TABLE restaurant_order_items ADD COLUMN IF NOT EXISTS served_at TIMESTAMPTZ;
+ALTER TABLE restaurant_reservations ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_reservations ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'staff';
+ALTER TABLE restaurant_reservations ADD COLUMN IF NOT EXISTS arrival_status TEXT NOT NULL DEFAULT 'expected';
+ALTER TABLE restaurant_reservations ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMPTZ;
+ALTER TABLE restaurant_reservations ADD COLUMN IF NOT EXISTS seated_at TIMESTAMPTZ;
+ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS last_seated_at TIMESTAMPTZ;
+ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS last_cleared_at TIMESTAMPTZ;
+ALTER TABLE restaurant_tables ADD COLUMN IF NOT EXISTS current_party_size INT NOT NULL DEFAULT 0;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS prep_minutes INT NOT NULL DEFAULT 15;
+ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS allergens TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS order_source TEXT NOT NULL DEFAULT 'staff';
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS promised_at TIMESTAMPTZ;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivery_zone_id BIGINT;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivery_address TEXT;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivery_phone TEXT;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivery_fee NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivery_status TEXT;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS driver_name TEXT;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ;
+ALTER TABLE restaurant_orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS restaurant_waitlist (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  guest_name TEXT NOT NULL,
+  phone TEXT,
+  guest_count INT NOT NULL DEFAULT 1,
+  preferred_area_id BIGINT REFERENCES restaurant_areas(id) ON DELETE SET NULL,
+  estimated_wait_minutes INT NOT NULL DEFAULT 15,
+  status TEXT NOT NULL DEFAULT 'waiting',
+  notes TEXT,
+  quoted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notified_at TIMESTAMPTZ,
+  seated_at TIMESTAMPTZ,
+  cancelled_at TIMESTAMPTZ,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_waitlist_active ON restaurant_waitlist(business_id,branch_id,status,created_at);
+
+CREATE TABLE IF NOT EXISTS restaurant_order_courses (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  course_no INT NOT NULL,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'held',
+  fired_at TIMESTAMPTZ,
+  ready_at TIMESTAMPTZ,
+  served_at TIMESTAMPTZ,
+  fired_by TEXT,
+  UNIQUE(order_id,course_no)
+);
+
+CREATE TABLE IF NOT EXISTS restaurant_table_events (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE CASCADE,
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  from_status TEXT,
+  to_status TEXT,
+  changed_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_table_events ON restaurant_table_events(business_id,table_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS delivery_zones (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  fee NUMERIC(14,2) NOT NULL DEFAULT 0,
+  estimated_minutes INT NOT NULL DEFAULT 45,
+  active BOOLEAN NOT NULL DEFAULT true,
+  UNIQUE(business_id,branch_id,name)
+);
+ALTER TABLE restaurant_orders DROP CONSTRAINT IF EXISTS restaurant_orders_delivery_zone_id_fkey;
+ALTER TABLE restaurant_orders ADD CONSTRAINT restaurant_orders_delivery_zone_id_fkey FOREIGN KEY(delivery_zone_id) REFERENCES delivery_zones(id) ON DELETE SET NULL;
+
+-- Recipe yields, production batches and perishable lot control
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS output_unit_id BIGINT REFERENCES units_of_measure(id) ON DELETE SET NULL;
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS prep_loss_percent NUMERIC(8,3) NOT NULL DEFAULT 0;
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS version_no INT NOT NULL DEFAULT 1;
+CREATE TABLE IF NOT EXISTS recipe_batches (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  recipe_id BIGINT REFERENCES recipes(id) ON DELETE RESTRICT,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  batch_no TEXT NOT NULL,
+  planned_yield NUMERIC(14,3) NOT NULL DEFAULT 0,
+  actual_yield NUMERIC(14,3) NOT NULL DEFAULT 0,
+  total_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'completed',
+  prepared_by TEXT,
+  prepared_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  notes TEXT,
+  UNIQUE(business_id,batch_no)
+);
+CREATE TABLE IF NOT EXISTS inventory_lots (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE CASCADE,
+  lot_no TEXT NOT NULL,
+  expiry_date DATE,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 0,
+  unit_cost NUMERIC(14,4) NOT NULL DEFAULT 0,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE SET NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  active BOOLEAN NOT NULL DEFAULT true,
+  UNIQUE(business_id,product_id,location_id,lot_no)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_lots_fefo ON inventory_lots(business_id,product_id,location_id,expiry_date,qty);
+
+-- Supplier invoice / AP
+CREATE TABLE IF NOT EXISTS supplier_invoices (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+  purchase_order_id BIGINT REFERENCES purchase_orders(id) ON DELETE SET NULL,
+  grn_id BIGINT REFERENCES goods_receipts(id) ON DELETE SET NULL,
+  invoice_no TEXT NOT NULL,
+  invoice_date DATE NOT NULL DEFAULT current_date,
+  due_date DATE,
+  subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
+  tax NUMERIC(14,2) NOT NULL DEFAULT 0,
+  total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  amount_paid NUMERIC(14,2) NOT NULL DEFAULT 0,
+  balance_due NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'open',
+  match_status TEXT NOT NULL DEFAULT 'unmatched',
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,supplier_id,invoice_no)
+);
+CREATE TABLE IF NOT EXISTS supplier_invoice_items (
+  id BIGSERIAL PRIMARY KEY,
+  supplier_invoice_id BIGINT REFERENCES supplier_invoices(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE SET NULL,
+  description TEXT NOT NULL,
+  qty NUMERIC(14,3) NOT NULL DEFAULT 1,
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0,
+  line_total NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  supplier_id BIGINT REFERENCES suppliers(id) ON DELETE RESTRICT,
+  supplier_invoice_id BIGINT REFERENCES supplier_invoices(id) ON DELETE SET NULL,
+  amount NUMERIC(14,2) NOT NULL CHECK(amount>0),
+  payment_method TEXT NOT NULL DEFAULT 'cash',
+  reference TEXT,
+  paid_by TEXT,
+  paid_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Customer CRM and loyalty
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS birthday DATE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferences TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS allergies TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS loyalty_tier TEXT NOT NULL DEFAULT 'Standard';
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS visit_count INT NOT NULL DEFAULT 0;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS lifetime_spend NUMERIC(14,2) NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS customer_loyalty_ledger (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE CASCADE,
+  points INT NOT NULL,
+  event_type TEXT NOT NULL,
+  reference_type TEXT,
+  reference_id BIGINT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS gift_cards (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+  initial_value NUMERIC(14,2) NOT NULL DEFAULT 0,
+  balance NUMERIC(14,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,code)
+);
+
+-- Devices, PIN switching and attendance
+CREATE TABLE IF NOT EXISTS registered_devices (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  terminal_id BIGINT REFERENCES terminals(id) ON DELETE SET NULL,
+  device_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  device_type TEXT NOT NULL DEFAULT 'browser',
+  active BOOLEAN NOT NULL DEFAULT true,
+  last_seen_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,device_key)
+);
+CREATE TABLE IF NOT EXISTS business_user_pins (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  pin_hash TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(business_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS staff_time_entries (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+  clock_in_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  clock_out_at TIMESTAMPTZ,
+  break_minutes INT NOT NULL DEFAULT 0,
+  notes TEXT,
+  source TEXT NOT NULL DEFAULT 'pos'
+);
+CREATE INDEX IF NOT EXISTS idx_staff_time_entries_open ON staff_time_entries(business_id,user_id,clock_out_at);
+
+-- End of day, alerts and reporting schedules
+CREATE TABLE IF NOT EXISTS business_day_closures (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  business_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  sales_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  expenses_total NUMERIC(14,2) NOT NULL DEFAULT 0,
+  cash_expected NUMERIC(14,2) NOT NULL DEFAULT 0,
+  open_orders INT NOT NULL DEFAULT 0,
+  open_shifts INT NOT NULL DEFAULT 0,
+  pending_kots INT NOT NULL DEFAULT 0,
+  notes TEXT,
+  closed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  closed_by TEXT,
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,branch_id,business_date)
+);
+CREATE TABLE IF NOT EXISTS notification_events (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'info',
+  title TEXT NOT NULL,
+  message TEXT,
+  entity_type TEXT,
+  entity_id BIGINT,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_notification_events_unread ON notification_events(business_id,read_at,created_at DESC);
+CREATE TABLE IF NOT EXISTS scheduled_reports (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  report_type TEXT NOT NULL,
+  cadence TEXT NOT NULL,
+  send_time TIME NOT NULL DEFAULT '23:59',
+  recipients TEXT[] NOT NULL DEFAULT '{}',
+  active BOOLEAN NOT NULL DEFAULT true,
+  last_run_at TIMESTAMPTZ,
+  next_run_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS report_delivery_queue (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  scheduled_report_id BIGINT REFERENCES scheduled_reports(id) ON DELETE CASCADE,
+  period_start DATE,
+  period_end DATE,
+  recipients TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pending',
+  attempts INT NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
+
+-- Printer job recovery
+CREATE TABLE IF NOT EXISTS print_jobs (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  document_type TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id BIGINT NOT NULL,
+  printer_profile_id BIGINT REFERENCES print_profiles(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  attempts INT NOT NULL DEFAULT 0,
+  error TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  printed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_print_jobs_queue ON print_jobs(business_id,status,created_at);
+
+-- Restaurant policies
+CREATE TABLE IF NOT EXISTS restaurant_policies (
+  business_id BIGINT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  default_reservation_minutes INT NOT NULL DEFAULT 120,
+  default_wait_minutes INT NOT NULL DEFAULT 15,
+  auto_dirty_on_close BOOLEAN NOT NULL DEFAULT true,
+  require_shift_for_payment BOOLEAN NOT NULL DEFAULT true,
+  allow_negative_stock BOOLEAN NOT NULL DEFAULT false,
+  loyalty_points_per_currency NUMERIC(18,6) NOT NULL DEFAULT 0,
+  loyalty_redeem_value NUMERIC(14,4) NOT NULL DEFAULT 0,
+  idle_lock_minutes INT NOT NULL DEFAULT 5,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO restaurant_policies(business_id) SELECT id FROM businesses ON CONFLICT(business_id) DO NOTHING;
+
+INSERT INTO permission_catalog(code,name,section) VALUES
+('restaurant.reservations','Manage reservations and waitlist','Restaurant'),
+('restaurant.courses','Fire and manage courses','Restaurant'),
+('restaurant.dayclose','Close restaurant business day','Restaurant'),
+('restaurant.delivery','Manage delivery operations','Restaurant'),
+('restaurant.crm','Manage guest CRM and loyalty','Restaurant'),
+('purchasing.ap','Manage supplier invoices and payments','Purchasing'),
+('staff.pin','Manage staff quick PINs','Staff'),
+('staff.timeclock','Manage attendance and time clock','Staff'),
+('devices.manage','Manage registered POS devices','Settings'),
+('reports.schedule','Manage scheduled reports','Reports')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
