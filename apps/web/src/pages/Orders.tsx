@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal, Layers3, UsersRound } from 'lucide-react'
+import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal, UsersRound } from 'lucide-react'
 import { api, money, nice, openPdf, printPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
@@ -14,7 +14,6 @@ export default function Orders({currency}:{currency:string}){
  const [menu,setMenu]=useState<any[]>([]),[mods,setMods]=useState<any[]>([]),[addOpen,setAddOpen]=useState(false),[selectedProduct,setSelectedProduct]=useState<number>(0),[menuDetail,setMenuDetail]=useState<any>(null),[variantId,setVariantId]=useState<number>(0),[modifierIds,setModifierIds]=useState<number[]>([]),[qty,setQty]=useState(1),[itemNotes,setItemNotes]=useState(''),[seatNo,setSeatNo]=useState<number>(1),[courseNo,setCourseNo]=useState<number>(1),[courseName,setCourseName]=useState('Main')
  const [transferOpen,setTransferOpen]=useState(false),[cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false),[transferTable,setTransferTable]=useState(0)
  const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null)
- const [depositOpen,setDepositOpen]=useState(false),[depositBusy,setDepositBusy]=useState(false)
  const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
  const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null)
@@ -50,6 +49,12 @@ export default function Orders({currency}:{currency:string}){
    await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:selectedProduct,qty,variantId:variantId||null,modifierIds,notes:itemNotes,seatNo:detail.order.order_type==='dine_in'?seatNo:null,courseNo,courseName})})
    setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');setSeatNo(1);setCourseNo(1);setCourseName('Main');await refreshDetail()
  }
+ async function adjustItemQty(item:any,delta:-1|1){
+   if(!detail?.order?.id)return
+   const out=await api('/restaurant/orders/'+detail.order.id+'/items/'+item.id+'/adjust',{method:'POST',body:JSON.stringify({delta})})
+   for(const t of (Array.isArray(out?.tickets)?out.tickets:[]))await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
+   await refreshDetail();await load()
+ }
  async function sendKitchen(){
    const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
    await refreshDetail();await load()
@@ -59,10 +64,8 @@ export default function Orders({currency}:{currency:string}){
  async function holdResume(){
    const action=detail.order.held?'resume':'hold';await api('/restaurant/orders/'+detail.order.id+'/'+action,{method:'POST',body:'{}'});await refreshDetail();await load()
  }
- async function requestBill(){await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'bill_requested',comment:'Bill requested from premium POS'})});await refreshDetail();await load()}
  async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
- async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const orderId=Number(detail.order.id),orderNo=String(detail.order.order_no||'ORDER');const out=await api('/restaurant/orders/'+orderId+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='paid'){setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d);setReceiptActions({id:orderId,orderNo})}}finally{setPaymentBusy(false)}}
- async function submitDeposit(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setDepositBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/deposits',{method:'POST',body:JSON.stringify({payments:lines})});setDepositOpen(false);await refreshDetail();await load()}finally{setDepositBusy(false)}}
+ async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const orderId=Number(detail.order.id),orderNo=String(detail.order.order_no||'ORDER');const out=await api('/restaurant/orders/'+orderId+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='closed'){setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d);setReceiptActions({id:orderId,orderNo})}}finally{setPaymentBusy(false)}}
  async function openCharges(){
    if(!detail?.order)return
    const settings=await api('/document-settings')
@@ -95,8 +98,6 @@ export default function Orders({currency}:{currency:string}){
      setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false)
    }finally{setChargesBusy(false)}
  }
- async function closePaidOrder(){if(!detail?.order?.id)return;await api('/restaurant/orders/'+detail.order.id+'/transition',{method:'POST',body:JSON.stringify({status:'closed',comment:'Order closed after full settlement'})});setDetailOpen(false);await load()}
- async function chargeBalanceToCredit(){if(!detail?.order?.id)return;setPaymentBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/credit',{method:'POST',body:'{}'});await refreshDetail();await load()}finally{setPaymentBusy(false)}}
  async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
  async function fireCourse(no:number){
@@ -138,7 +139,22 @@ export default function Orders({currency}:{currency:string}){
 
   {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)} size="lg">
     <div className="mb-3 flex flex-wrap items-center gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
-    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">{detail.items.length?detail.items.map((x:any)=><div key={x.id} className="py-3 flex justify-between gap-3"><div><b className="text-sm">{Number(x.qty)} × {x.product_name}{x.variant_name?' · '+x.variant_name:''}</b><div className="mt-1 flex flex-wrap items-center gap-1">{x.seat_no&&<Badge>Seat {x.seat_no}</Badge>}<Badge tone="blue">{x.course_name||'Main'}</Badge>{['new','sent_to_kitchen'].includes(x.status)&&<button onClick={()=>{setServiceItem(x);setServiceSeat(Number(x.seat_no||1));setServiceCourse(Number(x.course_no||1));setServiceCourseName(String(x.course_name||'Main'))}} className="text-[9px] font-medium text-[var(--brand-primary)]">Edit</button>}</div>{x.modifiers?.length>0&&<div className="text-xs text-slate-400 mt-1">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="text-xs text-amber-700 mt-1">{x.notes}</div>}</div><div className="text-right"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge><div className="text-sm font-medium mt-1">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div></div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
+    <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{detail.items.filter((x:any)=>x.status!=='cancelled'&&Number(x.qty)>0).length?detail.items.filter((x:any)=>x.status!=='cancelled'&&Number(x.qty)>0).map((x:any)=><div key={x.id} className="flex items-center justify-between gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[13px] font-semibold text-slate-900">{x.product_name}{x.variant_name?' · '+x.variant_name:''}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-1">{x.seat_no&&<Badge>Seat {x.seat_no}</Badge>}<Badge tone="blue">{x.course_name||'Main'}</Badge><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge></div>
+        {x.modifiers?.length>0&&<div className="mt-1 text-[10.5px] text-slate-500">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}
+        {x.notes&&<div className="mt-1 text-[10.5px] text-amber-700">{x.notes}</div>}
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="mb-2 text-[12px] font-semibold text-slate-800">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div>
+        {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<div className="inline-flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <button onClick={()=>adjustItemQty(x,-1)} className="grid h-9 w-9 place-items-center text-lg font-medium text-slate-600 hover:bg-slate-50" aria-label={'Remove one '+x.product_name}>−</button>
+          <span className="min-w-9 border-x border-slate-200 px-2 text-center text-[12px] font-semibold text-slate-800">{Number(x.qty)}</span>
+          <button onClick={()=>adjustItemQty(x,1)} className="grid h-9 w-9 place-items-center text-lg font-medium text-slate-600 hover:bg-slate-50" aria-label={'Add one '+x.product_name}>+</button>
+        </div>}
+      </div>
+    </div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
     <div className="mt-4 rounded-xl bg-slate-900 text-white p-4">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         <span className="text-slate-400">Subtotal</span><span className="text-right">{money(detail.order.subtotal,currency)}</span>
@@ -147,28 +163,26 @@ export default function Orders({currency}:{currency:string}){
         {Number(detail.order.tax||0)>0&&<><span className="text-slate-400">Tax {detail.order.tax_inclusive?'(inclusive)':''}</span><span className="text-right">{money(detail.order.tax,currency)}</span></>}
         {Number(detail.order.tip||0)>0&&<><span className="text-slate-400">Tip</span><span className="text-right">{money(detail.order.tip,currency)}</span></>}
       </div>
-      <div className="mt-3 flex justify-between items-end border-t border-white/10 pt-3">
-        <div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-semibold">{money(detail.order.total,currency)}</div>{Number(detail.order.amount_paid||0)>0&&<div className="mt-1 text-xs text-emerald-300">{money(detail.order.amount_paid,currency)} paid · {money(detail.order.balance_due,currency)} due</div>}</div>
-        {!['bill_requested','partially_paid','paid','closed'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg bg-[var(--brand-primary)] text-white px-4 py-2 text-sm font-medium">+ Add Item</button>}
+      <div className="mt-3 flex flex-col gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-end sm:justify-between">
+        <div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-semibold">{money(detail.order.total,currency)}</div><div className="mt-1 text-xs text-slate-300">{money(detail.order.amount_paid||0,currency)} paid · <span className="text-amber-300">{money(detail.order.balance_due??detail.order.total,currency)} due</span></div></div>
+        <div className="flex gap-2">
+          {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-semibold text-white">+ Add Item</button>}
+          {!['paid','closed','cancelled'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<button onClick={openBillPayment} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-semibold text-white">Receive Payment</button>}
+        </div>
       </div>
     </div>
-    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
       {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send & Print KOT"/>}
-      {detail.order.order_type==='dine_in'&&<Action onClick={()=>setCourseOpen(true)} icon={Layers3} label="Seats & Courses"/>}
       <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
-      {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer"/>}
-      {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}
-      {['open','sent_to_kitchen','preparing','ready','served'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<Action onClick={()=>setDepositOpen(true)} icon={ReceiptIcon} label={Number(detail.order.amount_paid||0)>0?'Add Deposit':'Take Deposit'}/>}
-      {detail.order.status==='served'&&<Action onClick={requestBill} icon={ReceiptIcon} label="Request Bill"/>}
-      {['bill_requested','partially_paid'].includes(detail.order.status)&&<Action onClick={openBillPayment} icon={ReceiptIcon} label={detail.order.status==='partially_paid'?'Pay Balance':'Take Payment'}/>}
-      {['bill_requested','partially_paid'].includes(detail.order.status)&&detail.order.customer_id&&Number(detail.order.balance_due||0)>0.005&&<Action onClick={chargeBalanceToCredit} icon={CheckCircle2} label="Charge Balance to Credit"/>}
-      <Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=proforma&paper=A4')} icon={ReceiptIcon} label="A4 Proforma"/>
-      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Preview Bill / Receipt"/>}
-      {['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=invoice&paper=A4')} icon={ReceiptIcon} label="Invoice"/>}
-      <Action onClick={()=>sharePdf('/documents/order/'+detail.order.id+'/pdf?type='+( ['paid','closed'].includes(detail.order.status)?'invoice':'proforma')+'&paper=A4',detail.order.order_no+'.pdf')} icon={ReceiptIcon} label="Share PDF"/>
-      {detail.order.status==='paid'&&<Action onClick={closePaidOrder} icon={CheckCircle2} label="Close Order"/>}
+      {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer Table"/>}
+      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}
+      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Review Bill / Receipt"/>}
       {!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}
     </div>
+    {Array.isArray(detail.transfers)&&detail.transfers.length>0&&<div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-slate-400">Table transfer trail</div>
+      <div className="mt-2 space-y-2">{detail.transfers.slice(0,6).map((tr:any)=><div key={tr.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px]"><span className="font-medium text-slate-700">{tr.from_table_name||'No table'} → {tr.to_table_name||'No table'}</span><span className="text-slate-400">{new Date(tr.created_at).toLocaleString()} · {tr.changed_by||'Staff'}</span></div>)}</div>
+    </div>}
     <div className="mt-4 border-t border-slate-100 pt-3"><div className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-2">History</div>{detail.history.slice(0,6).map((h:any)=><div key={h.id} className="flex justify-between gap-3 py-1.5 text-xs"><span className="text-slate-400">{new Date(h.created_at).toLocaleString()}</span><b>{nice(h.to_status)}</b></div>)}</div>
   </Modal>}
 
@@ -220,19 +234,8 @@ export default function Orders({currency}:{currency:string}){
   </Modal>}
 
   <PaymentModal
-    open={depositOpen}
-    title={detail?.order?.order_no?'Take Deposit · '+detail.order.order_no:'Take Deposit'}
-    total={Number(detail?.order?.total??0)}
-    amountPaid={Number(detail?.order?.amount_paid||0)}
-    currency={currency}
-    busy={depositBusy}
-    onClose={()=>setDepositOpen(false)}
-    onSubmit={submitDeposit}
-  />
-
-  <PaymentModal
     open={paymentOpen}
-    title={detail?.order?.order_no?'Settle Bill · '+detail.order.order_no:'Settle Restaurant Bill'}
+    title={detail?.order?.order_no?'Receive Payment · '+detail.order.order_no:'Receive Payment'}
     total={Number(bill?.order?.total??detail?.order?.total??0)}
     amountPaid={Number(bill?.amountPaid??detail?.order?.amount_paid??0)}
     currency={currency}

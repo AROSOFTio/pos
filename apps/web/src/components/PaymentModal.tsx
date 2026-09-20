@@ -24,7 +24,8 @@ type Props={
 
 const METHODS=[
   {value:'cash',label:'Cash',icon:Banknote},
-  {value:'mobile money',label:'Mobile Money',icon:Smartphone},
+  {value:'mtn momo',label:'MTN MoMo',icon:Smartphone},
+  {value:'airtel money',label:'Airtel Money',icon:Smartphone},
   {value:'card',label:'Card',icon:CreditCard},
   {value:'bank transfer',label:'Bank Transfer',icon:Landmark},
 ]
@@ -117,8 +118,8 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
       })}
     </div>
 
-    <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-100 bg-white/95 px-4 pb-1 pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0 sm:backdrop-blur-0"><div className="flex flex-wrap items-center justify-between gap-3">
-      <button onClick={add} disabled={balance<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Split tender</button>
+    <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-100 bg-white px-4 pb-1 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0"><div className="flex flex-wrap items-center justify-between gap-3">
+      <button onClick={add} disabled={balance<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Add payment method</button>
       <div className="text-right">
         <div className="text-[11px] text-slate-400">After this payment</div>
         <div className={'text-lg font-semibold '+(remaining<=0.005?'text-emerald-600':'text-amber-600')}>{remaining<=0.005?'Fully paid':money(remaining,currency)+' due'}</div>
