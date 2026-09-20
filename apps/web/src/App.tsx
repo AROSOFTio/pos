@@ -142,7 +142,7 @@ export default function App(){
   const renderView=()=> <>
     {view==='Dashboard'&&hasManagementAccess&&<Dashboard currency={currency} go={safeGo}/>}
     {view==='POS'&&!hasRetail&&<POS currency={currency}/>}
-    {view==='Supermarket'&&hasRetail&&<Supermarket currency={currency}/>} 
+    {view==='Supermarket'&&hasRetail&&<Supermarket currency={currency}/>}
     {view==='Sales'&&<Sales currency={currency}/>}
     {view==='Orders'&&hasRestaurant&&<Orders currency={currency}/>}
     {view==='Kitchen'&&hasRestaurant&&<Kitchen/>}
@@ -152,7 +152,7 @@ export default function App(){
     {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency}/>}
     {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
     {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
-    {view==='Products'&&canAccessView('Products')&&<Products currency={currency} allowScanning={hasRetail}/>} 
+    {view==='Products'&&canAccessView('Products')&&<Products currency={currency} allowScanning={hasRetail}/>}
     {view==='Suppliers'&&canAccessView('Suppliers')&&<Suppliers currency={currency}/>}
     {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}
     {view==='Reports'&&canAccessView('Reports')&&<Reports currency={currency}/>}
@@ -162,7 +162,17 @@ export default function App(){
   </>
 
   if(workspace==='operations'){
-    if(!hasManagementAccess){const fallback=(allowedOps[0]?.[0]||'POS') as ViewKey;setTimeout(()=>{setWorkspace('operations');if(managementViews.has(view))setView(fallback)},0);return <div className="min-h-screen grid place-items-center bg-[var(--app-bg)] text-slate-500">Loading operations…</div>}
+    const operationView=(allowedOps.some(([name]:any)=>name===view)?view:(allowedOps[0]?.[0]||'POS')) as ViewKey
+    const renderOperationView=()=> <>
+      {operationView==='POS'&&!hasRetail&&<POS currency={currency}/>}
+      {operationView==='Supermarket'&&hasRetail&&<Supermarket currency={currency}/>}
+      {operationView==='Sales'&&<Sales currency={currency}/>}
+      {operationView==='Orders'&&hasRestaurant&&<Orders currency={currency}/>}
+      {operationView==='Kitchen'&&hasRestaurant&&<Kitchen/>}
+      {operationView==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={safeGo}/>}
+      {operationView==='Customers'&&<Customers currency={currency}/>}
+      {operationView==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>setView(hasRestaurant?'Restaurant':'POS')}/>}
+    </>
 
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-[var(--app-surface)]/98">
@@ -170,7 +180,7 @@ export default function App(){
           <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
           <BusinessBrand name={business} logo={businessLogo}/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
-            {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
+            {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(operationView===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
           </nav>
           <div className="ml-auto flex items-center gap-2">
             {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
@@ -182,18 +192,18 @@ export default function App(){
       </header>
 
       <main className="mx-auto max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6">
-        <div className="page-enter"><ViewErrorBoundary key={view} onBack={()=>setView(hasRestaurant?'Restaurant':'POS')}>{renderView()}</ViewErrorBoundary></div>
+        <div className="page-enter"><ViewErrorBoundary key={operationView} onBack={()=>setView((allowedOps[0]?.[0]||'POS') as ViewKey)}>{renderOperationView()}</ViewErrorBoundary></div>
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[64px] border-t border-slate-200 bg-[var(--app-surface)] lg:hidden">
-        {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={name==='Sales'?'History':name} active={view===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}
+        {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={name==='Sales'?'History':name} active={operationView===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}
         {allowedOps.length>4&&<div className="flex-1"><MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/></div>}
       </nav>
 
       {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/35 lg:hidden" onClick={()=>setSidebar(false)}>
         <aside className="absolute inset-y-0 left-0 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] border-slate-200 bg-white shadow-2xl" onClick={e=>e.stopPropagation()}>
           <div className="flex h-[64px] items-center border-b border-slate-100 px-4"><BusinessBrand name={business} logo={businessLogo}/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
-          <div className="flex-1 overflow-y-auto p-3"><div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400">Operations</div><div className="space-y-1">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(view===name?'bg-[var(--brand-soft)] font-semibold text-[var(--brand-primary)]':'text-slate-700 hover:bg-slate-50')}><Icon size={18}/><span>{name}</span></button>)}</div></div>
+          <div className="flex-1 overflow-y-auto p-3"><div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400">Operations</div><div className="space-y-1">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'bg-[var(--brand-soft)] font-semibold text-[var(--brand-primary)]':'text-slate-700 hover:bg-slate-50')}><Icon size={18}/><span>{name}</span></button>)}</div></div>
           <div className="border-t border-slate-100 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
         </aside>
       </div>}
@@ -213,7 +223,7 @@ export default function App(){
       </div>
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
         <div className="mt-4"><button onClick={()=>safeGo('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
-        {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>} 
+        {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>}
       </nav>
       <div className="border-t border-slate-100 p-3">
         <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="mb-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--brand-primary)]">Open Operations</button>
