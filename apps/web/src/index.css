@@ -166,3 +166,16 @@ body{background:#EEF2F5}
   .page-enter{padding-bottom:8px}
   .data-table{min-width:680px}
 }
+
+
+/* Operations terminal UI */
+.ops-ui{font-variant-numeric:tabular-nums lining-nums}
+.ops-ui h1,.ops-ui h2,.ops-ui h3{letter-spacing:-.015em}
+.ops-ui button{font-weight:600}
+.ops-ui .control{min-height:46px;border-radius:9px;border-color:#d7dde4;font-size:15px}
+.ops-ui .control:focus,.ops-ui .control:focus-visible{border-color:var(--brand-primary);box-shadow:none;outline:none}
+.ops-ui .premium-shadow{box-shadow:0 1px 4px rgba(15,23,42,.035)}
+.ops-ui .modal-surface{border-radius:14px}
+.ops-ui .modal-body{font-size:14px}
+.ops-money{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.02em}
+.ops-action{min-height:46px;border-radius:9px}

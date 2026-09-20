@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Banknote, Landmark, LockKeyhole, Printer, RefreshCw, Settings2, ShieldCheck, UnlockKeyhole, WalletCards } from 'lucide-react'
+import { ArrowDownLeft, ArrowRightLeft, ArrowUpRight, Landmark, LockKeyhole, Printer, RefreshCw, Settings2, ShieldCheck, WalletCards } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
-import { PageHeading, Panel, Stat, Loading, Modal, DataTable, Badge } from '../components'
+import { PageHeading, Panel, Loading, Modal, DataTable, Badge } from '../components'
 
 const arr=(v:any)=>Array.isArray(v)?v:[]
 type MovementKind='additional_float'|'expense'|'cash_drop'|'bank_deposit'
@@ -128,16 +128,15 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  if(session===undefined)return <Loading/>
 
  return <div>
-  <PageHeading eyebrow="Cash accountability" title="Shifts & Counter" sub="Open, reconcile and hand over cash." action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
+  <PageHeading eyebrow="" title="Shifts" sub="" action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
 
   {(error||message)&&<div className={'mb-4 rounded-xl border px-3.5 py-3 text-[12px] '+(error?'border-red-100 bg-red-50 text-red-700':'border-emerald-100 bg-emerald-50 text-emerald-700')}>{error||message}</div>}
 
   {!session?<div className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-    <Panel title="No Active Shift" sub="Open a shift before taking counter payments.">
+    <Panel title="No Shift">
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center">
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500"><LockKeyhole size={20}/></div>
-        <div className="mt-4 text-[15px] font-semibold text-slate-900">Counter is closed</div>
-        <div className="mx-auto mt-1 max-w-md text-[11px] leading-5 text-slate-500">Start with a fresh float or accept cash handed over from the previous shift.</div>
+        <div className="mt-4 text-[16px] font-bold text-slate-900">Counter Closed</div>
         <button onClick={beginOpen} className="mt-5 rounded-lg bg-[var(--brand-primary)] px-6 py-3 text-[12px] font-semibold text-white">Open Shift</button>
       </div>
       {pending.length>0&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800"><b>{pending.length} pending cash handover{pending.length===1?'':'s'}</b> waiting to be accepted into a new shift.</div>}
@@ -151,40 +150,44 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         </div>)}</div>
       </div>}
     </Panel>
-    <Panel title="Recent Shifts" sub="Closed shifts.">
+    <Panel title="Recent Shifts">
       {history.length?<DataTable head={['Shift','Opened','Variance','Destination']} rows={history.slice(0,7).map(x=>[x.shift_no||('#'+x.id),new Date(x.opened_at).toLocaleString(),x.status==='closed'?money(x.variance||0,currency):'-',x.status==='closed'?nice(x.close_destination||'safe'):<Badge tone="green">Open</Badge>])}/>:<Empty text="No previous shifts yet."/>}
     </Panel>
   </div>:<>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Stat label="Shift" value={session.shift_no||('#'+session.id)} sub={(session.branch_name||'Branch')+' · '+(session.terminal_name||'No terminal')} icon={UnlockKeyhole}/>
-      <Stat label="Opening Float" value={money(session.opening_cash||0,currency)} sub={'Opened '+new Date(session.opened_at).toLocaleTimeString()} icon={Banknote} tone="blue"/>
-      <Stat label="Expected Cash" value={money(session.expectedCash||0,currency)} sub="Live calculated drawer cash" icon={Banknote} tone="violet"/>
-      <Stat label="Cash Sales" value={money(session.cashSales||0,currency)} sub={'Refunds '+money(session.refunds||0,currency)} icon={Banknote} tone="amber"/>
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <OpsMetric label="Opening" value={money(session.opening_cash||0,currency)} />
+      <OpsMetric label="Cash Sales" value={money(session.cashSales||0,currency)} tone="brand" />
+      <OpsMetric label="Expected" value={money(session.expectedCash||0,currency)} tone="dark" />
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400">Shift</div>
+        <div className="mt-2 truncate text-[15px] font-bold text-slate-900">{session.shift_no||('#'+session.id)}</div>
+        <div className="mt-1 truncate text-[11px] text-slate-500">{session.branch_name||'Branch'}{session.terminal_name?' · '+session.terminal_name:''}</div>
+      </div>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-      <Panel title="Counter Actions" sub="Record cash added or removed.">
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Action icon={ArrowDownLeft} title="Add Float" sub="Additional cash into till" onClick={()=>beginMove('additional_float')}/>
-          <Action icon={WalletCards} title="Pay Out" sub="Small expense from counter" onClick={()=>beginMove('expense')}/>
-          <Action icon={Landmark} title="Cash Drop" sub="Move excess cash to safe" onClick={()=>beginMove('cash_drop')}/>
-          <Action icon={ArrowUpRight} title="Deposit" sub="Remove cash for deposit" onClick={()=>beginMove('bank_deposit')}/>
+    <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_.8fr]">
+      <Panel title="Cash">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <QuickAction icon={ArrowDownLeft} label="Add Cash" onClick={()=>beginMove('additional_float')}/>
+          <QuickAction icon={WalletCards} label="Pay Out" onClick={()=>beginMove('expense')}/>
+          <QuickAction icon={Landmark} label="Drop Cash" onClick={()=>beginMove('cash_drop')}/>
+          <QuickAction icon={ArrowUpRight} label="Deposit" onClick={()=>beginMove('bank_deposit')}/>
         </div>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <button onClick={()=>openPdf('/documents/cash-session/'+session.id+'/pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-semibold text-slate-700"><Printer size={14}/>X Report</button>
-          <button onClick={beginClose} className="sm:ml-auto rounded-lg bg-slate-950 px-5 py-2.5 text-[11px] font-semibold text-white">Close & Reconcile</button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button onClick={()=>openPdf('/documents/cash-session/'+session.id+'/pdf')} className="ops-action inline-flex items-center justify-center gap-2 border border-slate-200 bg-white px-3 text-[12px] text-slate-700"><Printer size={15}/>X Report</button>
+          <button onClick={beginClose} className="ops-action bg-slate-950 px-3 text-[12px] text-white">Close Shift</button>
         </div>
       </Panel>
 
-      <Panel title="Expected Cash">
+      <Panel title="Expected">
         <div className="space-y-2.5">
           <Line label="Opening" value={money(session.opening_cash||0,currency)}/>
-          <Line label="+ Cash sales" value={money(session.cashSales||0,currency)}/>
+          <Line label="+ Sales" value={money(session.cashSales||0,currency)}/>
           {Number(session.refunds||0)>0&&<Line label="− Refunds" value={money(session.refunds||0,currency)}/>}
-          {Number(breakdown.extraFloat||0)>0&&<Line label="+ Cash added" value={money(breakdown.extraFloat,currency)}/>}
+          {Number(breakdown.extraFloat||0)>0&&<Line label="+ Added" value={money(breakdown.extraFloat,currency)}/>}
           {Number(breakdown.expenses||0)>0&&<Line label="− Payouts" value={money(breakdown.expenses,currency)}/>}
-          {Number(breakdown.drops||0)>0&&<Line label="− Drops / deposits" value={money(breakdown.drops,currency)}/>}
-          <div className="mt-2 border-t border-slate-100 pt-3"><Line label="Expected in drawer" value={money(session.expectedCash||0,currency)} strong/></div>
+          {Number(breakdown.drops||0)>0&&<Line label="− Drops" value={money(breakdown.drops,currency)}/>}
+          <div className="border-t border-slate-100 pt-2.5"><Line label="In Drawer" value={money(session.expectedCash||0,currency)} strong/></div>
         </div>
       </Panel>
     </div>
@@ -220,11 +223,11 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     <button onClick={addMove} disabled={busy||!reason.trim()||Number(amount)<=0} className="mt-4 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Posting…':'Post '+movementMeta[movementKind].title}</button>
   </Modal>}
 
-  {closeModal&&<Modal title={activeClose?.shift_no?("Close & Reconcile · "+activeClose.shift_no):"Close & Reconcile Shift"} onClose={()=>{if(!busy){setCloseModal(false);setCloseError("");setClosingSession(null)}}} size="lg">
+  {closeModal&&<Modal title="Close Shift" onClose={()=>{if(!busy){setCloseModal(false);setCloseError("");setClosingSession(null)}}} size="lg">
     {!settings?.blind_count||hasCount?<div className="grid gap-3 sm:grid-cols-3">
-      <Summary label="Expected cash" value={money(expected,currency)}/>
-      <Summary label="Physical counted" value={money(physical,currency)}/>
-      <Summary label="Variance" value={money(variance,currency)} danger={hasCount&&Math.abs(variance)>0.005}/>
+      <Summary label="Expected" value={money(expected,currency)}/>
+      <Summary label="Counted" value={money(physical,currency)}/>
+      <Summary label="Difference" value={money(variance,currency)} danger={hasCount&&Math.abs(variance)>0.005}/>
     </div>:<div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="text-[12px] font-semibold text-slate-800">Blind cash count</div><div className="mt-1 text-[10.5px] text-slate-500">Count the physical cash first. Expected cash and variance will be revealed after you enter the count.</div></div>}
 
     <div className="mt-4"><Field label={'Physical cash counted ('+currency+')'} required><input className="control" inputMode="decimal" value={actual} disabled={denoms.length>0} onChange={e=>setActual(e.target.value.replace(/[^0-9.]/g,''))} placeholder="Enter total cash counted"/></Field></div>
@@ -239,12 +242,12 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     {hasCount&&Math.abs(variance)>0.005&&settings?.require_variance_reason!==false&&<div className="mt-4"><Field label="Variance reason" required><textarea className="control min-h-20" value={varianceReason} onChange={e=>setVarianceReason(e.target.value)} placeholder="Explain the shortage or overage"/></Field></div>}
 
     <div className="mt-5">
-      <div className="text-[12px] font-semibold text-slate-800">Step 2 · Decide where the cash goes</div>
-      <div className="mt-1 text-[10.5px] leading-5 text-slate-500">Choose one destination. MauzoPOS will show exactly what stays for the next shift and what leaves the counter.</div>
+      <div className="text-[12px] font-semibold text-slate-800">Cash destination</div>
+      <div className="mt-1 text-[10.5px] leading-5 text-slate-500"></div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <Choice active={destination==='safe'} icon={Landmark} title="Safe / Deposit" sub="All counted cash leaves this counter." onClick={()=>{setDestination('safe');setCloseError('');setRecipientUserId('')}}/>
-        <Choice active={destination==='carry_forward'} icon={ArrowRightLeft} title="Carry Forward Float" sub="Leave a float for whichever cashier opens the next shift." onClick={()=>{setDestination('carry_forward');setCloseError('');setRecipientUserId('')}}/>
-        <Choice active={destination==='handover'} icon={ShieldCheck} title="Hand Over to Staff" sub="Assign cash to one named staff member to count and accept." onClick={()=>{setDestination('handover');setCloseError('')}}/>
+        <Choice active={destination==='safe'} icon={Landmark} title="Safe / Deposit" sub="All cash out" onClick={()=>{setDestination('safe');setCloseError('');setRecipientUserId('')}}/>
+        <Choice active={destination==='carry_forward'} icon={ArrowRightLeft} title="Carry Forward" sub="Next shift float" onClick={()=>{setDestination('carry_forward');setCloseError('');setRecipientUserId('')}}/>
+        <Choice active={destination==='handover'} icon={ShieldCheck} title="Hand Over" sub="Next staff" onClick={()=>{setDestination('handover');setCloseError('')}}/>
       </div>
     </div>
 
@@ -269,7 +272,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
 
     <div className="mt-4"><Field label="Closing note"><textarea className="control min-h-20" value={closingNote} onChange={e=>setClosingNote(e.target.value)} placeholder="Optional handover or manager note"/></Field></div>
     {closeError&&<div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[11.5px] font-medium leading-5 text-red-700">{closeError}</div>}
-    <button onClick={close} disabled={busy||!hasCount} className="mt-3 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing…':'Close Shift & Print Z Report'}</button>
+    <button onClick={close} disabled={busy||!hasCount} className="mt-3 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing…':'Close Shift'}</button>
   </Modal>}
 
   {settingsOpen&&<Modal title="Cash Controls" onClose={()=>!busy&&setSettingsOpen(false)} size="md">
@@ -283,7 +286,8 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  </div>
 }
 
-function Action({icon:Icon,title,sub,onClick}:{icon:any;title:string;sub:string;onClick:()=>void}){return <button onClick={onClick} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:bg-slate-50"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={16}/></div><div><div className="text-[11.5px] font-semibold text-slate-800">{title}</div><div className="mt-0.5 text-[10px] text-slate-500">{sub}</div></div></button>}
+function OpsMetric({label,value,tone='plain'}:{label:string;value:string;tone?:'plain'|'brand'|'dark'}){return <div className={'rounded-xl border p-4 '+(tone==='brand'?'border-[var(--brand-border)] bg-[var(--brand-soft)]':tone==='dark'?'border-slate-900 bg-slate-950':'border-slate-200 bg-white')}><div className={'text-[11px] font-semibold uppercase tracking-[.08em] '+(tone==='dark'?'text-slate-400':'text-slate-400')}>{label}</div><div className={'ops-money mt-2 text-[24px] font-bold leading-none sm:text-[27px] '+(tone==='dark'?'text-white':tone==='brand'?'text-[var(--brand-primary)]':'text-slate-950')}>{value}</div></div>}
+function QuickAction({icon:Icon,label,onClick}:{icon:any;label:string;onClick:()=>void}){return <button onClick={onClick} className="ops-action flex items-center justify-center gap-2 border border-slate-200 bg-white px-3 text-[12px] text-slate-700 hover:bg-slate-50"><Icon size={16}/>{label}</button>}
 function Choice({active,icon:Icon,title,sub,onClick}:{active:boolean;icon:any;title:string;sub:string;onClick:()=>void}){return <button onClick={onClick} className={'rounded-xl border p-3 text-left '+(active?'border-[var(--brand-primary)] bg-[var(--brand-soft)]':'border-slate-200 bg-white')}><Icon size={16} className={active?'text-[var(--brand-primary)]':'text-slate-400'}/><div className="mt-2 text-[11.5px] font-semibold text-slate-800">{title}</div><div className="mt-0.5 text-[10px] text-slate-500">{sub}</div></button>}
 function Field({label,children,required=false}:{label:string;children:any;required?:boolean}){return <label className="block text-[11.5px] font-medium text-slate-600">{label}{required&&<span className="ml-1 text-red-500">*</span>}{children}</label>}
 function Line({label,value,strong=false}:{label:string;value:string;strong?:boolean}){return <div className={'flex items-center justify-between gap-4 '+(strong?'text-[13px] font-semibold text-slate-900':'text-[11px] text-slate-600')}><span>{label}</span><span>{value}</span></div>}

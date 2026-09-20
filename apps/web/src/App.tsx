@@ -174,7 +174,7 @@ export default function App(){
       {operationView==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>setView(hasRestaurant?'Restaurant':'POS')}/>}
     </>
 
-  return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
+  return <div className="ops-ui min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-[var(--app-surface)]/98">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
