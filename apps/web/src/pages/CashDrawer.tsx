@@ -13,7 +13,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  const [opening,setOpening]=useState(''),[actual,setActual]=useState(''),[branchId,setBranchId]=useState<number|''>(''),[terminalId,setTerminalId]=useState<number|''>(''),[handoverId,setHandoverId]=useState<number|''>(''),[handoverReason,setHandoverReason]=useState('')
  const [movementKind,setMovementKind]=useState<MovementKind>('expense'),[amount,setAmount]=useState(''),[reason,setReason]=useState(''),[expenseCategory,setExpenseCategory]=useState('Counter Expense'),[recipient,setRecipient]=useState(''),[reference,setReference]=useState('')
  const [denoms,setDenoms]=useState<{value:string;count:string}[]>([]),[varianceReason,setVarianceReason]=useState(''),[closingNote,setClosingNote]=useState(''),[destination,setDestination]=useState<Destination>('safe'),[handoverAmount,setHandoverAmount]=useState(''),[recipientUserId,setRecipientUserId]=useState<number|''>('')
- const [busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[closeError,setCloseError]=useState(''),[message,setMessage]=useState('')
  const [standardFloat,setStandardFloat]=useState(''),[blindCount,setBlindCount]=useState(false),[approvalThreshold,setApprovalThreshold]=useState('')
 
  const load=async()=>{
@@ -91,26 +91,27 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  }
 
  async function beginClose(target:any=session){
-   setError('');setClosingSession(target||session);setActual('');setDenoms([]);setVarianceReason('');setClosingNote('');setDestination('safe');setRecipientUserId('');setHandoverAmount(settings?.standard_float?String(Number(settings.standard_float)):'')
+   setError('');setCloseError('');setClosingSession(target||session);setActual('');setDenoms([]);setVarianceReason('');setClosingNote('');setDestination('safe');setRecipientUserId('');setHandoverAmount(settings?.standard_float&&Number(settings.standard_float)>0?String(Number(settings.standard_float)):'')
    if(target?.branch_id)setTargets(arr(await api('/cash/handover-targets?branchId='+target.branch_id).catch(()=>[])))
    setCloseModal(true)
  }
 
  async function close(){
-   setError('')
-   if(!hasCount){setError('Enter the physical cash counted before closing the shift.');return}
-   if(physical<0){setError('Physical cash cannot be negative.');return}
-   if(Math.abs(variance)>0.005&&settings?.require_variance_reason!==false&&!varianceReason.trim()){setError('Enter a reason for the cash shortage or overage.');return}
+   setCloseError('')
+   if(!hasCount){setCloseError('Count the physical cash before closing this shift.');return}
+   if(physical<0){setCloseError('Physical cash cannot be negative.');return}
+   if(Math.abs(variance)>0.005&&settings?.require_variance_reason!==false&&!varianceReason.trim()){setCloseError('Explain the cash shortage or overage before closing.');return}
    const transfer=destination==='safe'?0:Number(handoverAmount||0)
-   if(destination!=='safe'&&!(transfer>0)){setError('Enter the amount to carry forward or hand over.');return}
-   if(transfer>physical+.005){setError('Handover amount cannot exceed the physical cash counted.');return}
-   if(destination==='handover'&&!recipientUserId){setError('Choose the next staff member receiving the cash.');return}
+   if(destination==='carry_forward'&&!(transfer>0)){setCloseError('Enter the float you want to leave for the next shift. The remaining cash will go to the safe/deposit.');return}
+   if(destination==='handover'&&!(transfer>0)){setCloseError('Enter the exact cash amount you are handing to the next staff member.');return}
+   if(transfer>physical+.005){setCloseError('The carry-forward or handover amount cannot be more than the physical cash counted.');return}
+   if(destination==='handover'&&!recipientUserId){setCloseError('Choose the staff member who will receive and count this cash.');return}
    setBusy(true)
    try{
      const out=await api('/cash/close',{method:'POST',body:JSON.stringify({sessionId:activeClose?.id,actualCash:physical,denominations:denoms.map(d=>({value:Number(d.value||0),count:Number(d.count||0)})).filter(d=>d.value>0&&d.count>0),varianceReason:varianceReason.trim()||null,closingNote:closingNote.trim()||null,closeDestination:destination,handoverAmount:transfer,recipientUserId:recipientUserId||null})})
-     setCloseModal(false);setClosingSession(null);setDenoms([]);setActual('');await load();setMessage(destination==='safe'?'Shift closed and cash assigned to safe/deposit.':'Shift closed and handover created for the next shift.')
+     setCloseModal(false);setCloseError('');setClosingSession(null);setDenoms([]);setActual('');await load();setMessage(destination==='safe'?'Shift closed. Closing cash was assigned to the safe/deposit.':destination==='carry_forward'?'Shift closed. The selected float is waiting for the next shift; the balance was assigned to the safe/deposit.':'Shift closed. The selected cash is waiting for the receiving staff member to count and accept.')
      await openPdf('/documents/cash-session/'+out.id+'/pdf')
-   }catch(e:any){setError(e.message||'Shift could not be closed.')}finally{setBusy(false)}
+   }catch(e:any){setCloseError(e.message||'Shift could not be closed.')}finally{setBusy(false)}
  }
 
  function beginSettings(){
@@ -219,7 +220,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     <button onClick={addMove} disabled={busy||!reason.trim()||Number(amount)<=0} className="mt-4 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Posting…':'Post '+movementMeta[movementKind].title}</button>
   </Modal>}
 
-  {closeModal&&<Modal title={activeClose?.shift_no?("Close & Reconcile · "+activeClose.shift_no):"Close & Reconcile Shift"} onClose={()=>!busy&&setCloseModal(false)} size="lg">
+  {closeModal&&<Modal title={activeClose?.shift_no?("Close & Reconcile · "+activeClose.shift_no):"Close & Reconcile Shift"} onClose={()=>{if(!busy){setCloseModal(false);setCloseError("");setClosingSession(null)}}} size="lg">
     {!settings?.blind_count||hasCount?<div className="grid gap-3 sm:grid-cols-3">
       <Summary label="Expected cash" value={money(expected,currency)}/>
       <Summary label="Physical counted" value={money(physical,currency)}/>
@@ -238,19 +239,37 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     {hasCount&&Math.abs(variance)>0.005&&settings?.require_variance_reason!==false&&<div className="mt-4"><Field label="Variance reason" required><textarea className="control min-h-20" value={varianceReason} onChange={e=>setVarianceReason(e.target.value)} placeholder="Explain the shortage or overage"/></Field></div>}
 
     <div className="mt-5">
-      <div className="mb-2 text-[11.5px] font-semibold text-slate-700">Where should the closing cash go?</div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Choice active={destination==='safe'} icon={Landmark} title="Safe / Deposit" sub="Remove closing cash from till" onClick={()=>setDestination('safe')}/>
-        <Choice active={destination==='carry_forward'} icon={ArrowRightLeft} title="Carry Forward" sub="Keep float for next shift" onClick={()=>setDestination('carry_forward')}/>
-        <Choice active={destination==='handover'} icon={ShieldCheck} title="Hand Over" sub="Assign cash to next staff" onClick={()=>setDestination('handover')}/>
+      <div className="text-[12px] font-semibold text-slate-800">Step 2 · Decide where the cash goes</div>
+      <div className="mt-1 text-[10.5px] leading-5 text-slate-500">Choose one destination. MauzoPOS will show exactly what stays for the next shift and what leaves the counter.</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <Choice active={destination==='safe'} icon={Landmark} title="Safe / Deposit" sub="All counted cash leaves this counter." onClick={()=>{setDestination('safe');setCloseError('');setRecipientUserId('')}}/>
+        <Choice active={destination==='carry_forward'} icon={ArrowRightLeft} title="Carry Forward Float" sub="Leave a float for whichever cashier opens the next shift." onClick={()=>{setDestination('carry_forward');setCloseError('');setRecipientUserId('')}}/>
+        <Choice active={destination==='handover'} icon={ShieldCheck} title="Hand Over to Staff" sub="Assign cash to one named staff member to count and accept." onClick={()=>{setDestination('handover');setCloseError('')}}/>
       </div>
     </div>
 
-    {destination!=='safe'&&<div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label={'Amount to '+(destination==='handover'?'hand over':'carry forward')} required><input className="control" inputMode="decimal" value={handoverAmount} onChange={e=>setHandoverAmount(e.target.value.replace(/[^0-9.]/g,''))}/></Field>{destination==='handover'&&<Field label="Receiving staff" required><select className="control" value={recipientUserId} onChange={e=>setRecipientUserId(Number(e.target.value)||'')}><option value="">Choose staff member</option>{targets.map(t=><option key={t.id} value={t.id}>{t.name} · {nice(t.role)}</option>)}</select></Field>}</div>}
-    {destination!=='safe'&&hasCount&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[10.5px] text-slate-600">Safe/deposit after handover: <b>{money(Math.max(0,physical-Number(handoverAmount||0)),currency)}</b></div>}
+    {destination!=='safe'&&<div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="text-[11.5px] font-semibold text-slate-800">{destination==='carry_forward'?'Next-shift float':'Staff handover'}</div>
+      <div className="mt-1 text-[10.5px] leading-5 text-slate-500">{destination==='carry_forward'?'Enter only the float to remain for the next shift. It is not assigned to a person. The rest goes to the safe/deposit.':'Enter the cash being handed to the selected staff member. They must count and accept it when opening their shift.'}</div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label={destination==='handover'?'Cash to hand over':'Float to carry forward'} required><input className="control" inputMode="decimal" value={handoverAmount} onChange={e=>{setHandoverAmount(e.target.value.replace(/[^0-9.]/g,''));setCloseError('')}} placeholder={settings?.standard_float&&Number(settings.standard_float)>0?('Standard float: '+money(settings.standard_float,currency)):'Enter amount'}/></Field>
+        {destination==='handover'&&<Field label="Receiving staff" required><select className="control" value={recipientUserId} onChange={e=>{setRecipientUserId(Number(e.target.value)||'');setCloseError('')}}><option value="">Choose staff member</option>{targets.map(t=><option key={t.id} value={t.id}>{t.name} · {nice(t.role)}</option>)}</select></Field>}
+      </div>
+      {settings?.standard_float&&Number(settings.standard_float)>0&&destination==='carry_forward'&&<button type="button" onClick={()=>{setHandoverAmount(String(Number(settings.standard_float)));setCloseError('')}} className="mt-2 text-[10.5px] font-semibold text-[var(--brand-primary)]">Use standard float · {money(settings.standard_float,currency)}</button>}
+    </div>}
+
+    {hasCount&&<div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="text-[11.5px] font-semibold text-slate-800">Closing allocation</div>
+      <div className="mt-3 space-y-2">
+        <Line label="Physical cash counted" value={money(physical,currency)} />
+        {destination!=='safe'&&<Line label={destination==='handover'?'To receiving staff':'To next shift float'} value={money(Math.max(0,Number(handoverAmount||0)),currency)} />}
+        <div className="border-t border-slate-100 pt-2"><Line label="To safe / deposit" value={money(destination==='safe'?physical:Math.max(0,physical-Number(handoverAmount||0)),currency)} strong/></div>
+      </div>
+    </div>}
 
     <div className="mt-4"><Field label="Closing note"><textarea className="control min-h-20" value={closingNote} onChange={e=>setClosingNote(e.target.value)} placeholder="Optional handover or manager note"/></Field></div>
-    <button onClick={close} disabled={busy||!hasCount} className="mt-4 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing…':'Close Shift & Print Z Report'}</button>
+    {closeError&&<div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[11.5px] font-medium leading-5 text-red-700">{closeError}</div>}
+    <button onClick={close} disabled={busy||!hasCount} className="mt-3 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Closing…':'Close Shift & Print Z Report'}</button>
   </Modal>}
 
   {settingsOpen&&<Modal title="Cash Controls" onClose={()=>!busy&&setSettingsOpen(false)} size="md">
