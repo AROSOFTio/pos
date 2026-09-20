@@ -1727,3 +1727,68 @@ CREATE INDEX IF NOT EXISTS idx_supplier_transactions ON supplier_transactions(bu
 
 ALTER TABLE user_businesses ADD COLUMN IF NOT EXISTS staff_status TEXT NOT NULL DEFAULT 'active';
 UPDATE user_businesses SET staff_status=CASE WHEN active THEN 'active' ELSE 'disabled' END WHERE staff_status IS NULL OR staff_status='';
+
+-- Core cash accountability / shift handover
+ALTER TABLE cash_movements ADD COLUMN IF NOT EXISTS movement_category TEXT NOT NULL DEFAULT 'general';
+ALTER TABLE cash_movements ADD COLUMN IF NOT EXISTS expense_category TEXT;
+ALTER TABLE cash_movements ADD COLUMN IF NOT EXISTS recipient TEXT;
+ALTER TABLE cash_movements ADD COLUMN IF NOT EXISTS approved_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE cash_movements ADD COLUMN IF NOT EXISTS approved_by TEXT;
+
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS close_destination TEXT;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS retained_float NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS safe_deposit_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS handover_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE cash_sessions ADD COLUMN IF NOT EXISTS reconciliation_status TEXT NOT NULL DEFAULT 'open';
+
+CREATE TABLE IF NOT EXISTS cash_handovers (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  source_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE CASCADE,
+  target_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL,
+  transfer_type TEXT NOT NULL CHECK(transfer_type IN ('direct_handover','carry_forward')),
+  amount NUMERIC(14,2) NOT NULL CHECK(amount>=0),
+  recipient_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  recipient_name TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','disputed','cancelled')),
+  accepted_amount NUMERIC(14,2),
+  discrepancy NUMERIC(14,2),
+  discrepancy_reason TEXT,
+  created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  accepted_at TIMESTAMPTZ,
+  accepted_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  accepted_by TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cash_handovers_pending ON cash_handovers(business_id,branch_id,status,recipient_user_id,created_at);
+
+CREATE TABLE IF NOT EXISTS cash_control_settings (
+  business_id BIGINT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  standard_float NUMERIC(14,2) NOT NULL DEFAULT 0,
+  blind_count BOOLEAN NOT NULL DEFAULT false,
+  payout_approval_threshold NUMERIC(14,2) NOT NULL DEFAULT 0,
+  require_variance_reason BOOLEAN NOT NULL DEFAULT true,
+  require_manager_variance_approval BOOLEAN NOT NULL DEFAULT false,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO cash_control_settings(business_id)
+SELECT id FROM businesses
+ON CONFLICT(business_id) DO NOTHING;
+
+INSERT INTO permission_catalog(code,name,section) VALUES
+('shift.manage','Manage shift controls and cash settings','Cash & Shifts'),
+('shift.payout.approve','Approve counter payouts','Cash & Shifts'),
+('shift.handover','Manage shift handovers','Cash & Shifts')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'branch_manager',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('shift.manage','shift.payout.approve','shift.handover')
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'restaurant_manager',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('shift.manage','shift.payout.approve','shift.handover')
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'accountant',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('shift.manage','shift.payout.approve')
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
