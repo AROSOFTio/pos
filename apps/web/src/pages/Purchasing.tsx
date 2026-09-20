@@ -6,15 +6,17 @@ import { PageHeading, Stat, Panel, DataTable, Badge, Loading, Modal } from '../c
 type DraftItem={productId:number;name:string;qty:number;unitCost:number}
 
 export default function Purchasing({currency}:{currency:string}){
- const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'>('orders')
+ const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
  const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false)
  const [suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([]),[supplierProducts,setSupplierProducts]=useState<any[]>([])
  const [supplierId,setSupplierId]=useState<number>(0),[branchId,setBranchId]=useState<number>(0),[selectedProduct,setSelectedProduct]=useState<number>(0),[notes,setNotes]=useState('')
  const [items,setItems]=useState<DraftItem[]>([]),[saving,setSaving]=useState(false)
  const [submitPo,setSubmitPo]=useState<any>(null),[submitNote,setSubmitNote]=useState(''),[urgent,setUrgent]=useState(false)
+ const [receivePo,setReceivePo]=useState<any>(null),[receiveItems,setReceiveItems]=useState<any[]>([]),[receiveRef,setReceiveRef]=useState(''),[receiveNotes,setReceiveNotes]=useState('')
+ const [returnOpen,setReturnOpen]=useState(false),[returnSupplier,setReturnSupplier]=useState(0),[returnReason,setReturnReason]=useState(''),[returnItems,setReturnItems]=useState<any[]>([{productId:0,locationId:0,qty:1,unitCost:0}]),[balances,setBalances]=useState<any[]>([])
  const [invoiceOpen,setInvoiceOpen]=useState(false),[invoicePay,setInvoicePay]=useState<any>(null),[invoiceSupplier,setInvoiceSupplier]=useState(0),[invoicePo,setInvoicePo]=useState(0),[invoiceGrn,setInvoiceGrn]=useState(0),[invoiceNo,setInvoiceNo]=useState(''),[invoiceDate,setInvoiceDate]=useState(''),[dueDate,setDueDate]=useState(''),[invoiceTax,setInvoiceTax]=useState(0),[invoiceItems,setInvoiceItems]=useState<any[]>([{description:'',qty:1,unitCost:0}]),[payAmount,setPayAmount]=useState(0),[payMethod,setPayMethod]=useState('cash'),[payReference,setPayReference]=useState('')
 
- const load=()=>Promise.all([api('/purchasing/overview'),api('/purchase-orders'),api('/grns'),api('/purchasing/invoices').catch(()=>[])]).then(([o,p,g,i])=>{setO(o);setPos(p);setGrns(g);setInvoices(Array.isArray(i)?i:[])})
+ const load=()=>Promise.all([api('/purchasing/overview'),api('/purchase-orders'),api('/grns'),api('/purchasing/invoices').catch(()=>[]),api('/purchasing/returns').catch(()=>[])]).then(([o,p,g,i,r])=>{setO(o);setPos(p);setGrns(g);setInvoices(Array.isArray(i)?i:[]);setReturns(Array.isArray(r)?r:[])})
  useEffect(()=>{load()},[])
  const total=useMemo(()=>items.reduce((n,x)=>n+x.qty*x.unitCost,0),[items])
 
@@ -56,11 +58,27 @@ export default function Purchasing({currency}:{currency:string}){
    setSaving(true)
    try{await api('/purchasing/invoices/'+invoicePay.id+'/payments',{method:'POST',body:JSON.stringify({amount:payAmount,paymentMethod:payMethod,reference:payReference})});setInvoicePay(null);await load()}finally{setSaving(false)}
  }
+ async function openReceive(po:any){
+   const d=await api('/purchase-orders/'+po.id)
+   setReceivePo(d.order);setReceiveItems((d.items||[]).filter((x:any)=>Number(x.qty_received)<Number(x.qty_ordered)).map((x:any)=>({itemId:Number(x.id),name:x.product_name,qty:Math.max(0,Number(x.qty_ordered)-Number(x.qty_received)),unitCost:Number(x.unit_cost||0),lotNo:'',expiryDate:''})));setReceiveRef('');setReceiveNotes('')
+ }
+ async function postReceive(){
+   if(!receivePo||!receiveItems.some(x=>Number(x.qty)>0))return
+   setSaving(true)
+   try{await api('/purchase-orders/'+receivePo.id+'/receive',{method:'POST',body:JSON.stringify({supplierReference:receiveRef.trim()||null,notes:receiveNotes.trim()||null,items:receiveItems.filter(x=>Number(x.qty)>0)})});setReceivePo(null);await load()}finally{setSaving(false)}
+ }
+ async function openReturn(){
+   const [s,b]=await Promise.all([api('/suppliers'),api('/inventory/balances')]);setSuppliers(s);setBalances(Array.isArray(b)?b:[]);setReturnSupplier(0);setReturnReason('');setReturnItems([{productId:0,locationId:0,qty:1,unitCost:0}]);setReturnOpen(true)
+ }
+ async function postReturn(){
+   if(!returnSupplier||!returnReason.trim()||!returnItems.some(x=>x.productId&&x.locationId&&Number(x.qty)>0))return
+   setSaving(true);try{await api('/purchasing/returns',{method:'POST',body:JSON.stringify({supplierId:returnSupplier,reason:returnReason.trim(),items:returnItems.filter(x=>x.productId&&x.locationId&&Number(x.qty)>0)})});setReturnOpen(false);await load()}finally{setSaving(false)}
+ }
 
  if(!o)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receiving, supplier invoices and payments." action={<div className="flex gap-2"><button onClick={section==='orders'?openCreate:openInvoice} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>{section==='orders'?'New Purchase Order':'Supplier Invoice'}</button></div>}/>
-  <div className="mb-4 flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button onClick={()=>setSection('orders')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='orders'?'bg-slate-950 text-white':'text-slate-500')}>Purchase Orders</button><button onClick={()=>setSection('invoices')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='invoices'?'bg-slate-950 text-white':'text-slate-500')}>Supplier Invoices</button></div>
+  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receiving, supplier invoices and payments." action={<div className="flex gap-2"><button onClick={section==='orders'?openCreate:section==='invoices'?openInvoice:openReturn} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>{section==='orders'?'New Purchase Order':section==='invoices'?'Supplier Invoice':'Purchase Return'}</button></div>}/>
+  <div className="mb-4 flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button onClick={()=>setSection('orders')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='orders'?'bg-slate-950 text-white':'text-slate-500')}>Purchase Orders</button><button onClick={()=>setSection('invoices')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='invoices'?'bg-slate-950 text-white':'text-slate-500')}>Supplier Invoices</button><button onClick={()=>setSection('returns')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='returns'?'bg-slate-950 text-white':'text-slate-500')}>Returns</button></div>
   {section==='orders'&&<>
   <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
     <Stat label="Open POs" value={o.openOrders} sub="Draft / approval / partial" icon={Truck}/>
@@ -76,7 +94,7 @@ export default function Purchasing({currency}:{currency:string}){
       Number(x.received_qty)+'/'+Number(x.total_qty),
       money(x.total,currency),
       <div className="flex gap-2">
-        {(x.status==='draft'||x.status==='rejected')&&<button onClick={()=>setSubmitPo(x)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-medium">{x.status==='rejected'?'Resubmit':'Submit'}</button>}
+        {(x.status==='draft'||x.status==='rejected')&&<button onClick={()=>setSubmitPo(x)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-medium">{x.status==='rejected'?'Resubmit':'Submit'}</button>}{(x.status==='ordered'||x.status==='partial')&&<button onClick={()=>openReceive(x)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-white">Receive</button>}
         <button onClick={()=>openPdf('/documents/purchase-order/'+x.id+'/pdf')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-600" title="Open PDF"><FileText size={15}/></button>
       </div>
     ])}/></Panel>
@@ -97,6 +115,10 @@ export default function Purchasing({currency}:{currency:string}){
   </>}
 
 
+
+  {section==='returns'&&<Panel title="Purchase Returns" sub="Stock returned to suppliers is removed from inventory and credited to the supplier ledger.">
+    {returns.length?<DataTable head={['Return','Supplier','PO / GRN','Reason','Total','Date']} rows={returns.map(x=>[<b>{x.return_no}</b>,x.supplier_name,<div className="text-[10px]">{x.po_no||'-'}<div className="text-slate-400">{x.grn_no||''}</div></div>,x.reason,money(x.total,currency),new Date(x.created_at).toLocaleString()])}/>:<div className="py-10 text-center text-[11px] text-slate-400">No purchase returns yet.</div>}
+  </Panel>}
 
   {createOpen&&<Modal title={preview?'Preview Purchase Order':'New Purchase Order'} onClose={()=>setCreateOpen(false)}>
     {!preview?<div className="space-y-4">
@@ -121,6 +143,19 @@ export default function Purchasing({currency}:{currency:string}){
       </div>
       <div className="mt-4 flex justify-end gap-2"><button onClick={()=>setPreview(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium">Back</button><button onClick={savePO} disabled={saving} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium">{saving?'Saving…':'Save Draft PO'}</button></div>
     </div>}
+  </Modal>}
+
+  {receivePo&&<Modal title={'Receive '+receivePo.po_no} onClose={()=>!saving&&setReceivePo(null)} size="xl">
+    <div className="grid gap-3 sm:grid-cols-2"><label className="text-[11px] font-medium text-slate-600">Supplier reference<input className="control" value={receiveRef} onChange={e=>setReceiveRef(e.target.value)} placeholder="Delivery note / invoice reference"/></label><label className="text-[11px] font-medium text-slate-600">Receiving notes<input className="control" value={receiveNotes} onChange={e=>setReceiveNotes(e.target.value)}/></label></div>
+    <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto">{receiveItems.map((x,i)=><div key={x.itemId} className="rounded-xl border border-slate-200 p-3"><div className="mb-2 text-[11px] font-semibold text-slate-800">{x.name}</div><div className="grid gap-2 sm:grid-cols-4"><label className="text-[9.5px] text-slate-500">Qty<input className="control" type="number" min="0" step="0.001" value={x.qty} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,qty:Number(e.target.value)}:z))}/></label><label className="text-[9.5px] text-slate-500">Unit cost<input className="control" type="number" min="0" value={x.unitCost} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,unitCost:Number(e.target.value)}:z))}/></label><label className="text-[9.5px] text-slate-500">Lot / batch<input className="control" value={x.lotNo} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,lotNo:e.target.value}:z))} placeholder="Optional"/></label><label className="text-[9.5px] text-slate-500">Expiry<input type="date" className="control" value={x.expiryDate} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,expiryDate:e.target.value}:z))}/></label></div></div>)}</div>
+    <button onClick={postReceive} disabled={saving||!receiveItems.some(x=>Number(x.qty)>0)} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Posting…':'Post Goods Receipt'}</button>
+  </Modal>}
+
+  {returnOpen&&<Modal title="Purchase Return" onClose={()=>!saving&&setReturnOpen(false)} size="lg">
+    <div className="grid gap-3 sm:grid-cols-2"><label className="text-[11px] font-medium text-slate-600">Supplier<select className="control" value={returnSupplier} onChange={e=>setReturnSupplier(Number(e.target.value))}><option value="0">Choose supplier</option>{suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="text-[11px] font-medium text-slate-600">Reason<input className="control" value={returnReason} onChange={e=>setReturnReason(e.target.value)} placeholder="Damaged, wrong item, rejected quality…"/></label></div>
+    <div className="mt-4 space-y-2">{returnItems.map((x,i)=><div key={i} className="grid grid-cols-[1fr_100px_110px_30px] gap-2"><select className="control mt-0" value={x.productId+'|'+x.locationId} onChange={e=>{const [productId,locationId]=e.target.value.split('|').map(Number),b=balances.find(z=>Number(z.product_id)===productId&&Number(z.location_id)===locationId);setReturnItems(v=>v.map((z,k)=>k===i?{...z,productId,locationId,unitCost:Number(b?.avg_cost||0)}:z))}}><option value="0|0">Choose stock</option>{balances.filter(b=>Number(b.qty)>0).map(b=><option key={b.product_id+'-'+b.location_id} value={b.product_id+'|'+b.location_id}>{b.product_name} · {b.location_name} · {Number(b.qty)} available</option>)}</select><input className="control mt-0" type="number" min="0.001" step="0.001" value={x.qty} onChange={e=>setReturnItems(v=>v.map((z,k)=>k===i?{...z,qty:Number(e.target.value)}:z))}/><input className="control mt-0" type="number" min="0" value={x.unitCost} onChange={e=>setReturnItems(v=>v.map((z,k)=>k===i?{...z,unitCost:Number(e.target.value)}:z))}/><button onClick={()=>setReturnItems(v=>v.filter((_,k)=>k!==i))} className="text-slate-400">×</button></div>)}</div>
+    <button onClick={()=>setReturnItems(v=>[...v,{productId:0,locationId:0,qty:1,unitCost:0}])} className="mt-2 text-[10px] font-medium text-[var(--brand-primary)]">+ Add item</button>
+    <button onClick={postReturn} disabled={saving||!returnSupplier||!returnReason.trim()} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Posting…':'Post Purchase Return'}</button>
   </Modal>}
 
   {invoiceOpen&&<Modal title="Supplier Invoice" onClose={()=>!saving&&setInvoiceOpen(false)} size="lg">
