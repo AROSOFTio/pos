@@ -30,7 +30,7 @@ const METHODS=[
   {value:'bank transfer',label:'Bank Transfer',icon:Landmark},
 ]
 
-const createLine=(id:number,amount:number):PaymentLine=>({id,method:'cash',amount,tenderedAmount:amount,reference:''})
+const createLine=(id:number,amount=0,tenderedAmount=0):PaymentLine=>({id,method:'cash',amount,tenderedAmount,reference:''})
 
 export default function PaymentModal({open,title,total,amountPaid=0,currency,busy=false,onClose,onSubmit}:Props){
   const balance=Math.max(0,Number(total)-Number(amountPaid||0))
@@ -38,21 +38,43 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
   const [error,setError]=useState('')
 
   useEffect(()=>{
-    if(open){setLines([createLine(Date.now(),balance)]);setError('')}
+    if(open){setLines([createLine(Date.now())]);setError('')}
   },[open,balance])
 
   const proposed=useMemo(()=>lines.reduce((n,x)=>n+Number(x.amount||0),0),[lines])
   const remaining=Math.max(0,balance-proposed)
   const change=useMemo(()=>lines.reduce((n,x)=>n+(x.method==='cash'?Math.max(0,Number(x.tenderedAmount||0)-Number(x.amount||0)):0),0),[lines])
+  const paidEnough=remaining<=0.005&&proposed>0
+
+  const dueBefore=(id:number,current:PaymentLine[])=>{
+    const other=current.filter(x=>x.id!==id).reduce((n,x)=>n+Math.max(0,Number(x.amount||0)),0)
+    return Math.max(0,Math.round((balance-other)*100)/100)
+  }
 
   if(!open)return null
 
   const patch=(id:number,patch:Partial<PaymentLine>)=>setLines(v=>v.map(x=>x.id===id?{...x,...patch}:x))
+  const changeMethod=(id:number,method:string)=>setLines(v=>v.map(x=>{
+    if(x.id!==id)return x
+    const due=dueBefore(id,v)
+    if(method==='cash')return {...x,method,amount:0,tenderedAmount:0,reference:''}
+    return {...x,method,amount:due,tenderedAmount:due,reference:''}
+  }))
+  const setCashReceived=(id:number,value:number)=>setLines(v=>v.map(x=>{
+    if(x.id!==id)return x
+    const due=dueBefore(id,v),received=Math.max(0,value),applied=Math.min(received,due)
+    return {...x,tenderedAmount:received,amount:applied}
+  }))
+  const setNonCashReceived=(id:number,value:number)=>setLines(v=>v.map(x=>{
+    if(x.id!==id)return x
+    const due=dueBefore(id,v),received=Math.max(0,value)
+    return {...x,amount:Math.min(received,due),tenderedAmount:Math.min(received,due)}
+  }))
   const add=()=>setLines(v=>{
     const allocated=v.reduce((n,x)=>n+Math.max(0,Number(x.amount||0)),0)
     const due=Math.max(0,Math.round((balance-allocated)*100)/100)
-    if(due<=0.005||v.length>=6)return v
-    return [...v,createLine(Date.now()+v.length,due)]
+    if(due<=0.005||allocated<=0.005||v.length>=6)return v
+    return [...v,createLine(Date.now()+v.length,due,due)]
   })
   const remove=(id:number)=>setLines(v=>v.filter(x=>x.id!==id))
 
@@ -61,11 +83,9 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
     const clean=lines
       .map(x=>({method:x.method,amount:Number(x.amount||0),tenderedAmount:x.method==='cash'?Number(x.tenderedAmount||0):Number(x.amount||0),reference:x.reference.trim()}))
       .filter(x=>x.amount>0)
-    if(!clean.length){setError('Enter at least one payment amount.');return}
+    if(!clean.length){setError('Enter at least one received payment amount.');return}
     if(proposed>balance+0.005){setError('Payment exceeds the outstanding balance.');return}
-    for(const x of clean){
-      if(x.method==='cash'&&x.tenderedAmount+0.005<x.amount){setError('Cash tendered cannot be less than the cash payment amount.');return}
-    }
+    if(remaining>0.005){setError(money(remaining,currency)+' is still unpaid. Add another payment method or receive the remaining amount.');return}
     try{
       await onSubmit(clean)
     }catch(e:any){
@@ -92,38 +112,41 @@ export default function PaymentModal({open,title,total,amountPaid=0,currency,bus
 
           <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
             <label className="text-xs font-medium text-slate-600">Payment method
-              <select value={line.method} onChange={e=>patch(line.id,{method:e.target.value,tenderedAmount:Number(line.amount||0)})} className="control">
+              <select value={line.method} onChange={e=>changeMethod(line.id,e.target.value)} className="control">
                 {METHODS.map(m=><option key={m.value} value={m.value}>{m.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-medium text-slate-600">Amount
-              <input type="number" min="0" step="0.01" value={line.amount||''} onChange={e=>patch(line.id,{amount:Number(e.target.value),tenderedAmount:line.method==='cash'?Number(e.target.value):Number(e.target.value)})} className="control"/>
-            </label>
-            {line.method==='cash'&&<label className="text-xs font-medium text-slate-600">Cash tendered
-              <input type="number" min="0" step="0.01" value={line.tenderedAmount||''} onChange={e=>patch(line.id,{tenderedAmount:Number(e.target.value)})} className="control"/>
+            <div>
+              <div className="text-xs font-medium text-slate-600">Amount due</div>
+              <div className="mt-[.35rem] flex min-h-[42px] items-center rounded-[.65rem] border border-slate-200 bg-slate-50 px-3 text-[13px] font-semibold text-slate-800">{money(dueBefore(line.id,lines),currency)}</div>
+            </div>
+            {line.method==='cash'?<label className="text-xs font-medium text-slate-600">Cash received
+              <input type="number" min="0" step="0.01" value={line.tenderedAmount||''} onChange={e=>setCashReceived(line.id,Number(e.target.value))} className="control" placeholder="Enter cash received"/>
+            </label>:<label className="text-xs font-medium text-slate-600">Amount received
+              <input type="number" min="0" step="0.01" value={line.amount||''} onChange={e=>setNonCashReceived(line.id,Number(e.target.value))} className="control" placeholder="Enter amount received"/>
             </label>}
             {line.method!=='cash'&&<label className="text-xs font-medium text-slate-600">Reference / transaction ID
               <input value={line.reference} onChange={e=>patch(line.id,{reference:e.target.value})} className="control" placeholder="Optional reference"/>
             </label>}
           </div>
-          {line.method==='cash'&&Number(line.tenderedAmount)>Number(line.amount)&&<div className="mt-2 text-right text-xs font-medium text-[var(--brand-primary)]">Change: {money(Number(line.tenderedAmount)-Number(line.amount),currency)}</div>}
+          {line.method==='cash'&&Number(line.tenderedAmount)>dueBefore(line.id,lines)&&<div className="mt-2 text-right text-xs font-medium text-[var(--brand-primary)]">Change: {money(Number(line.tenderedAmount)-dueBefore(line.id,lines),currency)}</div>}
         </div>
       })}
     </div>
 
     <div className="sticky bottom-0 z-10 -mx-4 mt-3 border-t border-slate-100 bg-white px-4 pb-1 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pt-0"><div className="flex flex-wrap items-center justify-between gap-3">
-      <button onClick={add} disabled={remaining<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Add payment method</button>
+      <button onClick={add} disabled={proposed<=0.005||remaining<=0.005||lines.length>=6} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"><Plus size={14}/>Add payment method</button>
       <div className="text-right">
-        <div className="text-[11px] text-slate-400">After this payment</div>
-        <div className={'text-lg font-semibold '+(remaining<=0.005?'text-[var(--brand-primary)]':'text-slate-700')}>{remaining<=0.005?'Fully paid':money(remaining,currency)+' due'}</div>
+        <div className="text-[11px] text-slate-400">Balance remaining</div>
+        <div className={'text-lg font-semibold '+(paidEnough?'text-[var(--brand-primary)]':'text-slate-700')}>{paidEnough?'Fully covered':money(remaining,currency)+' still due'}</div>
         {change>0&&<div className="text-xs font-medium text-[var(--brand-primary)]">{money(change,currency)} change</div>}
       </div>
     </div>
 
     {error&&<div className="mt-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[12px] font-medium text-red-700">{error}</div>}
 
-    <button onClick={submit} disabled={busy||proposed<=0} className="mt-3 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:opacity-40">
-      {busy?'Posting payment…':remaining<=0.005?'Complete Payment':'Post Partial Payment'}
+    <button onClick={submit} disabled={busy||!paidEnough} className="mt-3 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:opacity-40">
+      {busy?'Posting payment…':'Complete Payment'}
     </button></div>
   </Modal>
 }
