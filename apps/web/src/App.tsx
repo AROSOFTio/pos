@@ -56,7 +56,7 @@ export default function App(){
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
       setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
       setBusinessLogo(String(theme?.logo_url||''))
-      applyTheme(String(theme?.theme_key||'green'),String(theme?.theme_mode||'light'),String(theme?.document_accent||''),String(theme?.theme_background||'clean'),String(theme?.theme_background_scope||'operations'))
+      applyTheme(String(theme?.theme_key||'green'),String(theme?.theme_mode||'light'),String(theme?.document_accent||''),String(theme?.theme_background||'clean'),String(theme?.theme_background_scope||'operations'),String(theme?.theme_background_image||''),String(theme?.theme_background_image_fit||'cover'))
     }).catch(()=>{})
   },[user])
   useEffect(()=>{
@@ -277,7 +277,7 @@ const themePalettes:Record<string,{primary:string;soft:string;border:string;bg:s
   gold:{primary:'#B7791F',soft:'#FFF8E7',border:'#EED7A2',bg:'#FAF9F5',surface:'#FFFFFF',text:'#211D15',muted:'#716856',sidebar:'#FEFDF9'},
   dark:{primary:'#A3E635',soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
 }
-function applyTheme(key:string,mode:string,customAccent='',background='clean',scope='operations'){
+function applyTheme(key:string,mode:string,customAccent='',background='clean',scope='operations',backgroundImage='',backgroundFit='cover'){
   const p=themePalettes[key]||themePalettes.green
   const primary=customAccent||p.primary
   const root=document.documentElement
@@ -291,10 +291,13 @@ function applyTheme(key:string,mode:string,customAccent='',background='clean',sc
   root.style.setProperty('--app-sidebar',p.sidebar)
   const cleanBg=key==='dark'?p.bg:'#EEF2F5'
   const tinted=key==='dark'
-    ? (background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg)
-    : (background==='rich'?'color-mix(in srgb, '+primary+' 10%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+primary+' 5%, #F5F7F9)':cleanBg)
+    ? (background==='solid'?'#202B1B':background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg)
+    : (background==='solid'?primary:background==='rich'?'color-mix(in srgb, '+primary+' 16%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+primary+' 7%, #F5F7F9)':cleanBg)
   root.style.setProperty('--theme-workspace-bg',tinted)
-  root.style.setProperty('--app-bg',scope==='all'?tinted:cleanBg)
+  root.style.setProperty('--theme-workspace-image',background==='image'&&backgroundImage?'url("'+backgroundImage+'")':'none')
+  root.style.setProperty('--theme-workspace-image-size',backgroundFit==='contain'?'contain':backgroundFit==='repeat'?'auto':'cover')
+  root.style.setProperty('--theme-workspace-image-repeat',backgroundFit==='repeat'?'repeat':'no-repeat')
+  root.style.setProperty('--app-bg',scope==='all'&&background!=='image'?tinted:cleanBg)
   root.dataset.theme=key
   root.dataset.mode=mode
   root.dataset.background=background

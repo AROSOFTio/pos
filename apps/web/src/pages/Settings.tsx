@@ -74,9 +74,9 @@ export default function Settings(){
        defaultServiceChargeRate:Number(s.default_service_charge_rate||0),
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
        receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,receiptShowBusinessName:!!s.receipt_show_business_name,
-       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light',themeBackground:s.theme_background||'clean',themeBackgroundScope:s.theme_background_scope||'operations'
+       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light',themeBackground:s.theme_background||'clean',themeBackgroundScope:s.theme_background_scope||'operations',themeBackgroundImage:s.theme_background_image||null,themeBackgroundImageFit:s.theme_background_image_fit||'cover'
      })})
-     setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'',next?.theme_background||'clean',next?.theme_background_scope||'operations');setMessage('Settings saved successfully.')
+     setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'',next?.theme_background||'clean',next?.theme_background_scope||'operations',next?.theme_background_image||'',next?.theme_background_image_fit||'cover');setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
  }
 
@@ -90,6 +90,20 @@ export default function Settings(){
    const b=await r.json().catch(()=>({}))
    if(!r.ok){setError(b.error||'Logo upload failed.');return}
    patch('logo_url',b.logoUrl);setMessage('Logo uploaded.')
+ }
+
+ async function uploadBackground(file?:File){
+   if(!file)return
+   setMessage('');setError('')
+   if(file.size>5*1024*1024){setError('Background image must be 5MB or smaller.');return}
+   const fd=new FormData();fd.append('image',file)
+   const token=localStorage.getItem('pos_token')
+   const r=await fetch('/api/document-settings/background',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd})
+   const b=await r.json().catch(()=>({}))
+   if(!r.ok){setError(b.error||'Background upload failed.');return}
+   const next={...s,theme_background:'image',theme_background_image:b.backgroundImage}
+   setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background,next.theme_background_scope||'operations',next.theme_background_image||'',next.theme_background_image_fit||'cover')
+   setMessage('Background image uploaded.')
  }
 
  async function addArea(){setError('');try{await api('/restaurant/areas',{method:'POST',body:JSON.stringify(area)});setAreaOpen(false);setArea({branchId:0,name:''});await load()}catch(e:any){setError(e.message)}}
@@ -175,7 +189,7 @@ export default function Settings(){
         <div className="mt-5 border-t border-slate-100 pt-4">
           <div className="text-[12px] font-semibold text-slate-700">Interface theme</div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {themes.map(t=><button key={t.key} type="button" onClick={()=>{setS((prev:any)=>({...prev,theme_key:t.key,theme_mode:t.key==='dark'?'dark':'light',document_accent:t.primary}));applyLocalTheme(t.key,t.primary,s.theme_background||'clean',s.theme_background_scope||'operations')}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
+            {themes.map(t=><button key={t.key} type="button" onClick={()=>{setS((prev:any)=>({...prev,theme_key:t.key,theme_mode:t.key==='dark'?'dark':'light',document_accent:t.primary}));applyLocalTheme(t.key,t.primary,s.theme_background||'clean',s.theme_background_scope||'operations',s.theme_background_image||'',s.theme_background_image_fit||'cover')}} className={'rounded-xl border p-2.5 text-left transition '+((s.theme_key||'green')===t.key?'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/10':'border-slate-200 hover:border-slate-300')}>
               <div className="h-12 rounded-lg border border-black/5" style={{background:t.soft}}><div className="m-2 h-5 w-10 rounded-md" style={{background:t.primary}}/></div>
               <div className="mt-2 text-[11px] font-semibold text-slate-700">{t.name}</div>
             </button>)}
@@ -183,16 +197,27 @@ export default function Settings(){
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
               <div className="text-[11.5px] font-medium text-slate-600">Workspace background</div>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                {[['clean','Clean'],['soft','Soft Theme'],['rich','Rich Theme']].map(([key,label])=><button key={key} type="button" onClick={()=>{const next={...s,theme_background:key};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',key,next.theme_background_scope||'operations')}} className={'rounded-lg border p-2 text-left '+((s.theme_background||'clean')===key?'border-[var(--brand-primary)]':'border-slate-200')}>
-                  <div className="h-8 rounded-md border border-slate-200" style={{background:key==='clean'?'#EEF2F5':key==='rich'?'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 10%, #F5F7F9)':'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 5%, #F5F7F9)'}}/>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {[['clean','Clean'],['soft','Soft'],['rich','Rich'],['solid','Solid'],['image','Image']].map(([key,label])=><button key={key} type="button" onClick={()=>{const next={...s,theme_background:key};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',key,next.theme_background_scope||'operations',next.theme_background_image||'',next.theme_background_image_fit||'cover')}} className={'rounded-lg border p-2 text-left '+((s.theme_background||'clean')===key?'border-[var(--brand-primary)]':'border-slate-200')}>
+                  <div className="h-8 rounded-md border border-slate-200" style={{background:key==='clean'?'#EEF2F5':key==='solid'?(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A'):key==='image'&&s.theme_background_image?'url('+s.theme_background_image+') center/cover':key==='rich'?'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 16%, #F5F7F9)':'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#22A53A')+' 7%, #F5F7F9)'}}/>
                   <div className="mt-1.5 text-[10.5px] font-semibold text-slate-700">{label}</div>
                 </button>)}
               </div>
             </div>
-            <Field label="Apply background to"><select className="control" value={s.theme_background_scope||'operations'} onChange={e=>{const scope=e.target.value;const next={...s,theme_background_scope:scope};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background||'clean',scope)}}><option value="operations">Operations only</option><option value="all">Entire system</option></select></Field>
+            <div>
+              <div className="text-[11.5px] font-medium text-slate-600">Background image</div>
+              <label className="mt-2 inline-flex cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-slate-600">Upload image<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e=>uploadBackground(e.target.files?.[0])}/></label>
+              <div className="mt-1 text-[9.5px] text-slate-400">PNG, JPG or WebP · max 5MB</div>
+              {s.theme_background_image&&<div className="mt-2 flex items-center gap-2">
+                <div className="h-12 w-20 rounded-md border border-slate-200 bg-cover bg-center" style={{backgroundImage:'url('+s.theme_background_image+')'}}/>
+                <select className="control max-w-[130px]" value={s.theme_background_image_fit||'cover'} onChange={e=>{const fit=e.target.value;const next={...s,theme_background:'image',theme_background_image_fit:fit};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background,next.theme_background_scope||'operations',next.theme_background_image||'',fit)}}>
+                  <option value="cover">Cover</option><option value="contain">Contain</option><option value="repeat">Repeat</option>
+                </select>
+              </div>}
+            </div>
+            <Field label="Apply background to"><select className="control" value={s.theme_background_scope||'operations'} onChange={e=>{const scope=e.target.value;const next={...s,theme_background_scope:scope};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background||'clean',scope,next.theme_background_image||'',next.theme_background_image_fit||'cover')}}><option value="operations">Operations only</option><option value="all">Entire system</option></select></Field>
           </div>
-          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v,s.theme_background||'clean',s.theme_background_scope||'operations')}}/></Field></div>
+          <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v,s.theme_background||'clean',s.theme_background_scope||'operations',s.theme_background_image||'',s.theme_background_image_fit||'cover')}}/></Field></div>
         </div>
         <SaveButton saving={saving} onClick={save}/>
       </Panel>}
@@ -318,7 +343,7 @@ export default function Settings(){
  </div>
 }
 
-function applyLocalTheme(key:string,primary:string,background='clean',scope='operations'){
+function applyLocalTheme(key:string,primary:string,background='clean',scope='operations',backgroundImage='',backgroundFit='cover'){
  const map:any={
   green:{soft:'#ECF8EF',border:'#BDE7C5',bg:'#F7F9F7',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FBFCFB'},
   blue:{soft:'#EFF6FF',border:'#BFDBFE',bg:'#F6F8FC',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FAFBFD'},
@@ -336,9 +361,12 @@ function applyLocalTheme(key:string,primary:string,background='clean',scope='ope
  r.style.setProperty('--app-muted',map.muted||'#64748B')
  r.style.setProperty('--app-sidebar',map.sidebar||'#FBFCFB')
  const cleanBg=key==='dark'?(map.bg||'#0F1419'):'#EEF2F5'
- const tinted=key==='dark'?(background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg):(background==='rich'?'color-mix(in srgb, '+p+' 10%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+p+' 5%, #F5F7F9)':cleanBg)
+ const tinted=key==='dark'?(background==='solid'?'#202B1B':background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg):(background==='solid'?p:background==='rich'?'color-mix(in srgb, '+p+' 16%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+p+' 7%, #F5F7F9)':cleanBg)
  r.style.setProperty('--theme-workspace-bg',tinted)
- r.style.setProperty('--app-bg',scope==='all'?tinted:cleanBg)
+ r.style.setProperty('--theme-workspace-image',background==='image'&&backgroundImage?'url("'+backgroundImage+'")':'none')
+ r.style.setProperty('--theme-workspace-image-size',backgroundFit==='contain'?'contain':backgroundFit==='repeat'?'auto':'cover')
+ r.style.setProperty('--theme-workspace-image-repeat',backgroundFit==='repeat'?'repeat':'no-repeat')
+ r.style.setProperty('--app-bg',scope==='all'&&background!=='image'?tinted:cleanBg)
  r.dataset.theme=key
  r.dataset.background=background
  r.dataset.backgroundScope=scope

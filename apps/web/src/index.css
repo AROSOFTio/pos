@@ -169,7 +169,7 @@ body{background:var(--app-bg)}
 
 
 /* Operations terminal UI */
-.ops-ui{font-variant-numeric:tabular-nums lining-nums;background:var(--theme-workspace-bg,var(--app-bg))}
+.ops-ui{font-variant-numeric:tabular-nums lining-nums;background-color:var(--theme-workspace-bg,var(--app-bg));background-image:var(--theme-workspace-image,none);background-size:var(--theme-workspace-image-size,cover);background-repeat:var(--theme-workspace-image-repeat,no-repeat);background-position:center;background-attachment:fixed}
 .ops-ui h1,.ops-ui h2,.ops-ui h3{letter-spacing:-.015em}
 .ops-ui button{font-weight:600}
 .ops-ui .control{min-height:46px;border-radius:9px;border-color:#d7dde4;font-size:15px}
@@ -179,3 +179,10 @@ body{background:var(--app-bg)}
 .ops-ui .modal-body{font-size:14px}
 .ops-money{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.02em}
 .ops-action{min-height:46px;border-radius:9px}
+
+html[data-background="solid"] .ops-ui section,
+html[data-background="image"] .ops-ui section{background:rgba(255,255,255,.97)}
+html[data-background="solid"] .ops-ui header,
+html[data-background="image"] .ops-ui header{background:rgba(255,255,255,.98)}
+html[data-background="solid"][data-theme="dark"] .ops-ui section,
+html[data-background="image"][data-theme="dark"] .ops-ui section{background:rgba(23,29,35,.98)}
