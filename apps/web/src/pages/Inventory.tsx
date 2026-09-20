@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Boxes, Building2, ClipboardList, RefreshCw, Search, PackageCheck, CookingPot, Plus } from 'lucide-react'
+import { AlertTriangle, Boxes, Building2, ClipboardList, RefreshCw, Search, Plus } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { PageHeading, Stat, Panel, DataTable, Loading, Badge, Modal } from '../components'
 
