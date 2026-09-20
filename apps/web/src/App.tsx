@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Banknote, BarChart3, Bell, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Banknote, BarChart3, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo } from './Brand'
 import Marketing from './Marketing'
@@ -25,6 +25,8 @@ import Customers from './pages/Customers'
 import SaaSAdmin from './pages/SaaSAdmin'
 import Reports from './pages/Reports'
 import Staff from './pages/Staff'
+import NotificationBell from './components/NotificationBell'
+import StaffQuickMenu from './components/StaffQuickMenu'
 
 export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
@@ -171,8 +173,8 @@ export default function App(){
           </nav>
           <div className="ml-auto flex items-center gap-2">
             {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
-            <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
-            <div className="hidden items-center gap-2 sm:flex"><div className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500"><UserRound size={14}/></div><div className="leading-tight"><div className="max-w-32 truncate text-[11px] font-medium">{user.name}</div><div className="max-w-44 truncate text-[9px] text-slate-400">{(businessRoles.length?businessRoles:[businessRole||user.role]).map(nice).join(' · ')}</div></div></div>
+            <NotificationBell/>
+            <StaffQuickMenu user={user} roles={businessRoles.length?businessRoles:[businessRole||user.role]}/>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
           </div>
         </div>
@@ -229,7 +231,7 @@ export default function App(){
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="hidden rounded-lg bg-[var(--brand-primary)] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
-          <button className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100"><Bell size={16}/></button>
+          <NotificationBell/>
         </div>
       </header>
       <div className="page-enter px-3 py-4 sm:px-5 lg:px-6 lg:py-5"><ViewErrorBoundary key={view} onBack={()=>setView('Dashboard')}>{renderView()}</ViewErrorBoundary></div>
