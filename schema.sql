@@ -1679,3 +1679,6 @@ INSERT INTO permission_catalog(code,name,section) VALUES
 ('devices.manage','Manage registered POS devices','Settings'),
 ('reports.schedule','Manage scheduled reports','Reports')
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+
+
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS loyalty_applied_at TIMESTAMPTZ;
