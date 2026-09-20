@@ -124,6 +124,7 @@ function publicError(e,fallback='Request could not be completed'){
   if(code==='23502')return 'A required value is missing.';
   if(code==='22P02')return 'One of the supplied values is invalid.';
   if(code==='22001')return 'One of the supplied values is too long.';
+  if(code==='42P08'||/inconsistent types deduced for parameter/i.test(String(e?.message||'')))return 'The shift could not be reconciled because of an internal data-format error. Please try again or contact an administrator.';
   return String(e?.message||fallback);
 }
 function allowedRolesForBusinessType(type){
@@ -1242,7 +1243,7 @@ app.post('/api/cash/close',auth,tenant,async(req,res)=>{
  const safeDeposit=Math.max(0,actual-handoverAmount),manager=await hasPermission(req,bid,'shift.close')?req.user.name:null,client=await pool.connect();
  try{
   await client.query('BEGIN');
-  const u=await client.query("UPDATE cash_sessions SET closing_cash=$1,expected_cash=$2,variance=$3,denomination_count=$4,status='closed',closed_at=now(),closed_by_user_id=$5,manager_confirmed_by=$6,manager_confirmed_at=CASE WHEN $6::text IS NULL THEN NULL ELSE now() END,variance_reason=$7,closing_note=$8,close_destination=$9,safe_deposit_amount=$10,handover_amount=$11,retained_float=$11,reconciliation_status=CASE WHEN abs($3)<=0.005 THEN 'balanced' ELSE 'variance' END WHERE id=$12 AND status='open' RETURNING *",[actual,snap.expectedCash,variance,denoms,req.user.id,manager,varianceReason,closingNote,destination,safeDeposit,handoverAmount,x.id]);
+  const u=await client.query("UPDATE cash_sessions SET closing_cash=$1::numeric,expected_cash=$2::numeric,variance=$3::numeric,denomination_count=$4::jsonb,status='closed',closed_at=now(),closed_by_user_id=$5::bigint,manager_confirmed_by=$6::text,manager_confirmed_at=CASE WHEN $6::text IS NULL THEN NULL ELSE now() END,variance_reason=$7::text,closing_note=$8::text,close_destination=$9::text,safe_deposit_amount=$10::numeric,handover_amount=$11::numeric,retained_float=$11::numeric,reconciliation_status=CASE WHEN abs($3::numeric)<=0.005::numeric THEN 'balanced' ELSE 'variance' END WHERE id=$12::bigint AND status='open' RETURNING *",[actual,snap.expectedCash,variance,denoms,req.user.id,manager,varianceReason,closingNote,destination,safeDeposit,handoverAmount,x.id]);
   if(!u.rowCount)throw new Error('Shift was already closed');
   let handover=null;
   if(destination!=='safe'){
