@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, CalendarClock, Download, FileText, Plus, Printer, UtensilsCrossed } from 'lucide-react'
-import { api, downloadFile, money, openPdf } from '../api'
+import { api, downloadFile, money, nice, openPdf } from '../api'
 import { Badge, DataTable, Modal, PageHeading, Panel, Stat, Loading } from '../components'
 
 const types=[
