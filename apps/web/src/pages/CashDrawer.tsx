@@ -8,7 +8,7 @@ type MovementKind='additional_float'|'expense'|'cash_drop'|'bank_deposit'
 type Destination='safe'|'carry_forward'|'handover'
 
 export default function CashDrawer({currency,onOpened}:{currency:string;onOpened?:()=>void}){
- const [session,setSession]=useState<any>(undefined),[settings,setSettings]=useState<any>({}),[branches,setBranches]=useState<any[]>([]),[terminals,setTerminals]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[pending,setPending]=useState<any[]>([]),[targets,setTargets]=useState<any[]>([])
+ const [session,setSession]=useState<any>(undefined),[openSessions,setOpenSessions]=useState<any[]>([]),[closingSession,setClosingSession]=useState<any>(null),[settings,setSettings]=useState<any>({}),[branches,setBranches]=useState<any[]>([]),[terminals,setTerminals]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([]),[history,setHistory]=useState<any[]>([]),[pending,setPending]=useState<any[]>([]),[targets,setTargets]=useState<any[]>([])
  const [openModal,setOpenModal]=useState(false),[closeModal,setCloseModal]=useState(false),[moveModal,setMoveModal]=useState(false),[settingsOpen,setSettingsOpen]=useState(false)
  const [opening,setOpening]=useState(''),[actual,setActual]=useState(''),[branchId,setBranchId]=useState<number|''>(''),[terminalId,setTerminalId]=useState<number|''>(''),[handoverId,setHandoverId]=useState<number|''>(''),[handoverReason,setHandoverReason]=useState('')
  const [movementKind,setMovementKind]=useState<MovementKind>('expense'),[amount,setAmount]=useState(''),[reason,setReason]=useState(''),[expenseCategory,setExpenseCategory]=useState('Counter Expense'),[recipient,setRecipient]=useState(''),[reference,setReference]=useState('')
@@ -17,8 +17,8 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  const [standardFloat,setStandardFloat]=useState(''),[blindCount,setBlindCount]=useState(false),[approvalThreshold,setApprovalThreshold]=useState('')
 
  const load=async()=>{
-   const [s,b,t,h,cfg]=await Promise.all([api('/cash/current'),api('/branches').catch(()=>[]),api('/terminals').catch(()=>[]),api('/cash/history').catch(()=>[]),api('/cash/settings').catch(()=>({}))])
-   setSession(s||null);setBranches(arr(b));setTerminals(arr(t));setHistory(arr(h));setSettings(cfg||{})
+   const [s,b,t,h,cfg,os]=await Promise.all([api('/cash/current'),api('/branches').catch(()=>[]),api('/terminals').catch(()=>[]),api('/cash/history').catch(()=>[]),api('/cash/settings').catch(()=>({})),api('/cash/open-sessions').catch(()=>[])])
+   setSession(s||null);setBranches(arr(b));setTerminals(arr(t));setHistory(arr(h));setSettings(cfg||{});setOpenSessions(arr(os))
    if(s?.id)setMoves(arr(await api('/cash/movements?sessionId='+s.id).catch(()=>[])));else setMoves([])
    const p=await api('/cash/handovers/pending').catch(()=>[]);setPending(arr(p))
  }
@@ -28,7 +28,8 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  const branchPending=pending.filter(x=>!branchId||Number(x.branch_id)===Number(branchId))
  const denominationTotal=useMemo(()=>denoms.reduce((n,x)=>n+(Number(x.value)||0)*(Number(x.count)||0),0),[denoms])
  const physical=denoms.length?denominationTotal:Number(actual||0)
- const expected=Number(session?.expectedCash||0)
+ const activeClose=closingSession||session
+ const expected=Number(activeClose?.expectedCash||0)
  const variance=physical-expected
  const hasCount=actual!==''||denoms.length>0
  const selectedHandover=branchPending.find(x=>Number(x.id)===Number(handoverId))
@@ -89,9 +90,9 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
    }catch(e:any){setError(e.message||'Cash movement could not be posted.')}finally{setBusy(false)}
  }
 
- async function beginClose(){
-   setError('');setActual('');setDenoms([]);setVarianceReason('');setClosingNote('');setDestination('safe');setRecipientUserId('');setHandoverAmount(settings?.standard_float?String(Number(settings.standard_float)):'')
-   if(session?.branch_id)setTargets(arr(await api('/cash/handover-targets?branchId='+session.branch_id).catch(()=>[])))
+ async function beginClose(target:any=session){
+   setError('');setClosingSession(target||session);setActual('');setDenoms([]);setVarianceReason('');setClosingNote('');setDestination('safe');setRecipientUserId('');setHandoverAmount(settings?.standard_float?String(Number(settings.standard_float)):'')
+   if(target?.branch_id)setTargets(arr(await api('/cash/handover-targets?branchId='+target.branch_id).catch(()=>[])))
    setCloseModal(true)
  }
 
@@ -106,8 +107,8 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
    if(destination==='handover'&&!recipientUserId){setError('Choose the next staff member receiving the cash.');return}
    setBusy(true)
    try{
-     const out=await api('/cash/close',{method:'POST',body:JSON.stringify({actualCash:physical,denominations:denoms.map(d=>({value:Number(d.value||0),count:Number(d.count||0)})).filter(d=>d.value>0&&d.count>0),varianceReason:varianceReason.trim()||null,closingNote:closingNote.trim()||null,closeDestination:destination,handoverAmount:transfer,recipientUserId:recipientUserId||null})})
-     setCloseModal(false);setDenoms([]);setActual('');await load();setMessage(destination==='safe'?'Shift closed and cash assigned to safe/deposit.':'Shift closed and handover created for the next shift.')
+     const out=await api('/cash/close',{method:'POST',body:JSON.stringify({sessionId:activeClose?.id,actualCash:physical,denominations:denoms.map(d=>({value:Number(d.value||0),count:Number(d.count||0)})).filter(d=>d.value>0&&d.count>0),varianceReason:varianceReason.trim()||null,closingNote:closingNote.trim()||null,closeDestination:destination,handoverAmount:transfer,recipientUserId:recipientUserId||null})})
+     setCloseModal(false);setClosingSession(null);setDenoms([]);setActual('');await load();setMessage(destination==='safe'?'Shift closed and cash assigned to safe/deposit.':'Shift closed and handover created for the next shift.')
      await openPdf('/documents/cash-session/'+out.id+'/pdf')
    }catch(e:any){setError(e.message||'Shift could not be closed.')}finally{setBusy(false)}
  }
@@ -139,6 +140,15 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         <button onClick={beginOpen} className="mt-5 rounded-lg bg-[var(--brand-primary)] px-6 py-3 text-[12px] font-semibold text-white">Open Shift</button>
       </div>
       {pending.length>0&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800"><b>{pending.length} pending cash handover{pending.length===1?'':'s'}</b> waiting to be accepted into a new shift.</div>}
+      {openSessions.filter(x=>!x.isMine).length>0&&<div className="mt-4">
+        <div className="mb-2 text-[11px] font-semibold text-slate-700">Other open shifts in this business</div>
+        <div className="space-y-2">{openSessions.filter(x=>!x.isMine).map(x=><div key={x.id} className="rounded-xl border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="text-[12px] font-semibold text-slate-900">{x.shift_no}</div><div className="mt-1 text-[10.5px] text-slate-500">{x.opened_by||x.email||'Staff'} · {x.branch_name||'Branch'}{x.terminal_name?' · '+x.terminal_name:''}</div><div className="mt-1 text-[10px] text-slate-400">Opened {new Date(x.opened_at).toLocaleString()} · Expected {money(x.expectedCash||0,currency)}</div></div>
+            {x.canManage&&<button onClick={()=>beginClose(x)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-semibold text-slate-700 hover:bg-slate-50">Close / Reconcile</button>}
+          </div>
+        </div>)}</div>
+      </div>}
     </Panel>
     <Panel title="Recent Shifts" sub="Completed shifts remain available for review.">
       {history.length?<DataTable head={['Shift','Opened','Variance','Destination']} rows={history.slice(0,7).map(x=>[x.shift_no||('#'+x.id),new Date(x.opened_at).toLocaleString(),x.status==='closed'?money(x.variance||0,currency):'-',x.status==='closed'?nice(x.close_destination||'safe'):<Badge tone="green">Open</Badge>])}/>:<Empty text="No previous shifts yet."/>}
@@ -209,7 +219,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     <button onClick={addMove} disabled={busy||!reason.trim()||Number(amount)<=0} className="mt-4 w-full rounded-lg bg-slate-950 py-3 text-[12px] font-semibold text-white disabled:opacity-40">{busy?'Posting…':'Post '+movementMeta[movementKind].title}</button>
   </Modal>}
 
-  {closeModal&&<Modal title="Close & Reconcile Shift" onClose={()=>!busy&&setCloseModal(false)} size="lg">
+  {closeModal&&<Modal title={activeClose?.shift_no?("Close & Reconcile · "+activeClose.shift_no):"Close & Reconcile Shift"} onClose={()=>!busy&&setCloseModal(false)} size="lg">
     {!settings?.blind_count||hasCount?<div className="grid gap-3 sm:grid-cols-3">
       <Summary label="Expected cash" value={money(expected,currency)}/>
       <Summary label="Physical counted" value={money(physical,currency)}/>

@@ -288,7 +288,11 @@ async function postPaymentLines(client,{bid,branchId,customerId=null,sourceType,
   if(requested>remaining+0.005)throw new Error('Payment amount exceeds the outstanding balance');
   const shift=userId?await client.query("SELECT id,branch_id,terminal_id FROM cash_sessions WHERE business_id=$1 AND opened_by_user_id=$2 AND status='open' ORDER BY id DESC LIMIT 1",[bid,userId]):{rows:[]};
   const cashSessionId=shift.rows[0]?.id||null;
-  if(clean.some(x=>x.method==='cash')&&!cashSessionId)throw new Error('Open your cashier shift before taking a cash payment');
+  if(clean.some(x=>x.method==='cash')&&!cashSessionId){
+    const other=await client.query("SELECT cs.shift_no,cs.opened_by,b.name branch_name,t.name terminal_name FROM cash_sessions cs LEFT JOIN branches b ON b.id=cs.branch_id LEFT JOIN terminals t ON t.id=cs.terminal_id WHERE cs.business_id=$1 AND cs.status='open' ORDER BY cs.opened_at LIMIT 1",[bid]);
+    if(other.rowCount){const x=other.rows[0];throw new Error('No cash shift is open under your account. '+x.shift_no+' is already open by '+(x.opened_by||'another staff member')+(x.branch_name?' at '+x.branch_name:'')+(x.terminal_name?' · '+x.terminal_name:'')+'. Open Shifts & Counter to reconcile it, or open your own shift on a free terminal.')}
+    throw new Error('Open your cashier shift in Shifts & Counter before taking a cash payment');
+  }
   if(cashSessionId&&branchId&&shift.rows[0]?.branch_id&&Number(shift.rows[0].branch_id)!==Number(branchId))throw new Error('This payment belongs to a different branch than the open shift');
   const posted=[];
   for(const line of clean){
@@ -1177,6 +1181,14 @@ async function shiftSnapshot(bid,sessionId){
 }
 
 app.get('/api/cash/current',auth,tenant,async(req,res)=>{const bid=await getBiz(req);const q=await pool.query("SELECT id FROM cash_sessions WHERE business_id=$1 AND status='open' AND opened_by_user_id=$2 ORDER BY id DESC LIMIT 1",[bid,req.user.id]);if(!q.rowCount)return res.json(null);res.json(await shiftSnapshot(bid,q.rows[0].id))});
+
+app.get('/api/cash/open-sessions',auth,tenant,async(req,res)=>{
+ const bid=await getBiz(req),elevated=await hasPermission(req,bid,'shift.close');
+ const q=await pool.query("SELECT cs.id,cs.shift_no,cs.business_id,cs.branch_id,b.name branch_name,cs.terminal_id,t.name terminal_name,cs.opened_by_user_id,cs.opened_by,cs.opened_at,cs.opening_cash,cs.status,u.email FROM cash_sessions cs LEFT JOIN branches b ON b.id=cs.branch_id LEFT JOIN terminals t ON t.id=cs.terminal_id LEFT JOIN users u ON u.id=cs.opened_by_user_id WHERE cs.business_id=$1 AND cs.status='open' AND ($2::boolean=true OR cs.opened_by_user_id=$3) ORDER BY cs.opened_at",[bid,elevated,req.user.id]);
+ const rows=[];
+ for(const row of q.rows){const snap=await shiftSnapshot(bid,row.id);rows.push({...row,expectedCash:Number(snap?.expectedCash||0),cashSales:Number(snap?.cashSales||0),cashIn:Number(snap?.cashIn||0),cashOut:Number(snap?.cashOut||0),isMine:Number(row.opened_by_user_id)===Number(req.user.id),canManage:elevated})}
+ res.json(rows)
+});
 
 app.get('/api/cash/history',auth,tenant,async(req,res)=>{const bid=await getBiz(req),limit=Math.min(100,Math.max(1,Number(req.query.limit||30)));const elevated=await hasPermission(req,bid,'shift.close');const q=await pool.query("SELECT cs.*,b.name branch_name,t.name terminal_name FROM cash_sessions cs LEFT JOIN branches b ON b.id=cs.branch_id LEFT JOIN terminals t ON t.id=cs.terminal_id WHERE cs.business_id=$1 AND ($2::boolean=true OR cs.opened_by_user_id=$3) ORDER BY cs.id DESC LIMIT $4",[bid,elevated,req.user.id,limit]);res.json(q.rows)});
 
