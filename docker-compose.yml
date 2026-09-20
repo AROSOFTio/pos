@@ -53,6 +53,8 @@ services:
       context: ./apps/web
     container_name: owl-pos-web
     restart: unless-stopped
+    volumes:
+      - /www/wwwroot/pos.owltechsolutionsltd.com/brand-assets:/usr/share/nginx/html/brand:ro
     depends_on:
       - api
     ports:

@@ -167,6 +167,7 @@ export default function App(){
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-[var(--app-surface)]/98">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+          <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
           <BusinessBrand name={business} logo={businessLogo}/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
             {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
@@ -189,12 +190,12 @@ export default function App(){
         {allowedOps.length>4&&<div className="flex-1"><MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/></div>}
       </nav>
 
-      {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/20 lg:hidden" onClick={()=>setSidebar(false)}>
-        <div className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white p-3 shadow-2xl" onClick={e=>e.stopPropagation()}>
-          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200"/>
-          <div className="grid grid-cols-3 gap-2">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className="rounded-xl border border-slate-100 p-3 text-center text-[11px] text-slate-600"><Icon size={18} className="mx-auto mb-1"/>{name}</button>)}</div>
-          {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mt-3 w-full rounded-xl bg-slate-950 py-3 text-[12px] font-medium text-white">Open Management</button>}
-        </div>
+      {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/35 lg:hidden" onClick={()=>setSidebar(false)}>
+        <aside className="absolute inset-y-0 left-0 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] border-slate-200 bg-white shadow-2xl" onClick={e=>e.stopPropagation()}>
+          <div className="flex h-[64px] items-center border-b border-slate-100 px-4"><BusinessBrand name={business} logo={businessLogo}/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
+          <div className="flex-1 overflow-y-auto p-3"><div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400">Operations</div><div className="space-y-1">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(view===name?'bg-[var(--brand-soft)] font-semibold text-[var(--brand-primary)]':'text-slate-700 hover:bg-slate-50')}><Icon size={18}/><span>{name}</span></button>)}</div></div>
+          <div className="border-t border-slate-100 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
+        </aside>
       </div>}
     </div>
   }
@@ -202,7 +203,7 @@ export default function App(){
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
-    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[236px] flex-col border-r border-slate-200 bg-[var(--app-sidebar)] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
+    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] border-slate-200 bg-[var(--app-sidebar)] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
       <div className="flex h-[62px] items-center border-b border-slate-100 px-4">
         <BusinessBrand name={business} logo={businessLogo}/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
@@ -318,8 +319,6 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
 
     <main className="grid min-h-screen lg:grid-cols-[.92fr_1.08fr]">
       <section className="relative hidden overflow-hidden bg-slate-950 px-10 pb-12 pt-28 text-white lg:flex lg:flex-col">
-        <div className="absolute -left-24 top-28 h-72 w-72 rounded-full bg-[#22A53A]/15 blur-3xl"/>
-        <div className="absolute -right-20 bottom-20 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl"/>
         <div className="relative z-10 max-w-[520px]">
           <div className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#67d379]">MauzoPOS</div>
           <h1 className="mt-4 text-[42px] font-semibold leading-[1.05] tracking-[-.045em]">Your business,<br/>one clean workspace.</h1>
@@ -338,7 +337,7 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
         </div>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center bg-[#fafbfc] px-4 pb-10 pt-24 sm:px-6 lg:pt-10">
+      <section className="flex min-h-screen items-center justify-center bg-[#EEF2F5] px-4 pb-10 pt-24 sm:px-6 lg:pt-10">
         <div className="w-full max-w-[430px]">
           {!forgot?<form onSubmit={submit} autoComplete="on" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_22px_65px_rgba(15,23,42,.07)] sm:p-8">
             <div className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#22A53A]">Welcome back</div>

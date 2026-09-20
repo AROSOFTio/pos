@@ -22,7 +22,7 @@ const capabilities=[
 
 export default function Marketing({navigate}:{navigate:(path:string)=>void}){
   return <div className="min-h-screen bg-white text-[#172033]">
-    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white">
       <div className="mx-auto flex h-[68px] max-w-[1240px] items-center px-4 sm:px-6">
         <MauzoLogo compact/>
         <nav className="ml-auto hidden items-center gap-7 text-[13px] text-slate-500 md:flex">
@@ -38,7 +38,7 @@ export default function Marketing({navigate}:{navigate:(path:string)=>void}){
     </header>
 
     <main>
-      <section className="relative overflow-hidden border-b border-slate-100 bg-[radial-gradient(circle_at_70%_20%,rgba(34,165,58,.08),transparent_30%),linear-gradient(180deg,#fcfdfc_0%,#ffffff_100%)]">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-[#F3F6F8]">
         <div className="mx-auto grid max-w-[1240px] items-center gap-12 px-4 py-16 sm:px-6 md:py-20 lg:grid-cols-[.92fr_1.08fr] lg:py-24">
           <div className="max-w-[620px]">
             <div className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 shadow-sm">Point of sale · Inventory · Operations · Reporting</div>
@@ -128,7 +128,6 @@ export default function Marketing({navigate}:{navigate:(path:string)=>void}){
 
 function ProductPreview(){
   return <div className="relative mx-auto w-full max-w-[660px]">
-    <div className="absolute -inset-8 -z-10 rounded-[40px] bg-[radial-gradient(circle,rgba(34,165,58,.11),transparent_65%)] blur-2xl"/>
     <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_26px_70px_rgba(15,23,42,.12)]">
       <div className="flex h-12 items-center border-b border-slate-100 px-4">
         <div className="flex gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-200"/><span className="h-2.5 w-2.5 rounded-full bg-slate-200"/><span className="h-2.5 w-2.5 rounded-full bg-slate-200"/></div>
