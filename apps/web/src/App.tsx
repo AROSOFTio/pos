@@ -319,72 +319,44 @@ function Login({onLogin,navigate}:{onLogin:(u:User)=>void;navigate:(path:string)
     }catch(e:any){setError(e.message)}finally{setBusy(false)}
   }
 
-  return <div className="min-h-screen bg-white text-[#172033]">
-    <header className="absolute inset-x-0 top-0 z-20">
-      <div className="mx-auto flex h-[72px] max-w-[1180px] items-center px-4 sm:px-6">
-        <button onClick={()=>navigate('/')} className="rounded-lg transition hover:opacity-80"><MauzoLogo compact/></button>
-        <button onClick={()=>navigate('/')} className="ml-auto hidden rounded-lg px-3 py-2 text-[12px] font-medium text-slate-500 transition hover:bg-slate-50 sm:block">Back to website</button>
+  return <div className="min-h-screen bg-[#EEF2F5] text-[#172033]">
+    <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+      <div className="w-full max-w-[420px]">
+        <div className="mb-5 flex items-center justify-center">
+          <button onClick={()=>navigate('/')} className="rounded-lg transition hover:opacity-80"><MauzoLogo compact/></button>
+        </div>
+        {!forgot?<form onSubmit={submit} autoComplete="on" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,.06)] sm:p-7">
+          <h1 className="text-[26px] font-semibold tracking-[-.035em] text-slate-950">Sign in</h1>
+          <p className="mt-1 text-[12px] text-slate-500">Access your MauzoPOS workspace.</p>
+          <label className="mt-6 block text-[11.5px] font-medium text-slate-700">Email address
+            <input name="email" type="email" autoComplete="email" placeholder="you@example.com" required className="control mt-1.5"/>
+          </label>
+          <div className="mt-4 flex items-center justify-between">
+            <label htmlFor="login-password" className="text-[11.5px] font-medium text-slate-700">Password</label>
+            <button type="button" onClick={()=>{setForgot(true);setError('');setSent(false)}} className="text-[11px] font-medium text-[var(--brand-primary)] hover:underline">Forgot password?</button>
+          </div>
+          <div className="relative mt-1.5">
+            <input id="login-password" name="password" type={showPassword?'text':'password'} autoComplete="current-password" placeholder="Enter password" required className="control mt-0 pr-11"/>
+            <button type="button" onClick={()=>setShowPassword(v=>!v)} className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-slate-50">{showPassword?<EyeOff size={16}/>:<Eye size={16}/>}</button>
+          </div>
+          {error&&<div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-medium text-red-700">{error}</div>}
+          <button disabled={busy} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] text-[13px] font-semibold text-white disabled:opacity-50">{busy?'Signing in…':'Sign in'} {!busy&&<ArrowRight size={15}/>}</button>
+          <div className="mt-5 border-t border-slate-100 pt-4 text-center text-[11px] text-slate-500">New to MauzoPOS? <button type="button" onClick={()=>navigate('/register')} className="font-semibold text-[var(--brand-primary)] hover:underline">Start free trial</button></div>
+        </form>:<form onSubmit={requestReset} autoComplete="on" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,.06)] sm:p-7">
+          <button type="button" onClick={()=>{setForgot(false);setError('');setSent(false)}} className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><ArrowLeft size={13}/>Back to sign in</button>
+          <h1 className="mt-5 text-[25px] font-semibold tracking-[-.035em] text-slate-950">Reset password</h1>
+          <p className="mt-1 text-[12px] text-slate-500">Enter the email connected to your account.</p>
+          <label className="mt-6 block text-[11.5px] font-medium text-slate-700">Email address
+            <input name="email" type="email" autoComplete="email" placeholder="you@example.com" required className="control mt-1.5"/>
+          </label>
+          {sent&&<div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-[11px] font-medium text-emerald-700">If the account exists, reset instructions have been sent.</div>}
+          {error&&<div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-medium text-red-700">{error}</div>}
+          <button disabled={busy} className="mt-5 h-11 w-full rounded-lg bg-slate-950 text-[13px] font-semibold text-white disabled:opacity-50">{busy?'Sending…':'Send reset link'}</button>
+        </form>}
+        <div className="mt-4 flex items-center justify-center gap-3 text-[10px] text-slate-400">
+          <button onClick={()=>navigate('/')} className="hover:text-slate-600">Website</button><span>•</span><span>Secure access</span>
+        </div>
       </div>
-    </header>
-
-    <main className="grid min-h-screen lg:grid-cols-[.92fr_1.08fr]">
-      <section className="relative hidden overflow-hidden bg-slate-950 px-10 pb-12 pt-28 text-white lg:flex lg:flex-col">
-        <div className="relative z-10 max-w-[520px]">
-          <div className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#67d379]">MauzoPOS</div>
-          <h1 className="mt-4 text-[42px] font-semibold leading-[1.05] tracking-[-.045em]">Your business,<br/>one clean workspace.</h1>
-          <p className="mt-5 max-w-md text-[14px] leading-6 text-slate-400">Checkout, inventory, customers, staff, branches and reporting — organized around the way your team actually works.</p>
-        </div>
-        <div className="relative z-10 mt-auto grid grid-cols-2 gap-2">
-          {[
-            ['Fast checkout','Barcode and quick search'],
-            ['Inventory','Live stock and purchasing'],
-            ['Staff access','Roles and shifts'],
-            ['Reports','Business visibility'],
-          ].map(([title,sub])=><div key={title} className="rounded-xl border border-white/10 bg-white/[.035] p-4">
-            <div className="text-[11px] font-semibold text-white">{title}</div>
-            <div className="mt-1 text-[9.5px] text-slate-500">{sub}</div>
-          </div>)}
-        </div>
-      </section>
-
-      <section className="flex min-h-screen items-center justify-center bg-[#EEF2F5] px-4 pb-10 pt-24 sm:px-6 lg:pt-10">
-        <div className="w-full max-w-[430px]">
-          {!forgot?<form onSubmit={submit} autoComplete="on" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_22px_65px_rgba(15,23,42,.07)] sm:p-8">
-            <div className="text-[10px] font-semibold uppercase tracking-[.14em] text-[#22A53A]">Welcome back</div>
-            <h1 className="mt-2 text-[30px] font-semibold tracking-[-.04em] text-slate-950">Sign in to MauzoPOS</h1>
-            <p className="mt-1 text-[12px] text-slate-400">Enter your account details to continue.</p>
-
-            <label className="mt-6 block text-[11.5px] font-medium text-slate-600">Email address
-              <input name="email" type="email" autoComplete="email" placeholder="you@example.com" required className="control mt-1.5"/>
-            </label>
-
-            <div className="mt-4 flex items-center justify-between">
-              <label htmlFor="login-password" className="text-[11.5px] font-medium text-slate-600">Password</label>
-              <button type="button" onClick={()=>{setForgot(true);setError('');setSent(false)}} className="text-[10.5px] font-medium text-[#169B36] hover:underline">Forgot password?</button>
-            </div>
-            <div className="relative mt-1.5">
-              <input id="login-password" name="password" type={showPassword?'text':'password'} autoComplete="current-password" placeholder="Enter password" required className="control mt-0 pr-11"/>
-              <button type="button" onClick={()=>setShowPassword(v=>!v)} className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-slate-50">{showPassword?<EyeOff size={16}/>:<Eye size={16}/>}</button>
-            </div>
-
-            {error&&<div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-medium text-red-700">{error}</div>}
-            <button disabled={busy} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#22A53A] text-[13px] font-semibold text-white transition hover:brightness-95 disabled:opacity-50">{busy?'Signing in…':'Sign in'} {!busy&&<ArrowRight size={15}/>}</button>
-
-            <div className="mt-5 border-t border-slate-100 pt-4 text-center text-[11px] text-slate-400">New to MauzoPOS? <button type="button" onClick={()=>navigate('/register')} className="font-semibold text-[#169B36] hover:underline">Start free trial</button></div>
-          </form>:<form onSubmit={requestReset} autoComplete="on" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_22px_65px_rgba(15,23,42,.07)] sm:p-8">
-            <button type="button" onClick={()=>{setForgot(false);setError('');setSent(false)}} className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><ArrowLeft size={13}/>Back to sign in</button>
-            <h1 className="mt-5 text-[28px] font-semibold tracking-[-.04em] text-slate-950">Reset password</h1>
-            <p className="mt-1 text-[12px] text-slate-400">Enter the email connected to your account.</p>
-            <label className="mt-6 block text-[11.5px] font-medium text-slate-600">Email address
-              <input name="email" type="email" autoComplete="email" placeholder="you@example.com" required className="control mt-1.5"/>
-            </label>
-            {sent&&<div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-[11px] font-medium text-emerald-700">If the account exists, the reset instructions are ready.</div>}
-            {error&&<div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-medium text-red-700">{error}</div>}
-            <button disabled={busy} className="mt-5 h-11 w-full rounded-lg bg-slate-950 text-[13px] font-semibold text-white disabled:opacity-50">{busy?'Preparing…':'Send reset link'}</button>
-          </form>}
-          <div className="mt-4 text-center text-[9px] text-slate-300">Secure access to your MauzoPOS workspace</div>
-        </div>
-      </section>
     </main>
   </div>
 }
