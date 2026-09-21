@@ -210,12 +210,13 @@ export async function postSupplierInvoiceAccounting(client,{bid,supplierInvoiceI
 }
 
 async function accountBalanceRows(pool,bid,{from=null,to=null,asOf=null,branchId=null,types=null}={}){
-  const params=[bid,from,to,asOf,branchId],where=["a.business_id=$1","a.is_active=true","je.status='posted'"];
-  if(from)where.push('je.entry_date >= $2::date');
-  if(to)where.push('je.entry_date <= $3::date');
-  if(asOf)where.push('je.entry_date <= $4::date');
-  if(branchId)where.push('coalesce(jl.branch_id,je.branch_id)=$5');
-  if(types?.length){params.push(types);where.push('a.account_type=ANY($'+params.length+'::text[])');}
+  const params=[bid],where=["a.business_id=$1","a.is_active=true","je.status='posted'"];
+  const add=(value,cast='')=>{params.push(value);return '$'+params.length+cast};
+  if(from)where.push('je.entry_date >= '+add(from,'::date'));
+  if(to)where.push('je.entry_date <= '+add(to,'::date'));
+  if(asOf)where.push('je.entry_date <= '+add(asOf,'::date'));
+  if(branchId)where.push('coalesce(jl.branch_id,je.branch_id)='+add(branchId,'::bigint'));
+  if(types?.length)where.push('a.account_type=ANY('+add(types,'::text[]')+')');
   const q=await pool.query("SELECT a.id,a.account_code,a.name,a.account_type,a.normal_balance,coalesce(sum(jl.debit),0)::numeric debit,coalesce(sum(jl.credit),0)::numeric credit FROM accounts a LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE "+where.join(' AND ')+" GROUP BY a.id ORDER BY a.account_code",params);
   return q.rows.map(x=>({...x,debit:Number(x.debit||0),credit:Number(x.credit||0),balance:x.normal_balance==='debit'?Number(x.debit||0)-Number(x.credit||0):Number(x.credit||0)-Number(x.debit||0)}));
 }
@@ -268,7 +269,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     pool.query("SELECT count(*)::int count,coalesce(sum(amount),0)::numeric total FROM expenses WHERE business_id=$1 AND status='posted' AND ($2::date IS NULL OR expense_date >= $2::date) AND ($3::date IS NULL OR expense_date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4)",p),
     pool.query("SELECT count(*)::int count,coalesce(sum(total),0)::numeric total FROM purchase_orders WHERE business_id=$1 AND status NOT IN ('rejected','cancelled') AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4)",p),
     pool.query("SELECT count(DISTINCT p.id)::int products,coalesce(sum(ib.qty*ib.avg_cost),0)::numeric valuation,count(DISTINCT p.id) FILTER (WHERE coalesce(t.qty,0)<=p.reorder_level)::int low_stock FROM products p LEFT JOIN inventory_balances ib ON ib.product_id=p.id AND ib.business_id=p.business_id LEFT JOIN LATERAL (SELECT sum(qty) qty FROM inventory_balances z WHERE z.business_id=p.business_id AND z.product_id=p.id) t ON true WHERE p.business_id=$1 AND p.active=true",[bid]),
-    pool.query("SELECT count(*)::int count,coalesce(sum(actual_yield),0)::numeric yield,coalesce(sum(total_cost),0)::numeric cost FROM recipe_batches WHERE business_id=$1 AND status='completed' AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date)",[bid,from,to]),
+    pool.query("SELECT count(*)::int count,coalesce(sum(actual_yield),0)::numeric yield,coalesce(sum(total_cost),0)::numeric cost FROM recipe_batches WHERE business_id=$1 AND status='completed' AND ($2::date IS NULL OR prepared_at::date >= $2::date) AND ($3::date IS NULL OR prepared_at::date <= $3::date)",[bid,from,to]),
     pool.query("SELECT count(*)::int tickets,coalesce(avg(extract(epoch from (coalesce(ready_at,now())-created_at))/60.0),0)::numeric avg_minutes FROM kitchen_tickets WHERE business_id=$1 AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date)",[bid,from,to]),
     pool.query("SELECT count(*)::int total,count(*) FILTER (WHERE status='occupied')::int occupied,count(*) FILTER (WHERE status='waiting_for_bill')::int waiting,count(*) FILTER (WHERE status='available')::int available,count(*) FILTER (WHERE cleanliness_status='dirty')::int dirty FROM restaurant_tables WHERE business_id=$1 AND active=true",[bid]),
     pool.query("SELECT count(*)::int count,coalesce(sum(balance),0)::numeric receivable FROM customers WHERE business_id=$1",[bid]),

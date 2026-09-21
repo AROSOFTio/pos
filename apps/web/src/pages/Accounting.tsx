@@ -10,14 +10,14 @@ const today=()=>new Date().toISOString().slice(0,10)
 const monthStart=()=>today().slice(0,8)+'01'
 
 export default function Accounting({currency}:{currency:string}){
- const [tab,setTab]=useState<Tab>('overview'),[from,setFrom]=useState(monthStart()),[to,setTo]=useState(today())
+ const [tab,setTab]=useState<Tab>('overview'),[from,setFrom]=useState(monthStart()),[to,setTo]=useState(today()),[loadError,setLoadError]=useState('')
  const [accounts,setAccounts]=useState<any[]|null>(null),[overview,setOverview]=useState<any|null>(null),[journals,setJournals]=useState<any[]>([])
  const [trial,setTrial]=useState<any|null>(null),[pnl,setPnl]=useState<any|null>(null),[balance,setBalance]=useState<any|null>(null),[cashbook,setCashbook]=useState<any[]>([])
  const [ledgerAccount,setLedgerAccount]=useState(''),[ledger,setLedger]=useState<any|null>(null),[mappings,setMappings]=useState<any[]>([]),[periods,setPeriods]=useState<any[]>([])
  const [journalOpen,setJournalOpen]=useState(false),[journal,setJournal]=useState<any>({entryDate:today(),description:'',notes:'',lines:[{accountId:'',debit:'',credit:'',memo:''},{accountId:'',debit:'',credit:'',memo:''}]}),[saving,setSaving]=useState(false)
  const qs=useMemo(()=>new URLSearchParams({from,to}).toString(),[from,to])
- const loadBase=()=>Promise.all([api('/accounting/accounts'),api('/accounting/dashboard?'+qs)]).then(([a,o])=>{setAccounts(a);setOverview(o)})
- useEffect(()=>{loadBase().catch(()=>setAccounts([]))},[qs])
+ const loadBase=()=>{setLoadError('');return Promise.all([api('/accounting/accounts'),api('/accounting/dashboard?'+qs)]).then(([a,o])=>{setAccounts(a);setOverview(o)}).catch((e:any)=>{setAccounts([]);setOverview(null);setLoadError(e?.message||'Accounting data could not be loaded')})}
+ useEffect(()=>{loadBase()},[qs])
  useEffect(()=>{
   if(!accounts)return
   if(tab==='journals')api('/accounting/journals?'+qs).then(setJournals)
@@ -26,7 +26,7 @@ export default function Accounting({currency}:{currency:string}){
   if(tab==='cashbook')api('/accounting/cashbook?'+qs).then(setCashbook)
   if(tab==='setup')Promise.all([api('/accounting/mappings'),api('/accounting/periods')]).then(([m,p])=>{setMappings(m);setPeriods(p)})
  },[tab,accounts,qs,ledgerAccount,to])
- if(!accounts||!overview)return <Loading/>
+ if(loadError)return <div><PageHeading eyebrow="Management · Finance" title="Accounting" sub="Double-entry accounting tied directly to POS, inventory, purchasing, refunds, expenses and shifts."/><Panel title="Accounting could not load" sub="The server returned an error while loading the accounting dashboard."><div className="rounded-xl bg-red-50 p-4 text-[12px] text-red-700">{loadError}</div><button onClick={()=>loadBase()} className="mt-3 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-semibold text-white">Retry</button></Panel></div>; if(!accounts||!overview)return <Loading/>
 
  async function saveJournal(){
   setSaving(true)
