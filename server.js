@@ -1520,7 +1520,7 @@ async function scheduledReportWorker(){
 }
 function startBackgroundWorkers(){setTimeout(scheduledReportWorker,15000);setInterval(scheduledReportWorker,60000)}
 
-app.get('*',(req,res)=>res.sendFile(process.cwd()+'/public/index.html'));
 registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit});
+app.get('*',(req,res)=>res.sendFile(process.cwd()+'/public/index.html'));
 
 init().then(()=>app.listen(port,'0.0.0.0',()=>{console.log('POS running on '+port);startBackgroundWorkers()})).catch(e=>{console.error(e);process.exit(1)});
