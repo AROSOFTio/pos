@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Banknote, BarChart3, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Banknote, BarChart3, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, Landmark, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo } from './Brand'
 import Marketing from './Marketing'
@@ -16,6 +16,7 @@ import Approvals from './pages/Approvals'
 import Inventory from './pages/Inventory'
 import Purchasing from './pages/Purchasing'
 import Expenses from './pages/Expenses'
+import Accounting from './pages/Accounting'
 import Products from './pages/Products'
 import Suppliers from './pages/Suppliers'
 import Branches from './pages/Branches'
@@ -28,9 +29,9 @@ import Staff from './pages/Staff'
 import NotificationBell from './components/NotificationBell'
 import StaffQuickMenu from './components/StaffQuickMenu'
 
-export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
+export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Accounting'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
-const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Shifts',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
+const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Accounting',Landmark],['Shifts',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
 
 export default function App(){
   const [user,setUser]=useState<User|null>(null)
@@ -102,6 +103,7 @@ export default function App(){
     if(name==='Suppliers')return elevated||hasRole('branch_manager','storekeeper')
     if(name==='Purchasing')return enabled.has('purchasing')&&(elevated||hasRole('branch_manager','storekeeper','accountant'))
     if(name==='Expenses')return elevated||hasRole('branch_manager','accountant','auditor')
+    if(name==='Accounting')return can('accounting.view')||hasRole('accountant','auditor')
     if(name==='Shifts')return elevated||hasRole('branch_manager','accountant','auditor')
     if(name==='Reports')return can('reports.profit')||hasRole('auditor')
     if(name==='Staff')return can('staff.manage')
@@ -128,7 +130,7 @@ export default function App(){
     return false
   })
 
-  const managementViews=new Set<ViewKey>(['Dashboard','Approvals','Products','Inventory','Suppliers','Purchasing','Expenses','Reports','Staff','Branches','Settings'])
+  const managementViews=new Set<ViewKey>(['Dashboard','Approvals','Products','Inventory','Suppliers','Purchasing','Expenses','Accounting','Reports','Staff','Branches','Settings'])
   const canAccessView=(v:ViewKey)=>{
     if(managementViews.has(v))return hasManagementAccess&&(v==='Dashboard'||managementRows.some(([name]:any)=>name===v))
     return allowedOps.some(([name]:any)=>name===v)
@@ -152,6 +154,7 @@ export default function App(){
     {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency}/>}
     {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
     {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
+    {view==='Accounting'&&canAccessView('Accounting')&&<Accounting currency={currency}/>}
     {view==='Products'&&canAccessView('Products')&&<Products currency={currency} allowScanning={hasRetail}/>}
     {view==='Suppliers'&&canAccessView('Suppliers')&&<Suppliers currency={currency}/>}
     {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}

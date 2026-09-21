@@ -1799,3 +1799,297 @@ ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_background_scope TEXT NOT 
 
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_background_image TEXT;
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS theme_background_image_fit TEXT NOT NULL DEFAULT 'cover';
+
+
+-- Restaurant accounting foundation (Farmexa-derived architecture adapted to MauzoPOS)
+CREATE TABLE IF NOT EXISTS accounts (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  account_code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  account_type TEXT NOT NULL CHECK(account_type IN ('asset','liability','equity','revenue','cost_of_sales','expense')),
+  normal_balance TEXT NOT NULL CHECK(normal_balance IN ('debit','credit')),
+  parent_account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  allow_manual_entries BOOLEAN NOT NULL DEFAULT true,
+  is_system BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,account_code)
+);
+CREATE INDEX IF NOT EXISTS idx_accounts_business_type ON accounts(business_id,account_type,is_active);
+
+CREATE TABLE IF NOT EXISTS system_account_mappings (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  operation_key TEXT NOT NULL,
+  account_id BIGINT REFERENCES accounts(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,operation_key)
+);
+
+CREATE TABLE IF NOT EXISTS journal_entries (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL,
+  entry_no TEXT NOT NULL,
+  entry_date DATE NOT NULL DEFAULT current_date,
+  posting_key TEXT NOT NULL,
+  source_module TEXT,
+  source_reference TEXT,
+  reference_type TEXT,
+  reference_id BIGINT,
+  description TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'posted' CHECK(status IN ('draft','posted','reversed','cancelled')),
+  is_reversed BOOLEAN NOT NULL DEFAULT false,
+  reversal_of_id BIGINT REFERENCES journal_entries(id) ON DELETE SET NULL,
+  created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  posted_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  posted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,entry_no),
+  UNIQUE(business_id,posting_key)
+);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_business_date ON journal_entries(business_id,entry_date,status);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_reference ON journal_entries(business_id,reference_type,reference_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_shift ON journal_entries(business_id,cash_session_id,entry_date);
+
+CREATE TABLE IF NOT EXISTS journal_lines (
+  id BIGSERIAL PRIMARY KEY,
+  journal_entry_id BIGINT REFERENCES journal_entries(id) ON DELETE CASCADE,
+  account_id BIGINT REFERENCES accounts(id) ON DELETE RESTRICT,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  debit NUMERIC(18,2) NOT NULL DEFAULT 0 CHECK(debit>=0),
+  credit NUMERIC(18,2) NOT NULL DEFAULT 0 CHECK(credit>=0),
+  memo TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK((debit>0 AND credit=0) OR (credit>0 AND debit=0))
+);
+CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id,journal_entry_id);
+
+CREATE TABLE IF NOT EXISTS accounting_periods (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','closing','closed','locked')),
+  closed_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,start_date,end_date)
+);
+
+CREATE TABLE IF NOT EXISTS document_attachments (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  entity_type TEXT NOT NULL,
+  entity_id BIGINT NOT NULL,
+  document_type TEXT NOT NULL DEFAULT 'supporting_document',
+  original_filename TEXT NOT NULL,
+  stored_filename TEXT NOT NULL,
+  mime_type TEXT,
+  file_size BIGINT,
+  file_url TEXT NOT NULL,
+  uploaded_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  uploaded_by_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_document_attachments_entity ON document_attachments(business_id,entity_type,entity_id);
+
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS expense_account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS created_by_name TEXT;
+
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL;
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL;
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE goods_receipts ADD COLUMN IF NOT EXISTS cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL;
+
+INSERT INTO permission_catalog(code,name,section) VALUES
+('accounting.view','View accounting and financial statements','Accounting'),
+('accounting.post','Create and post journal entries','Accounting'),
+('accounting.manage','Manage chart of accounts and mappings','Accounting'),
+('accounting.close','Close or reopen accounting periods','Accounting'),
+('accounting.export','Export accounting reports','Accounting'),
+('reports.activity','View management activity explorer','Reports')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'administrator',p.code,true FROM businesses b JOIN permission_catalog p ON p.section='Accounting' OR p.code='reports.activity'
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'accountant',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('accounting.view','accounting.post','accounting.manage','accounting.export','reports.activity')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'auditor',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('accounting.view','accounting.export','reports.activity')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'branch_manager',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('accounting.view','reports.activity')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+
+-- Seed a restaurant/retail-safe chart of accounts for every business.
+WITH defs(code,name,type,normal,parent_code,manual) AS (
+ VALUES
+ ('1000','Assets','asset','debit',NULL,false),
+ ('1100','Current Assets','asset','debit','1000',false),
+ ('1110','Cash and Cash Equivalents','asset','debit','1100',false),
+ ('1111','Cash on Hand','asset','debit','1110',true),
+ ('1112','Bank Account','asset','debit','1110',true),
+ ('1113','MTN Mobile Money','asset','debit','1110',true),
+ ('1114','Airtel Money','asset','debit','1110',true),
+ ('1115','Card Clearing','asset','debit','1110',true),
+ ('1116','Petty Cash','asset','debit','1110',true),
+ ('1120','Accounts Receivable','asset','debit','1100',false),
+ ('1130','Inventory','asset','debit','1100',false),
+ ('1131','Raw Material Inventory','asset','debit','1130',false),
+ ('1132','Finished Food Inventory','asset','debit','1130',false),
+ ('1133','Beverage Inventory','asset','debit','1130',false),
+ ('1134','Packaging Inventory','asset','debit','1130',false),
+ ('1135','Goods in Transit','asset','debit','1130',false),
+ ('1150','VAT Input Recoverable','asset','debit','1100',false),
+
+ ('2000','Liabilities','liability','credit',NULL,false),
+ ('2100','Current Liabilities','liability','credit','2000',false),
+ ('2110','Accounts Payable','liability','credit','2100',false),
+ ('2120','Accrued Expenses','liability','credit','2100',false),
+ ('2130','VAT / Tax Payable','liability','credit','2100',false),
+ ('2140','Tips Payable','liability','credit','2100',false),
+ ('2150','Customer Deposits','liability','credit','2100',false),
+ ('2160','Gift Card Liability','liability','credit','2100',false),
+
+ ('3000','Equity','equity','credit',NULL,false),
+ ('3100','Owner Capital','equity','credit','3000',true),
+ ('3200','Retained Earnings','equity','credit','3000',false),
+ ('3300','Current Year Profit / Loss','equity','credit','3000',false),
+
+ ('4000','Revenue','revenue','credit',NULL,false),
+ ('4110','Food Sales','revenue','credit','4000',false),
+ ('4120','Beverage Sales','revenue','credit','4000',false),
+ ('4130','Takeaway Sales','revenue','credit','4000',false),
+ ('4140','Delivery Sales','revenue','credit','4000',false),
+ ('4150','Service Charge Revenue','revenue','credit','4000',false),
+ ('4160','Catering Revenue','revenue','credit','4000',false),
+ ('4170','Sales Returns & Refunds','revenue','credit','4000',false),
+ ('4200','Other Income','revenue','credit','4000',true),
+
+ ('5000','Cost of Sales','cost_of_sales','debit',NULL,false),
+ ('5110','Food Cost of Sales','cost_of_sales','debit','5000',false),
+ ('5120','Beverage Cost of Sales','cost_of_sales','debit','5000',false),
+ ('5130','Packaging Cost','cost_of_sales','debit','5000',false),
+ ('5140','Production Variance','cost_of_sales','debit','5000',true),
+ ('5150','Waste / Spoilage','cost_of_sales','debit','5000',true),
+
+ ('6000','Operating Expenses','expense','debit',NULL,false),
+ ('6110','Salaries & Wages','expense','debit','6000',true),
+ ('6210','Electricity','expense','debit','6000',true),
+ ('6220','Water','expense','debit','6000',true),
+ ('6230','Gas / Fuel','expense','debit','6000',true),
+ ('6310','Repairs & Maintenance','expense','debit','6000',true),
+ ('6410','Transport','expense','debit','6000',true),
+ ('6510','Office Expenses','expense','debit','6000',true),
+ ('6520','Professional Fees','expense','debit','6000',true),
+ ('6530','Insurance','expense','debit','6000',true),
+ ('6540','Rent','expense','debit','6000',true),
+ ('6550','Marketing','expense','debit','6000',true),
+ ('6560','Bank Charges','expense','debit','6000',true),
+ ('6570','Software / Licences','expense','debit','6000',true),
+ ('6800','General Operating Expense','expense','debit','6000',true)
+)
+INSERT INTO accounts(business_id,account_code,name,account_type,normal_balance,description,is_system,allow_manual_entries)
+SELECT b.id,d.code,d.name,d.type,d.normal,'MauzoPOS default restaurant chart of accounts',true,d.manual
+FROM businesses b CROSS JOIN defs d
+ON CONFLICT(business_id,account_code) DO NOTHING;
+
+WITH defs(code,parent_code) AS (
+ VALUES
+ ('1100','1000'),('1110','1100'),('1111','1110'),('1112','1110'),('1113','1110'),('1114','1110'),('1115','1110'),('1116','1110'),
+ ('1120','1100'),('1130','1100'),('1131','1130'),('1132','1130'),('1133','1130'),('1134','1130'),('1135','1130'),('1150','1100'),
+ ('2100','2000'),('2110','2100'),('2120','2100'),('2130','2100'),('2140','2100'),('2150','2100'),('2160','2100'),
+ ('3100','3000'),('3200','3000'),('3300','3000'),
+ ('4110','4000'),('4120','4000'),('4130','4000'),('4140','4000'),('4150','4000'),('4160','4000'),('4170','4000'),('4200','4000'),
+ ('5110','5000'),('5120','5000'),('5130','5000'),('5140','5000'),('5150','5000'),
+ ('6110','6000'),('6210','6000'),('6220','6000'),('6230','6000'),('6310','6000'),('6410','6000'),('6510','6000'),('6520','6000'),('6530','6000'),('6540','6000'),('6550','6000'),('6560','6000'),('6570','6000'),('6800','6000')
+)
+UPDATE accounts child SET parent_account_id=parent.id
+FROM defs d,accounts parent
+WHERE child.account_code=d.code AND parent.account_code=d.parent_code AND parent.business_id=child.business_id
+  AND child.parent_account_id IS NULL;
+
+WITH defs(operation_key,code) AS (
+ VALUES
+ ('cash','1111'),('bank','1112'),('mobile_money','1113'),('mtn_mobile_money','1113'),('airtel_money','1114'),('card','1115'),('petty_cash','1116'),
+ ('accounts_receivable','1120'),('accounts_payable','2110'),
+ ('raw_material_inventory','1131'),('finished_goods_inventory','1132'),('beverage_inventory','1133'),('packaging_inventory','1134'),
+ ('vat_input','1150'),('vat_output','2130'),('tips_payable','2140'),('customer_deposits','2150'),('gift_card_liability','2160'),
+ ('food_sales','4110'),('beverage_sales','4120'),('takeaway_sales','4130'),('delivery_sales','4140'),('service_charge_revenue','4150'),('sales_returns','4170'),('other_income','4200'),
+ ('food_cogs','5110'),('beverage_cogs','5120'),('packaging_cogs','5130'),('production_variance','5140'),('waste_expense','5150'),
+ ('default_expense','6800'),('retained_earnings','3200'),('current_year_pl','3300')
+)
+INSERT INTO system_account_mappings(business_id,operation_key,account_id)
+SELECT b.id,d.operation_key,a.id FROM businesses b CROSS JOIN defs d JOIN accounts a ON a.business_id=b.id AND a.account_code=d.code
+ON CONFLICT(business_id,operation_key) DO NOTHING;
+
+
+-- Per-business accounting bootstrap for tenants created after process startup
+CREATE OR REPLACE FUNCTION seed_business_accounting(p_business_id BIGINT) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  WITH defs(code,name,type,normal,parent_code,manual) AS (
+   VALUES
+   ('1000','Assets','asset','debit',NULL,false),('1100','Current Assets','asset','debit','1000',false),('1110','Cash and Cash Equivalents','asset','debit','1100',false),
+   ('1111','Cash on Hand','asset','debit','1110',true),('1112','Bank Account','asset','debit','1110',true),('1113','MTN Mobile Money','asset','debit','1110',true),('1114','Airtel Money','asset','debit','1110',true),('1115','Card Clearing','asset','debit','1110',true),('1116','Petty Cash','asset','debit','1110',true),
+   ('1120','Accounts Receivable','asset','debit','1100',false),('1130','Inventory','asset','debit','1100',false),('1131','Raw Material Inventory','asset','debit','1130',false),('1132','Finished Food Inventory','asset','debit','1130',false),('1133','Beverage Inventory','asset','debit','1130',false),('1134','Packaging Inventory','asset','debit','1130',false),('1135','Goods in Transit','asset','debit','1130',false),('1150','VAT Input Recoverable','asset','debit','1100',false),
+   ('2000','Liabilities','liability','credit',NULL,false),('2100','Current Liabilities','liability','credit','2000',false),('2110','Accounts Payable','liability','credit','2100',false),('2120','Accrued Expenses','liability','credit','2100',false),('2130','VAT / Tax Payable','liability','credit','2100',false),('2140','Tips Payable','liability','credit','2100',false),('2150','Customer Deposits','liability','credit','2100',false),('2160','Gift Card Liability','liability','credit','2100',false),
+   ('3000','Equity','equity','credit',NULL,false),('3100','Owner Capital','equity','credit','3000',true),('3200','Retained Earnings','equity','credit','3000',false),('3300','Current Year Profit / Loss','equity','credit','3000',false),
+   ('4000','Revenue','revenue','credit',NULL,false),('4110','Food Sales','revenue','credit','4000',false),('4120','Beverage Sales','revenue','credit','4000',false),('4130','Takeaway Sales','revenue','credit','4000',false),('4140','Delivery Sales','revenue','credit','4000',false),('4150','Service Charge Revenue','revenue','credit','4000',false),('4160','Catering Revenue','revenue','credit','4000',false),('4170','Sales Returns & Refunds','revenue','credit','4000',false),('4200','Other Income','revenue','credit','4000',true),
+   ('5000','Cost of Sales','cost_of_sales','debit',NULL,false),('5110','Food Cost of Sales','cost_of_sales','debit','5000',false),('5120','Beverage Cost of Sales','cost_of_sales','debit','5000',false),('5130','Packaging Cost','cost_of_sales','debit','5000',false),('5140','Production Variance','cost_of_sales','debit','5000',true),('5150','Waste / Spoilage','cost_of_sales','debit','5000',true),
+   ('6000','Operating Expenses','expense','debit',NULL,false),('6110','Salaries & Wages','expense','debit','6000',true),('6210','Electricity','expense','debit','6000',true),('6220','Water','expense','debit','6000',true),('6230','Gas / Fuel','expense','debit','6000',true),('6310','Repairs & Maintenance','expense','debit','6000',true),('6410','Transport','expense','debit','6000',true),('6510','Office Expenses','expense','debit','6000',true),('6520','Professional Fees','expense','debit','6000',true),('6530','Insurance','expense','debit','6000',true),('6540','Rent','expense','debit','6000',true),('6550','Marketing','expense','debit','6000',true),('6560','Bank Charges','expense','debit','6000',true),('6570','Software / Licences','expense','debit','6000',true),('6800','General Operating Expense','expense','debit','6000',true)
+  )
+  INSERT INTO accounts(business_id,account_code,name,account_type,normal_balance,description,is_system,allow_manual_entries)
+  SELECT p_business_id,d.code,d.name,d.type,d.normal,'MauzoPOS default restaurant chart of accounts',true,d.manual FROM defs d
+  ON CONFLICT(business_id,account_code) DO NOTHING;
+
+  WITH defs(code,parent_code) AS (
+   VALUES ('1100','1000'),('1110','1100'),('1111','1110'),('1112','1110'),('1113','1110'),('1114','1110'),('1115','1110'),('1116','1110'),('1120','1100'),('1130','1100'),('1131','1130'),('1132','1130'),('1133','1130'),('1134','1130'),('1135','1130'),('1150','1100'),('2100','2000'),('2110','2100'),('2120','2100'),('2130','2100'),('2140','2100'),('2150','2100'),('2160','2100'),('3100','3000'),('3200','3000'),('3300','3000'),('4110','4000'),('4120','4000'),('4130','4000'),('4140','4000'),('4150','4000'),('4160','4000'),('4170','4000'),('4200','4000'),('5110','5000'),('5120','5000'),('5130','5000'),('5140','5000'),('5150','5000'),('6110','6000'),('6210','6000'),('6220','6000'),('6230','6000'),('6310','6000'),('6410','6000'),('6510','6000'),('6520','6000'),('6530','6000'),('6540','6000'),('6550','6000'),('6560','6000'),('6570','6000'),('6800','6000')
+  )
+  UPDATE accounts child SET parent_account_id=parent.id FROM defs d,accounts parent
+  WHERE child.business_id=p_business_id AND parent.business_id=p_business_id AND child.account_code=d.code AND parent.account_code=d.parent_code AND child.parent_account_id IS NULL;
+
+  WITH defs(operation_key,code) AS (
+   VALUES ('cash','1111'),('bank','1112'),('mobile_money','1113'),('mtn_mobile_money','1113'),('airtel_money','1114'),('card','1115'),('petty_cash','1116'),('accounts_receivable','1120'),('accounts_payable','2110'),('raw_material_inventory','1131'),('finished_goods_inventory','1132'),('beverage_inventory','1133'),('packaging_inventory','1134'),('vat_input','1150'),('vat_output','2130'),('tips_payable','2140'),('customer_deposits','2150'),('gift_card_liability','2160'),('food_sales','4110'),('beverage_sales','4120'),('takeaway_sales','4130'),('delivery_sales','4140'),('service_charge_revenue','4150'),('sales_returns','4170'),('other_income','4200'),('food_cogs','5110'),('beverage_cogs','5120'),('packaging_cogs','5130'),('production_variance','5140'),('waste_expense','5150'),('default_expense','6800'),('retained_earnings','3200'),('current_year_pl','3300')
+  )
+  INSERT INTO system_account_mappings(business_id,operation_key,account_id)
+  SELECT p_business_id,d.operation_key,a.id FROM defs d JOIN accounts a ON a.business_id=p_business_id AND a.account_code=d.code
+  ON CONFLICT(business_id,operation_key) DO NOTHING;
+
+  INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+  SELECT p_business_id,'administrator',p.code,true FROM permission_catalog p WHERE p.section='Accounting' OR p.code='reports.activity'
+  ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+  INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+  SELECT p_business_id,'accountant',p.code,true FROM permission_catalog p WHERE p.code IN ('accounting.view','accounting.post','accounting.manage','accounting.export','reports.activity')
+  ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+  INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+  SELECT p_business_id,'auditor',p.code,true FROM permission_catalog p WHERE p.code IN ('accounting.view','accounting.export','reports.activity')
+  ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+  INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+  SELECT p_business_id,'branch_manager',p.code,true FROM permission_catalog p WHERE p.code IN ('accounting.view','reports.activity')
+  ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+END $$;
+
+SELECT seed_business_accounting(id) FROM businesses;
+
+
+-- Table lifecycle invariant: a vacant table is always clean.
+UPDATE restaurant_tables SET cleanliness_status='clean' WHERE status='available' AND cleanliness_status<>'clean';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_restaurant_table_available_clean') THEN
+    ALTER TABLE restaurant_tables ADD CONSTRAINT ck_restaurant_table_available_clean CHECK(status<>'available' OR cleanliness_status='clean');
+  END IF;
+END $$;

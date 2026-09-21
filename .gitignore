@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+node_modules/
+backups/
+uploads/
+*.log
+.DS_Store

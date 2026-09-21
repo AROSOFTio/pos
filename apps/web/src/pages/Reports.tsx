@@ -1,96 +1,68 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, CalendarClock, Download, FileText, Plus, Printer, UtensilsCrossed } from 'lucide-react'
+import { Activity, Boxes, CalendarClock, ChefHat, CircleDollarSign, ClipboardList, Download, Package, Plus, Printer, ReceiptText, RefreshCw, ShoppingCart, Truck, UsersRound, UtensilsCrossed, WalletCards } from 'lucide-react'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, downloadFile, money, nice, openPdf } from '../api'
 import { Badge, DataTable, Modal, PageHeading, Panel, Stat, Loading } from '../components'
 
 const types=[
-  ['financial','Financial'],
-  ['sales','Sales'],
-  ['restaurant','Restaurant'],
-  ['inventory','Inventory'],
-  ['cash','Cash & Shifts'],
-  ['payments','Payments'],
-  ['refunds','Refunds & Voids'],
-  ['purchases','Purchases'],
-  ['expenses','Expenses'],
-  ['stock_movements','Stock Movements'],
-  ['kitchen','Kitchen Performance'],
+ ['financial','Financial'],['sales','Sales'],['restaurant','Restaurant'],['inventory','Inventory'],['cash','Cash & Shifts'],['payments','Payments'],['refunds','Refunds & Voids'],['purchases','Purchases'],['expenses','Expenses'],['stock_movements','Stock Movements'],['kitchen','Kitchen Performance'],
 ] as const
+type Section='overview'|'modules'|'activity'|'exports'|'menu'|'schedules'
+const sections:[Section,string][]=[['overview','Executive'],['modules','Module Dashboards'],['activity','Activity'],['exports','Report Centre'],['menu','Menu Engineering'],['schedules','Scheduled Delivery']]
 
 export default function Reports({currency}:{currency:string}){
-  const [summary,setSummary]=useState<any|null>(null),[from,setFrom]=useState(''),[to,setTo]=useState(''),[type,setType]=useState('financial'),[busy,setBusy]=useState(''),[branches,setBranches]=useState<any[]>([]),[branchId,setBranchId]=useState('')
-  const [section,setSection]=useState<'reports'|'menu'|'schedules'>('reports'),[engineering,setEngineering]=useState<any[]>([]),[schedules,setSchedules]=useState<any[]>([]),[scheduleOpen,setScheduleOpen]=useState(false),[scheduleBusy,setScheduleBusy]=useState(false)
-  const [schedule,setSchedule]=useState<any>({reportType:'daily_operations',cadence:'daily',sendTime:'23:59',recipients:''})
-  const qs=useMemo(()=>new URLSearchParams({...(from?{from}:{}),...(to?{to}:{}),...(branchId?{branchId}:{})}).toString(),[from,to,branchId])
-  const load=()=>api('/reports/summary'+(qs?'?'+qs:'')).then(setSummary)
-  useEffect(()=>{load()},[qs]);useEffect(()=>{api('/branches').then(setBranches).catch(()=>setBranches([]));api('/scheduled-reports').then(x=>setSchedules(Array.isArray(x)?x:[])).catch(()=>setSchedules([]))},[])
-  useEffect(()=>{if(section==='menu')api('/reports/menu-engineering'+(qs?'?'+qs:'')).then(x=>setEngineering(Array.isArray(x)?x:[])).catch(()=>setEngineering([]))},[section,qs])
-  async function exp(format:'xlsx'|'csv'|'pdf'){
-    setBusy(format)
-    try{
-      const p='/reports/export?report='+encodeURIComponent(type)+(from?'&from='+from:'')+ (to?'&to='+to:'') + (branchId?'&branchId='+branchId:'') + '&format='+format
-      if(format==='pdf')await openPdf(p); else await downloadFile(p)
-    }finally{setBusy('')}
-  }
-  async function createSchedule(){
-    const recipients=String(schedule.recipients||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean)
-    if(!recipients.length)return
-    setScheduleBusy(true)
-    try{const x=await api('/scheduled-reports',{method:'POST',body:JSON.stringify({...schedule,recipients})});setSchedules(v=>[...v,x]);setScheduleOpen(false);setSchedule({reportType:'daily_operations',cadence:'daily',sendTime:'23:59',recipients:''})}finally{setScheduleBusy(false)}
-  }
-  async function toggleSchedule(x:any){const u=await api('/scheduled-reports/'+x.id,{method:'PUT',body:JSON.stringify({active:!x.active})});setSchedules(v=>v.map(s=>s.id===x.id?u:s))}
-  if(!summary)return <Loading/>
-  const gross=Number(summary.sales?.total||0),expenses=Number(summary.expenses?.total||0)
-  return <div>
-    <PageHeading eyebrow="Management" title="Reports" sub="Operational, financial and restaurant intelligence." action={section==='schedules'?<button onClick={()=>setScheduleOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13}/>Schedule</button>:null}/>
-    <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
-      <button onClick={()=>setSection('reports')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='reports'?'bg-slate-950 text-white':'text-slate-500')}>Reports</button>
-      <button onClick={()=>setSection('menu')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='menu'?'bg-slate-950 text-white':'text-slate-500')}>Menu Engineering</button>
-      <button onClick={()=>setSection('schedules')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='schedules'?'bg-slate-950 text-white':'text-slate-500')}>Scheduled Delivery</button>
-    </div>
-    {section==='reports'&&<>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Stat label="Sales" value={money(gross,currency)} sub={(summary.sales?.count||0)+' transactions'} icon={BarChart3}/>
-      <Stat label="Restaurant" value={money(summary.restaurant?.total||0,currency)} sub={(summary.restaurant?.count||0)+' orders'} icon={FileText} tone="blue"/>
-      <Stat label="Expenses" value={money(expenses,currency)} sub="Posted costs" icon={Download} tone="amber"/>
-      <Stat label="Net" value={money(gross-expenses,currency)} sub="Sales less expenses" icon={BarChart3} tone="violet"/>
-    </div>
-    <div className="mt-4"><Panel title="Report Centre" sub="XLSX is a real Excel workbook. CSV and PDF are available too.">
-      <div className="grid gap-3 md:grid-cols-5">
-        <label className="text-sm font-medium text-slate-600">Report<select className="control" value={type} onChange={e=>setType(e.target.value)}>{types.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label>
-        <label className="text-sm font-medium text-slate-600">From<input type="date" className="control" value={from} onChange={e=>setFrom(e.target.value)}/></label>
-        <label className="text-sm font-medium text-slate-600">To<input type="date" className="control" value={to} onChange={e=>setTo(e.target.value)}/></label><label className="text-sm font-medium text-slate-600">Branch<select className="control" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-        <div className="flex items-end gap-2">
-          <button onClick={()=>exp('xlsx')} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-3 py-3 text-[13px] font-medium text-white">{busy==='xlsx'?'...':'Excel'}</button>
-          <button onClick={()=>exp('csv')} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium">CSV</button>
-          <button onClick={()=>exp('pdf')} className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium"><Printer size={16}/></button>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Metric label="Discounts" value={money(summary.sales?.discounts||0,currency)}/>
-        <Metric label="Tax" value={money(summary.sales?.tax||0,currency)}/>
-        <Metric label="Low stock" value={String(summary.lowStock||0)}/>
-      </div>
-    </Panel></div>
-    </>}
+ const [summary,setSummary]=useState<any|null>(null),[dash,setDash]=useState<any|null>(null),[activity,setActivity]=useState<any[]>([]),[from,setFrom]=useState(''),[to,setTo]=useState(''),[type,setType]=useState('financial'),[busy,setBusy]=useState(''),[branches,setBranches]=useState<any[]>([]),[branchId,setBranchId]=useState('')
+ const [section,setSection]=useState<Section>('overview'),[engineering,setEngineering]=useState<any[]>([]),[schedules,setSchedules]=useState<any[]>([]),[scheduleOpen,setScheduleOpen]=useState(false),[scheduleBusy,setScheduleBusy]=useState(false)
+ const [schedule,setSchedule]=useState<any>({reportType:'daily_operations',cadence:'daily',sendTime:'23:59',recipients:''})
+ const qs=useMemo(()=>new URLSearchParams({...(from?{from}:{}),...(to?{to}:{}),...(branchId?{branchId}:{})}).toString(),[from,to,branchId])
+ const load=()=>Promise.all([api('/reports/summary'+(qs?'?'+qs:'')),api('/reports/management-dashboard'+(qs?'?'+qs:''))]).then(([s,d])=>{setSummary(s);setDash(d)})
+ useEffect(()=>{load()},[qs])
+ useEffect(()=>{api('/branches').then(setBranches).catch(()=>setBranches([]));api('/scheduled-reports').then(x=>setSchedules(Array.isArray(x)?x:[])).catch(()=>setSchedules([]))},[])
+ useEffect(()=>{if(section==='menu')api('/reports/menu-engineering'+(qs?'?'+qs:'')).then(x=>setEngineering(Array.isArray(x)?x:[])).catch(()=>setEngineering([]));if(section==='activity')api('/reports/activity?limit=250').then(x=>setActivity(Array.isArray(x)?x:[])).catch(()=>setActivity([]))},[section,qs])
+ async function exp(format:'xlsx'|'csv'|'pdf'){setBusy(format);try{const p='/reports/export?report='+encodeURIComponent(type)+(from?'&from='+from:'')+(to?'&to='+to:'')+(branchId?'&branchId='+branchId:'')+'&format='+format;if(format==='pdf')await openPdf(p);else await downloadFile(p)}finally{setBusy('')}}
+ async function createSchedule(){const recipients=String(schedule.recipients||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean);if(!recipients.length)return;setScheduleBusy(true);try{const x=await api('/scheduled-reports',{method:'POST',body:JSON.stringify({...schedule,recipients})});setSchedules(v=>[...v,x]);setScheduleOpen(false);setSchedule({reportType:'daily_operations',cadence:'daily',sendTime:'23:59',recipients:''})}finally{setScheduleBusy(false)}}
+ async function toggleSchedule(x:any){const u=await api('/scheduled-reports/'+x.id,{method:'PUT',body:JSON.stringify({active:!x.active})});setSchedules(v=>v.map(s=>s.id===x.id?u:s))}
+ if(!summary||!dash)return <Loading/>
+ const netSales=Number(dash.sales?.total||0)-Number(dash.refunds?.total||0),avgCheck=Number(dash.sales?.count||0)?Number(dash.sales.total)/Number(dash.sales.count):0
+ return <div>
+  <PageHeading eyebrow="Management Intelligence" title="Reports & Analytics" sub="Trace every KPI from module performance down to the system activity that produced it." action={<button onClick={()=>load()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-medium text-slate-600"><RefreshCw size={13} className="mr-1 inline"/>Refresh</button>}/>
+  <div className="mb-4 grid gap-3 sm:grid-cols-3"><label className="text-[10.5px] font-medium text-slate-600">From<input type="date" className="control" value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="text-[10.5px] font-medium text-slate-600">To<input type="date" className="control" value={to} onChange={e=>setTo(e.target.value)}/></label><label className="text-[10.5px] font-medium text-slate-600">Branch<select className="control" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label></div>
+  <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">{sections.map(([v,n])=><button key={v} onClick={()=>setSection(v)} className={'shrink-0 rounded-lg px-3.5 py-2 text-[10.5px] font-medium '+(section===v?'bg-slate-950 text-white':'text-slate-500')}>{n}</button>)}</div>
 
-    {section==='menu'&&<Panel title="Menu Engineering" sub="Popularity, food cost and contribution margin by item.">
-      {engineering.length?<DataTable head={['Item','Category','Units','Revenue','COGS','Contribution','Food Cost','Class']} rows={engineering.map(x=>[<b>{x.product_name}</b>,x.category,Number(x.units),money(x.revenue,currency),money(x.cogs,currency),money(x.contribution,currency),Number(x.food_cost_percent).toFixed(1)+'%',<Badge tone={x.classification==='Star'?'green':x.classification==='Workhorse'?'blue':x.classification==='Puzzle'?'amber':'slate'}>{x.classification}</Badge>])}/>:<div className="py-10 text-center text-[11px] text-slate-400"><UtensilsCrossed size={18} className="mx-auto mb-2"/>No menu sales in this period.</div>}
-    </Panel>}
+  {section==='overview'&&<Executive dash={dash} currency={currency} netSales={netSales} avgCheck={avgCheck}/>}
+  {section==='modules'&&<Modules dash={dash} currency={currency}/>}
+  {section==='activity'&&<ActivityExplorer rows={activity}/>}
+  {section==='exports'&&<ReportCentre type={type} setType={setType} exp={exp} busy={busy}/>}
+  {section==='menu'&&<Panel title="Menu Engineering" sub="Popularity, food cost and contribution margin by item.">{engineering.length?<DataTable head={['Item','Category','Units','Revenue','COGS','Contribution','Food Cost','Class']} rows={engineering.map(x=>[<b>{x.product_name}</b>,x.category,Number(x.units),money(x.revenue,currency),money(x.cogs,currency),money(x.contribution,currency),Number(x.food_cost_percent).toFixed(1)+'%',<Badge tone={x.classification==='Star'?'green':x.classification==='Workhorse'?'blue':x.classification==='Puzzle'?'amber':'slate'}>{x.classification}</Badge>])}/>:<Empty icon={UtensilsCrossed} text="No menu sales in this period."/>}</Panel>}
+  {section==='schedules'&&<Panel title="Scheduled Management Reports" sub="Daily, weekly and monthly report delivery." action={<button onClick={()=>setScheduleOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Schedule</button>}>{schedules.length?<DataTable head={['Report','Cadence','Time','Recipients','Status','']} rows={schedules.map(x=>[nice(x.report_type),nice(x.cadence),String(x.send_time||'').slice(0,5),(x.recipients||[]).join(', '),<Badge tone={x.active?'green':'slate'}>{x.active?'Active':'Paused'}</Badge>,<button onClick={()=>toggleSchedule(x)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[9.5px] font-medium">{x.active?'Pause':'Enable'}</button>])}/>:<Empty icon={CalendarClock} text="No scheduled reports yet."/>}</Panel>}
 
-    {section==='schedules'&&<Panel title="Scheduled Management Reports" sub="Daily, weekly and monthly report delivery.">
-      {schedules.length?<DataTable head={['Report','Cadence','Time','Recipients','Status','']} rows={schedules.map(x=>[nice(x.report_type),nice(x.cadence),String(x.send_time||'').slice(0,5),(x.recipients||[]).join(', '),<Badge tone={x.active?'green':'slate'}>{x.active?'Active':'Paused'}</Badge>,<button onClick={()=>toggleSchedule(x)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[9.5px] font-medium">{x.active?'Pause':'Enable'}</button>])}/>:<div className="py-10 text-center text-[11px] text-slate-400"><CalendarClock size={18} className="mx-auto mb-2"/>No scheduled reports yet.</div>}
-    </Panel>}
-
-    {scheduleOpen&&<Modal title="Schedule Report Delivery" onClose={()=>!scheduleBusy&&setScheduleOpen(false)} size="md">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-[11px] font-medium text-slate-600">Report<select className="control" value={schedule.reportType} onChange={e=>setSchedule({...schedule,reportType:e.target.value})}><option value="daily_operations">Daily Operations</option><option value="financial">Financial Summary</option><option value="restaurant">Restaurant Operations</option><option value="inventory">Inventory</option><option value="cash">Cash & Shifts</option></select></label>
-        <label className="text-[11px] font-medium text-slate-600">Cadence<select className="control" value={schedule.cadence} onChange={e=>setSchedule({...schedule,cadence:e.target.value})}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
-        <label className="text-[11px] font-medium text-slate-600">Send time<input type="time" className="control" value={schedule.sendTime} onChange={e=>setSchedule({...schedule,sendTime:e.target.value})}/></label>
-        <label className="text-[11px] font-medium text-slate-600">Recipients<input className="control" value={schedule.recipients} onChange={e=>setSchedule({...schedule,recipients:e.target.value})} placeholder="owner@example.com, manager@example.com"/></label>
-      </div>
-      <button onClick={createSchedule} disabled={scheduleBusy||!String(schedule.recipients).trim()} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{scheduleBusy?'Saving…':'Save Schedule'}</button>
-    </Modal>}
-  </div>
+  {scheduleOpen&&<Modal title="Schedule Report Delivery" onClose={()=>!scheduleBusy&&setScheduleOpen(false)} size="md"><div className="grid gap-3 sm:grid-cols-2"><label className="text-[11px] font-medium text-slate-600">Report<select className="control" value={schedule.reportType} onChange={e=>setSchedule({...schedule,reportType:e.target.value})}><option value="daily_operations">Daily Operations</option><option value="financial">Financial Summary</option><option value="restaurant">Restaurant Operations</option><option value="inventory">Inventory</option><option value="cash">Cash & Shifts</option></select></label><label className="text-[11px] font-medium text-slate-600">Cadence<select className="control" value={schedule.cadence} onChange={e=>setSchedule({...schedule,cadence:e.target.value})}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label className="text-[11px] font-medium text-slate-600">Send time<input type="time" className="control" value={schedule.sendTime} onChange={e=>setSchedule({...schedule,sendTime:e.target.value})}/></label><label className="text-[11px] font-medium text-slate-600">Recipients<input className="control" value={schedule.recipients} onChange={e=>setSchedule({...schedule,recipients:e.target.value})} placeholder="owner@example.com, manager@example.com"/></label></div><button onClick={createSchedule} disabled={scheduleBusy||!String(schedule.recipients).trim()} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{scheduleBusy?'Saving…':'Save Schedule'}</button></Modal>}
+ </div>
 }
-function Metric({label,value}:{label:string;value:string}){return <div className="rounded-xl bg-slate-50 p-4"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 text-lg font-semibold text-slate-800">{value}</div></div>}
+
+function Executive({dash,currency,netSales,avgCheck}:{dash:any;currency:string;netSales:number;avgCheck:number}){
+ return <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Net sales" value={money(netSales,currency)} sub={(dash.sales?.count||0)+' receipts · '+money(dash.refunds?.total,currency)+' refunded'} icon={CircleDollarSign}/><Stat label="Restaurant" value={money(dash.restaurant?.total,currency)} sub={(dash.restaurant?.count||0)+' orders · '+(dash.restaurant?.covers||0)+' covers'} icon={UtensilsCrossed} tone="blue"/><Stat label="Average check" value={money(avgCheck,currency)} sub={Number(dash.restaurant?.covers||0)?money(Number(dash.restaurant.total||0)/Number(dash.restaurant.covers),currency)+' per cover':'No covers'} icon={ReceiptText} tone="violet"/><Stat label="Inventory value" value={money(dash.inventory?.valuation,currency)} sub={(dash.inventory?.low_stock||0)+' low-stock products'} icon={Boxes} tone="amber"/></div>
+ <div className="mt-4 grid gap-4 xl:grid-cols-[1.6fr_1fr]"><Panel title="Sales, expenses & refunds trend" sub="Daily management movement for the selected period"><div className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={dash.trend||[]}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="d" tickFormatter={(v:any)=>String(v).slice(5,10)} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Area type="monotone" dataKey="sales" stroke="currentColor" fill="currentColor" fillOpacity={.08}/><Area type="monotone" dataKey="expenses" stroke="currentColor" fill="currentColor" fillOpacity={.03}/><Area type="monotone" dataKey="refunds" stroke="currentColor" fill="currentColor" fillOpacity={.02}/></AreaChart></ResponsiveContainer></div></Panel><Panel title="Payment mix" sub="Tender collections"><div className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={dash.paymentMix||[]} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="payment_method" width={90} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="total" fill="currentColor" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></div></Panel></div>
+ <div className="mt-4 grid gap-4 xl:grid-cols-2"><Panel title="Branch performance" sub="Revenue and transaction distribution by branch"><DataTable head={['Branch','Transactions','Sales']} rows={(dash.branches||[]).map((x:any)=>[<b>{x.name}</b>,x.transactions,money(x.sales,currency)])}/></Panel><Panel title="Top items" sub="Revenue, cost and contribution"><DataTable head={['Item','Qty','Revenue','COGS','Contribution']} rows={(dash.topItems||[]).map((x:any)=>[<b>{x.product_name}</b>,x.qty,money(x.revenue,currency),money(x.cogs,currency),money(x.contribution,currency)])}/></Panel></div></>
+}
+function Modules({dash,currency}:{dash:any;currency:string}){
+ const cards=[
+  ['POS & Sales',ShoppingCart,dash.sales?.count+' transactions',money(dash.sales?.total,currency),'Discounts '+money(dash.sales?.discount,currency)],
+  ['Restaurant',UtensilsCrossed,dash.restaurant?.count+' orders',money(dash.restaurant?.total,currency),(dash.restaurant?.covers||0)+' covers'],
+  ['Kitchen',ChefHat,dash.kitchen?.tickets+' tickets',Number(dash.kitchen?.avg_minutes||0).toFixed(1)+' min avg','Preparation performance'],
+  ['Inventory',Package,dash.inventory?.products+' products',money(dash.inventory?.valuation,currency),(dash.inventory?.low_stock||0)+' low stock'],
+  ['Production',ClipboardList,dash.production?.count+' batches',String(dash.production?.yield||0)+' yield','Cost '+money(dash.production?.cost,currency)],
+  ['Purchasing',Truck,dash.purchases?.count+' POs',money(dash.purchases?.total,currency),'Approved/active purchasing'],
+  ['Payments',WalletCards,dash.payments?.count+' payments',money(dash.payments?.total,currency),'Collected tenders'],
+  ['Refunds & Voids',RefreshCw,dash.refunds?.count+' approved',money(dash.refunds?.total,currency),'Controlled reversals'],
+  ['Expenses',ReceiptText,dash.expenses?.count+' expenses',money(dash.expenses?.total,currency),'Ledger-posted costs'],
+  ['Tables',UtensilsCrossed,dash.tables?.total+' tables',(dash.tables?.occupied||0)+' occupied',(dash.tables?.dirty||0)+' dirty'],
+  ['Customers',UsersRound,dash.customers?.count+' customers',money(dash.customers?.receivable,currency),'Outstanding receivables'],
+  ['Staff',UsersRound,dash.staff?.count+' active','Access controlled','Activity audit enabled'],
+ ]
+ return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(([name,Icon,primary,secondary,sub]:any)=><div key={name} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex items-center gap-2"><div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={15}/></div><b className="text-[12px]">{name}</b></div><div className="mt-4 text-[17px] font-semibold text-slate-900">{secondary}</div><div className="mt-1 text-[10.5px] text-slate-500">{primary}</div><div className="mt-3 border-t border-slate-100 pt-2 text-[9.5px] text-slate-400">{sub}</div></div>)}</div>
+}
+function ActivityExplorer({rows}:{rows:any[]}){return <Panel title="Management Activity Explorer" sub="Who did what, to which record, and when. Use entity/reference IDs to trace into operational records.">{rows.length?<DataTable head={['Time','User','Module','Action','Record','Details']} rows={rows.map(x=>[new Date(x.created_at).toLocaleString(),x.user_email||'System',nice(x.entity||'system'),<Badge tone="blue">{nice(x.action)}</Badge>,x.entity_id||'-',<div className="max-w-[360px] truncate text-[10px] text-slate-500">{compact(x.details)}</div>])}/>:<Empty icon={Activity} text="No activity found."/>}</Panel>}
+function ReportCentre({type,setType,exp,busy}:{type:string;setType:(v:string)=>void;exp:(v:'xlsx'|'csv'|'pdf')=>void;busy:string}){return <Panel title="Report Centre" sub="Download detailed operational reports. Every export comes from transaction-level source records."><div className="grid gap-3 md:grid-cols-[1fr_auto]"><label className="text-[11px] font-medium text-slate-600">Report<select className="control" value={type} onChange={e=>setType(e.target.value)}>{types.map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label><div className="flex items-end gap-2"><button onClick={()=>exp('xlsx')} className="rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-[11px] font-medium text-white"><Download size={13} className="mr-1 inline"/>{busy==='xlsx'?'Preparing…':'Excel'}</button><button onClick={()=>exp('csv')} className="rounded-xl border border-slate-200 px-4 py-3 text-[11px] font-medium">CSV</button><button onClick={()=>exp('pdf')} className="rounded-xl border border-slate-200 px-4 py-3 text-[11px] font-medium"><Printer size={14}/></button></div></div></Panel>}
+function Empty({icon:Icon,text}:{icon:any;text:string}){return <div className="py-10 text-center text-[11px] text-slate-400"><Icon size={18} className="mx-auto mb-2"/>{text}</div>}
+function compact(v:any){if(!v)return '-';try{return Object.entries(typeof v==='string'?JSON.parse(v):v).slice(0,5).map(([k,x])=>nice(k)+': '+String(x)).join(' · ')}catch{return String(v)}}

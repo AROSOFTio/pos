@@ -88,3 +88,14 @@ export async function printPdf(path:string) {
   document.body.appendChild(frame)
   frame.onload=()=>setTimeout(()=>{try{frame.contentWindow?.focus();frame.contentWindow?.print()}catch{window.open(url,'_blank','noopener,noreferrer')}setTimeout(()=>{frame.remove();URL.revokeObjectURL(url)},60000)},250)
 }
+
+
+export async function uploadFile(path:string, file:File, field='file') {
+  const token=localStorage.getItem('pos_token')||''
+  const form=new FormData();form.append(field,file)
+  const response=await fetch('/api'+path,{method:'POST',headers:{Authorization:'Bearer '+token},body:form})
+  const type=response.headers.get('content-type')||''
+  const body=type.includes('application/json')?await response.json():await response.text()
+  if(!response.ok)throw new Error(body?.error||body||'Upload failed')
+  return body
+}
