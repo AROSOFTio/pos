@@ -286,6 +286,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
   });
 
   app.get('/api/reports/management-dashboard',auth,tenant,permit('reports.profit'),async(req,res)=>{
+    try{
     const bid=await getBiz(req),from=parseDate(req.query.from),to=parseDate(req.query.to),branchId=Number(req.query.branchId||0)||null,p=[bid,from,to,branchId];
     const [
       sales,orders,payments,refunds,expenses,purchases,inventory,production,kitchen,tables,customers,staff,
@@ -310,7 +311,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       pool.query("SELECT si.product_name,sum(si.qty)::numeric qty,sum(si.line_total)::numeric revenue,sum(si.qty*si.unit_cost)::numeric cogs FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.business_id=$1 AND s.voided=false AND ($2::date IS NULL OR s.created_at::date >= $2::date) AND ($3::date IS NULL OR s.created_at::date <= $3::date) AND ($4::bigint IS NULL OR s.branch_id=$4) GROUP BY si.product_name ORDER BY revenue DESC LIMIT 10",p),
       pool.query("SELECT coalesce(nullif(order_type,''),'other') order_type,count(*)::int transactions,coalesce(sum(total),0)::numeric total FROM sales WHERE business_id=$1 AND voided=false AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4) GROUP BY coalesce(nullif(order_type,''),'other') ORDER BY total DESC",p),
       pool.query("SELECT coalesce(nullif(category,''),'General') category,count(*)::int transactions,coalesce(sum(amount),0)::numeric total FROM expenses WHERE business_id=$1 AND status='posted' AND ($2::date IS NULL OR expense_date >= $2::date) AND ($3::date IS NULL OR expense_date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4) GROUP BY coalesce(nullif(category,''),'General') ORDER BY total DESC LIMIT 8",p),
-      pool.query("SELECT extract(hour from created_at)::int hour,count(*)::int transactions,coalesce(sum(total),0)::numeric sales FROM sales WHERE business_id=$1 AND voided=false AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4) GROUP BY extract(hour from created_at)::int ORDER BY hour",p),
+      pool.query("SELECT extract(hour from created_at)::int AS sale_hour,count(*)::int transactions,coalesce(sum(total),0)::numeric sales FROM sales WHERE business_id=$1 AND voided=false AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4) GROUP BY extract(hour from created_at)::int ORDER BY sale_hour",p),
       pool.query("SELECT coalesce(nullif(p.category,''),'Uncategorised') category,sum(si.qty)::numeric qty,coalesce(sum(si.line_total),0)::numeric revenue FROM sale_items si JOIN sales s ON s.id=si.sale_id LEFT JOIN products p ON p.id=si.product_id WHERE s.business_id=$1 AND s.voided=false AND ($2::date IS NULL OR s.created_at::date >= $2::date) AND ($3::date IS NULL OR s.created_at::date <= $3::date) AND ($4::bigint IS NULL OR s.branch_id=$4) GROUP BY coalesce(nullif(p.category,''),'Uncategorised') ORDER BY revenue DESC LIMIT 8",p),
       pool.query("SELECT coalesce(nullif(cashier,''),'Unknown') cashier,count(*)::int transactions,coalesce(sum(total),0)::numeric sales,coalesce(avg(total),0)::numeric avg_check FROM sales WHERE business_id=$1 AND voided=false AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4) GROUP BY coalesce(nullif(cashier,''),'Unknown') ORDER BY sales DESC LIMIT 8",p)
     ]);
@@ -325,10 +326,14 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       topItems:top.rows.map(x=>({...x,qty:Number(x.qty),revenue:Number(x.revenue),cogs:Number(x.cogs),contribution:Number(x.revenue)-Number(x.cogs)})),
       orderTypes:orderTypes.rows.map(x=>({...x,total:Number(x.total)})),
       expenseCategories:expenseCategories.rows.map(x=>({...x,total:Number(x.total)})),
-      hourlySales:hourlySales.rows.map(x=>({...x,sales:Number(x.sales)})),
+      hourlySales:hourlySales.rows.map(x=>({...x,hour:Number(x.sale_hour),sales:Number(x.sales)})),
       categorySales:categorySales.rows.map(x=>({...x,qty:Number(x.qty),revenue:Number(x.revenue)})),
       cashiers:cashiers.rows.map(x=>({...x,sales:Number(x.sales),avg_check:Number(x.avg_check)}))
     });
+      }catch(e){
+      console.error('management-dashboard error',e);
+      if(!res.headersSent)res.status(500).json({error:'Management analytics could not be loaded'});
+    }
   });
   app.get('/api/reports/activity',auth,tenant,permit('reports.activity'),async(req,res)=>{const bid=await getBiz(req),limit=Math.min(500,Math.max(1,Number(req.query.limit||150))),entity=String(req.query.entity||'').trim(),p=[bid];let extra='';if(entity){p.push(entity);extra=' AND entity=$2'}p.push(limit);const q=await pool.query("SELECT id,user_email,action,entity,entity_id,details,created_at FROM audit_logs WHERE business_id=$1"+extra+" ORDER BY id DESC LIMIT $"+p.length,p);res.json(q.rows)});
 }
