@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import multer from 'multer';
+import ExcelJS from 'exceljs';
 
 const money = n => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
 const positive = n => Math.max(0, money(n));
@@ -435,6 +436,22 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     }
     throw new Error('Unknown report type');
   }
+
+  app.get('/api/accounting/reporting/export',auth,tenant,permit('accounting.export'),async(req,res)=>{try{
+    const bid=await getBiz(req),type=String(req.query.type||'sales'),format=String(req.query.format||'xlsx'),report=await detailedReport(bid,type,{from:parseDate(req.query.from),to:parseDate(req.query.to),branchId:Number(req.query.branchId||0)||null,expiryDays:Number(req.query.expiryDays||30)});
+    const cols=report.columns||[],rows=report.rows||[],safeName='MauzoPOS-'+type+'-'+new Date().toISOString().slice(0,10);
+    if(format==='csv'){
+      const esc=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+      res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition','attachment; filename="'+safeName+'.csv"');
+      return res.send([cols.map(x=>esc(x[1])).join(','),...rows.map(r=>cols.map(x=>esc(r[x[0]])).join(','))].join('\n'));
+    }
+    const wb=new ExcelJS.Workbook();wb.creator='MauzoPOS';wb.created=new Date();const ws=wb.addWorksheet(String(report.title||'Report').slice(0,31));
+    ws.addRow([report.title||'MauzoPOS Report']);ws.addRow(['Generated',new Date().toLocaleString()]);ws.addRow(['From',req.query.from||'All']);ws.addRow(['To',req.query.to||'All']);ws.addRow([]);ws.addRow(cols.map(x=>x[1]));
+    for(const r of rows)ws.addRow(cols.map(x=>r[x[0]]));
+    ws.getRow(1).font={bold:true,size:16};ws.getRow(6).font={bold:true};ws.getRow(6).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE2E8F0'}};ws.views=[{state:'frozen',ySplit:6}];ws.autoFilter={from:{row:6,column:1},to:{row:6,column:Math.max(1,cols.length)}};
+    ws.columns=cols.map((col,i)=>({width:Math.min(38,Math.max(12,String(col[1]).length+2,...rows.slice(0,100).map(r=>String(r[col[0]]??'').length+2)))}));
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');res.setHeader('Content-Disposition','attachment; filename="'+safeName+'.xlsx"');await wb.xlsx.write(res);res.end();
+  }catch(e){if(!res.headersSent)res.status(400).json({error:e.message})}});
 
   app.get('/api/accounting/reporting',auth,tenant,permit('accounting.view'),async(req,res)=>{try{const bid=await getBiz(req);res.json(await detailedReport(bid,String(req.query.type||'sales'),{from:parseDate(req.query.from),to:parseDate(req.query.to),branchId:Number(req.query.branchId||0)||null,expiryDays:Number(req.query.expiryDays||30)}))}catch(e){res.status(400).json({error:e.message})}});
 
