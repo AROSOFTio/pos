@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import {
-  AlertTriangle, ArrowLeft, BadgeCheck, Banknote, BarChart3, BookOpen, Boxes,
-  ChefHat, ClipboardCheck, Copy, Download, FileText, GraduationCap, HelpCircle,
-  Landmark, Link2, Mail, Printer, Search, Settings, Share2, ShieldCheck,
+  AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Banknote, BarChart3, BookOpen, Boxes,
+  ChefHat, ClipboardCheck, Download, FileText, GraduationCap, HelpCircle,
+  Landmark, Printer, Search, Settings, Share2, ShieldCheck,
   ShoppingCart, Store, Truck, UserRoundCog, UsersRound, UtensilsCrossed
 } from 'lucide-react'
 import { MauzoLogo } from '../Brand'
@@ -193,98 +193,83 @@ const lessons:Lesson[]=[
  ],mistakes:['Refreshing/retrying a payment many times.','Changing stock or cash to hide a discrepancy before investigation.'],practice:'Describe what information you would send support for a failed sale or report.',ready:'You can investigate first and avoid creating a second problem while trying to fix the first.'}
 ]
 
-const rolePaths=[
- ['Cashier','orientation,cashier,customer,shift,printing,endday'],
- ['Waiter','orientation,restaurant,customer,printing,endday'],
- ['Kitchen / Bar','orientation,kitchen,printing,endday'],
- ['Storekeeper','orientation,products,inventory,purchasing,printing,troubleshooting'],
- ['Manager','orientation,restaurant,inventory,shift,expenses,approvals,reports,staff,endday,troubleshooting'],
- ['Accountant','orientation,expenses,reports,accounting,printing,endday'],
- ['Administrator / Owner','orientation,products,inventory,purchasing,approvals,reports,accounting,staff,settings,printing,troubleshooting']
-]
-
 export default function Training({onBack}:{onBack?:()=>void}){
  const [query,setQuery]=useState('')
  const [active,setActive]=useState('orientation')
  const filtered=useMemo(()=>{const q=query.trim().toLowerCase();if(!q)return lessons;return lessons.filter(l=>(l.title+' '+l.role+' '+l.goal+' '+l.why+' '+l.steps.join(' ')+' '+l.mistakes.join(' ')).toLowerCase().includes(q))},[query])
+ const current=filtered.find(x=>x.id===active)||filtered[0]||lessons[0]
+ const index=lessons.findIndex(x=>x.id===current.id)
  const shareUrl=window.location.origin+'/training'
- const copy=async()=>{await navigator.clipboard?.writeText(shareUrl);alert('Training manual link copied')}
- const share=async()=>{if(navigator.share){await navigator.share({title:'MauzoPOS Training Manual',text:'MauzoPOS Training Manual',url:shareUrl})}else await copy()}
- const whatsapp=()=>window.open('https://wa.me/?text='+encodeURIComponent('MauzoPOS Training Manual\n'+shareUrl),'_blank','noopener,noreferrer')
- const email=()=>window.location.href='mailto:?subject='+encodeURIComponent('MauzoPOS Training Manual')+'&body='+encodeURIComponent('MauzoPOS Training Manual: '+shareUrl)
+ const copy=async()=>{await navigator.clipboard?.writeText(shareUrl);alert('Training link copied')}
+ const share=async()=>{if(navigator.share){await navigator.share({title:'MauzoPOS Training Manual',url:shareUrl})}else await copy()}
  const download=()=>{const a=document.createElement('a');a.href='/api/training/pdf';a.download='MauzoPOS-Training-Manual.pdf';document.body.appendChild(a);a.click();a.remove()}
- const go=(id:string)=>{setActive(id);document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
+ const next=(d:number)=>{const x=lessons[index+d];if(x)setActive(x.id)}
 
- return <div className="min-h-screen bg-[#F3F6F8] text-slate-900">
+ return <div className="min-h-screen bg-[#F4F6F8] text-slate-900">
   <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-   <div className="mx-auto flex h-[68px] max-w-[1500px] items-center gap-4 px-4 sm:px-6">
+   <div className="mx-auto flex h-16 max-w-[1460px] items-center gap-3 px-4 sm:px-6">
     <MauzoLogo/>
-    <div className="hidden h-8 w-px bg-slate-200 sm:block"/>
-    <div className="min-w-0"><div className="ui-eyebrow">Learning Centre</div><div className="truncate text-[13px] font-semibold text-slate-700">Complete Training Manual</div></div>
+    <div className="hidden h-7 w-px bg-slate-200 sm:block"/>
+    <div className="hidden sm:block"><div className="text-[12px] font-bold text-slate-800">Training Manual</div><div className="text-[11px] text-slate-500">Learn by doing</div></div>
     <div className="ml-auto flex items-center gap-2">
-     {onBack&&<button onClick={onBack} className="ui-btn hidden sm:inline-flex"><ArrowLeft size={14}/>Back to MauzoPOS</button>}
-     <button onClick={download} className="ui-btn ui-btn-primary"><Download size={14}/><span className="hidden sm:inline">Download PDF</span></button>
-     <button onClick={share} className="ui-btn"><Share2 size={14}/><span className="hidden sm:inline">Share</span></button>
+     {onBack&&<button onClick={onBack} className="ui-btn"><ArrowLeft size={15}/>Back</button>}
+     <button onClick={download} className="ui-btn ui-btn-primary"><Download size={15}/><span className="hidden sm:inline">PDF</span></button>
+     <button onClick={share} className="ui-btn"><Share2 size={15}/><span className="hidden sm:inline">Share</span></button>
     </div>
    </div>
   </header>
 
-  <section className="border-b border-slate-200 bg-white">
-   <div className="mx-auto max-w-[1500px] px-4 py-8 sm:px-6">
-    <div className="max-w-4xl">
-     <div className="ui-eyebrow">MauzoPOS Training Manual</div>
-     <h1 className="mt-2 text-[30px] font-bold tracking-[-.04em] text-slate-950 sm:text-[38px]">Learn the system by doing the real work.</h1>
-     <p className="mt-3 max-w-3xl text-[13px] leading-6 text-slate-600">This manual teaches staff how to use MauzoPOS. Each lesson explains the goal, the workflow, mistakes to avoid, a practical exercise and a readiness check. It complements the shorter SOP rather than replacing it.</p>
-    </div>
-    <div className="mt-6 flex flex-wrap gap-2">
-     <button onClick={download} className="ui-btn ui-btn-primary"><Download size={14}/>Download Training PDF</button>
-     <button onClick={share} className="ui-btn"><Share2 size={14}/>Share</button>
-     <button onClick={copy} className="ui-btn"><Copy size={14}/>Copy Link</button>
-     <button onClick={whatsapp} className="ui-btn"><Link2 size={14}/>WhatsApp</button>
-     <button onClick={email} className="ui-btn"><Mail size={14}/>Email</button>
-     <button onClick={()=>window.location.href='/sop'} className="ui-btn"><FileText size={14}/>Open SOP</button>
-    </div>
+  <div className="border-b border-slate-200 bg-white">
+   <div className="mx-auto flex max-w-[1460px] flex-wrap items-center gap-2 px-4 py-3 sm:px-6">
+    <a href="/sop" className="rounded-lg px-3 py-2 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">SOP</a>
+    <a href="/training" className="rounded-lg bg-slate-950 px-3 py-2 text-[12px] font-semibold text-white">Training Manual</a>
+    <a href="/docs" className="rounded-lg px-3 py-2 text-[12px] font-semibold text-slate-600 hover:bg-slate-50">Documentation</a>
+    <div className="ml-auto relative w-full sm:w-72"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search training" className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-[13px] outline-none focus:border-[var(--brand-primary)]"/></div>
    </div>
-  </section>
+  </div>
 
-  <section className="mx-auto max-w-[1500px] px-4 pt-5 sm:px-6">
-   <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div className="text-[12px] font-bold text-slate-900">Recommended learning paths</div>
-    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{rolePaths.map(([role,ids])=><div key={role} className="rounded-xl border border-slate-100 bg-slate-50 p-3"><div className="text-[11px] font-bold text-slate-800">{role}</div><div className="mt-1 text-[10px] leading-5 text-slate-500">{ids.split(',').map(id=>lessons.find(x=>x.id===id)?.title).filter(Boolean).join(' → ')}</div></div>)}</div>
-   </div>
-  </section>
-
-  <div className="mx-auto grid max-w-[1500px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[285px_minmax(0,1fr)]">
-   <aside className="lg:sticky lg:top-[88px] lg:self-start">
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-     <div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search training" className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-[11px] outline-none focus:border-[var(--brand-primary)]"/></div>
-     <div className="mt-3 max-h-[calc(100vh-180px)] space-y-0.5 overflow-y-auto pr-1">{filtered.map(l=>{const Icon=l.icon;return <button key={l.id} onClick={()=>go(l.id)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[11px] font-semibold transition '+(active===l.id?'bg-[var(--brand-soft)] text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-50')}><Icon size={15}/><span className="min-w-0 truncate">{l.title}</span></button>})}</div>
+  <div className="mx-auto grid max-w-[1460px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[275px_minmax(0,1fr)]">
+   <aside className="lg:sticky lg:top-[132px] lg:self-start">
+    <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+     <div className="px-3 pb-2 pt-2 text-[11px] font-bold uppercase tracking-[.08em] text-slate-400">Lessons</div>
+     <div className="max-h-[calc(100vh-180px)] overflow-y-auto">
+      {filtered.map(l=>{const Icon=l.icon;return <button key={l.id} onClick={()=>setActive(l.id)} className={'mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold '+(current.id===l.id?'bg-[var(--brand-soft)] text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-50')}><Icon size={16}/><span className="min-w-0"><span className="block truncate">{l.title}</span><span className="block truncate text-[10px] font-medium opacity-60">{l.role}</span></span></button>})}
+     </div>
     </div>
    </aside>
 
-   <main className="space-y-5">
-    {filtered.map((l,i)=>{const Icon=l.icon;return <section id={l.id} key={l.id} onMouseEnter={()=>setActive(l.id)} className="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-     <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5">
-      <div className="flex items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand-primary)]"><Icon size={18}/></div><div><div className="text-[10px] font-bold uppercase tracking-[.1em] text-slate-400">Lesson {String(i+1).padStart(2,'0')} · {l.role}</div><h2 className="mt-0.5 text-[18px] font-bold text-slate-900">{l.title}</h2><p className="mt-1 text-[11px] leading-5 text-slate-500">{l.goal}</p></div></div>
-     </div>
-     <div className="p-4 sm:p-5">
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-3.5"><div className="text-[10px] font-bold uppercase tracking-[.08em] text-blue-700">Why this matters</div><p className="mt-1 text-[11px] leading-5 text-blue-900">{l.why}</p></div>
-
-      {l.screenshot&&<figure className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img src={l.screenshot.src} alt={l.title+' screenshot'} className="max-h-[520px] w-full object-contain"/><figcaption className="border-t border-slate-200 bg-white px-3 py-2 text-[10px] leading-4 text-slate-500"><b className="text-slate-700">Screen example:</b> {l.screenshot.caption}</figcaption></figure>}
-
-      <div className="mt-4"><div className="ui-section-label">Step by step</div><div className="mt-2 space-y-2.5">{l.steps.map((step,n)=><div key={step} className="grid gap-3 rounded-xl border border-slate-100 p-3.5 sm:grid-cols-[32px_1fr]"><div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-950 text-[11px] font-bold text-white">{n+1}</div><p className="text-[11px] leading-5 text-slate-650">{step}</p></div>)}</div></div>
-
-      <div className="mt-4 grid gap-3 xl:grid-cols-3">
-       <div className="rounded-xl border border-red-100 bg-red-50 p-3.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-red-700"><AlertTriangle size={13}/>Common mistakes</div><ul className="mt-2 space-y-1.5 pl-4 text-[10.5px] leading-5 text-red-900">{l.mistakes.map(x=><li key={x} className="list-disc">{x}</li>)}</ul></div>
-       <div className="rounded-xl border border-amber-100 bg-amber-50 p-3.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-amber-700"><BookOpen size={13}/>Practice</div><p className="mt-2 text-[10.5px] leading-5 text-amber-900">{l.practice}</p></div>
-       <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3.5"><div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.08em] text-emerald-700"><BadgeCheck size={13}/>You are ready when</div><p className="mt-2 text-[10.5px] leading-5 text-emerald-900">{l.ready}</p></div>
+   <main>
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+     <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+      <div className="flex items-start gap-4">
+       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--brand-soft)] text-[var(--brand-primary)]">{(()=>{const I=current.icon;return <I size={20}/>})()}</div>
+       <div><div className="text-[11px] font-bold uppercase tracking-[.1em] text-[var(--brand-primary)]">Lesson {String(index+1).padStart(2,'0')} · {current.role}</div><h1 className="mt-1 text-[24px] font-bold tracking-[-.025em] text-slate-950">{current.title}</h1><p className="mt-1 text-[13px] leading-6 text-slate-600">{current.goal}</p></div>
       </div>
      </div>
-    </section>})}
-    {!filtered.length&&<div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-[12px] text-slate-500">No training lesson matches “{query}”.</div>}
+
+     <div className="p-5 sm:p-6">
+      <div className={'grid gap-5 '+(current.screenshot?'xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]':'')}>
+       <div>
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"><div className="text-[11px] font-bold text-blue-800">Why this matters</div><p className="mt-1 text-[13px] leading-6 text-blue-900">{current.why}</p></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">{current.steps.map((step,n)=><div key={step} className="rounded-xl border border-slate-200 p-4"><div className="flex gap-3"><div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950 text-[12px] font-bold text-white">{n+1}</div><p className="text-[13px] leading-6 text-slate-650">{step}</p></div></div>)}</div>
+       </div>
+       {current.screenshot&&<figure className="self-start overflow-hidden rounded-xl border border-slate-200 bg-slate-50 xl:sticky xl:top-[145px]"><img src={current.screenshot.src} alt={current.title} className="max-h-[520px] w-full object-contain"/><figcaption className="border-t border-slate-200 bg-white px-4 py-3 text-[12px] leading-5 text-slate-600">{current.screenshot.caption}</figcaption></figure>}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+       <div className="rounded-xl border border-red-100 bg-red-50 p-4"><div className="flex items-center gap-2 text-[12px] font-bold text-red-800"><AlertTriangle size={15}/>Avoid</div><div className="mt-2 space-y-2">{current.mistakes.map(x=><div key={x} className="flex gap-2 text-[12px] leading-5 text-red-900"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"/><span>{x}</span></div>)}</div></div>
+       <div className="rounded-xl border border-amber-100 bg-amber-50 p-4"><div className="flex items-center gap-2 text-[12px] font-bold text-amber-800"><BookOpen size={15}/>Practice</div><p className="mt-2 text-[12px] leading-5 text-amber-900">{current.practice}</p></div>
+       <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4"><div className="flex items-center gap-2 text-[12px] font-bold text-emerald-800"><BadgeCheck size={15}/>Ready when</div><p className="mt-2 text-[12px] leading-5 text-emerald-900">{current.ready}</p></div>
+      </div>
+
+      <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+       <button disabled={index<=0} onClick={()=>next(-1)} className="ui-btn disabled:opacity-30"><ArrowLeft size={14}/>Previous</button>
+       <div className="text-[11px] font-semibold text-slate-400">{index+1} / {lessons.length}</div>
+       <button disabled={index>=lessons.length-1} onClick={()=>next(1)} className="ui-btn disabled:opacity-30">Next<ArrowRight size={14}/></button>
+      </div>
+     </div>
+    </section>
    </main>
   </div>
-
-  <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-[1500px] flex-col gap-2 px-4 py-6 text-[10.5px] text-slate-500 sm:flex-row sm:justify-between sm:px-6"><div><b className="text-slate-700">MauzoPOS</b> · Complete Training Manual</div><div>Training explains how to learn the system. The SOP remains the approved daily procedure.</div></div></footer>
  </div>
 }

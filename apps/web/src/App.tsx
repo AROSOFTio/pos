@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Banknote, BarChart3, Boxes, ChefHat, ClipboardList, Eye, EyeOff, GraduationCap, HelpCircle, LayoutDashboard, Landmark, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Banknote, BarChart3, BookOpen, Boxes, ChefHat, ClipboardList, Eye, EyeOff, GraduationCap, HelpCircle, LayoutDashboard, Landmark, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
 import { MauzoLogo, MauzoMark } from './Brand'
 import Marketing from './Marketing'
@@ -30,6 +30,7 @@ import NotificationBell from './components/NotificationBell'
 import StaffQuickMenu from './components/StaffQuickMenu'
 import SOP from './pages/SOP'
 import Training from './pages/Training'
+import Documentation from './pages/Documentation'
 
 export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Accounting'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
@@ -81,6 +82,7 @@ export default function App(){
   if(loading)return <div className="min-h-screen grid place-items-center bg-slate-950 text-white">Loading MauzoPOS…</div>
   if(path==='/sop')return <SOP onBack={()=>navigate(user?'/app':'/')}/>
   if(path==='/training'&&user)return <Training onBack={()=>navigate('/app')}/>
+  if(path==='/docs'&&user)return <Documentation onBack={()=>navigate('/app')}/>
   if(!user){
     if(path==='/register')return <Register onLogin={authenticated} navigate={navigate}/>
     if(path==='/reset-password')return <ResetPassword navigate={navigate}/>
@@ -206,7 +208,7 @@ export default function App(){
           </nav>
           <div className="ml-auto flex items-center gap-2">
             {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 sm:block">Management</button>}
-            <button onClick={()=>navigate('/training')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Training Manual"><GraduationCap size={16}/></button><button onClick={()=>navigate('/training')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Training Manual"><GraduationCap size={16}/></button><button onClick={()=>navigate('/sop')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="SOP / Help"><HelpCircle size={16}/></button>
+            <button onClick={()=>navigate('/training')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Training Manual"><GraduationCap size={16}/></button><button onClick={()=>navigate('/docs')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Documentation"><BookOpen size={16}/></button><button onClick={()=>navigate('/sop')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="SOP / Help"><HelpCircle size={16}/></button>
             <NotificationBell/>
             <StaffQuickMenu user={user} roles={businessRoles.length?businessRoles:[businessRole||user.role]}/>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
@@ -231,7 +233,7 @@ export default function App(){
             <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div>
             {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div></>}
           </div>
-          <div className="border-t border-slate-200 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={()=>{navigate('/training');setSidebar(false)}} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700"><GraduationCap size={15}/>Training Manual</button><button onClick={()=>{navigate('/sop');setSidebar(false)}} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700"><HelpCircle size={15}/>SOP / Help</button><button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
+          <div className="border-t border-slate-200 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={()=>{navigate('/training');setSidebar(false)}} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700"><GraduationCap size={15}/>Training Manual</button><button onClick={()=>{navigate('/docs');setSidebar(false)}} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700"><BookOpen size={15}/>Documentation</button><button onClick={()=>{navigate('/sop');setSidebar(false)}} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700"><HelpCircle size={15}/>SOP / Help</button><button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
         </aside>
       </div>}
     </div>
@@ -272,6 +274,8 @@ export default function App(){
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="hidden rounded-lg bg-[var(--brand-primary)] px-3.5 py-2 text-[11px] font-medium text-white sm:block">Open Operations</button>
+          <button onClick={()=>navigate('/training')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Training Manual"><GraduationCap size={16}/></button>
+          <button onClick={()=>navigate('/docs')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Documentation"><BookOpen size={16}/></button>
           <button onClick={()=>navigate('/sop')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="SOP / Help"><HelpCircle size={16}/></button>
           <NotificationBell/>
         </div>
