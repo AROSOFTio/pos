@@ -1,267 +1,134 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Send, Pause, Play, ArrowRightLeft, Ban, CheckCircle2, Printer, Share2, SlidersHorizontal, UsersRound } from 'lucide-react'
+import { Ban, CheckCircle2, Pause, Play, Plus, Printer, Send, Share2, SlidersHorizontal, UserRoundCheck } from 'lucide-react'
 import { api, money, nice, openPdf, printPdf, sharePdf } from '../api'
 import { PageHeading, Badge, Loading, Modal } from '../components'
 import PaymentModal, { type PaymentLine } from '../components/PaymentModal'
 
-type OrderDraft={branchId:number;orderType:string;tableId:number;customerId:number;guestCount:number;waiterUserId:number;reservationId:number;notes:string}
+type OrderDraft={branchId:number;orderType:string;customerId:number;reservationId:number;notes:string;waiterUserId:number}
+const asArray=(x:any)=>Array.isArray(x)?x:[]
 
 export default function Orders({currency}:{currency:string}){
- const [rows,setRows]=useState<any[]|null>(null)
- const [newOpen,setNewOpen]=useState(false),[detail,setDetail]=useState<any>(null),[detailOpen,setDetailOpen]=useState(false)
+ const [rows,setRows]=useState<any[]|null>(null),[newOpen,setNewOpen]=useState(false),[detail,setDetail]=useState<any>(null),[detailOpen,setDetailOpen]=useState(false)
  const [branches,setBranches]=useState<any[]>([]),[tables,setTables]=useState<any[]>([]),[staff,setStaff]=useState<any[]>([]),[customers,setCustomers]=useState<any[]>([]),[reservations,setReservations]=useState<any[]>([])
- const [draft,setDraft]=useState<OrderDraft>({branchId:0,orderType:'dine_in',tableId:0,customerId:0,guestCount:1,waiterUserId:0,reservationId:0,notes:''})
- const [menu,setMenu]=useState<any[]>([]),[mods,setMods]=useState<any[]>([]),[addOpen,setAddOpen]=useState(false),[selectedProduct,setSelectedProduct]=useState<number>(0),[menuDetail,setMenuDetail]=useState<any>(null),[variantId,setVariantId]=useState<number>(0),[modifierIds,setModifierIds]=useState<number[]>([]),[qty,setQty]=useState(1),[itemNotes,setItemNotes]=useState(''),[seatNo,setSeatNo]=useState<number>(1),[courseNo,setCourseNo]=useState<number>(1),[courseName,setCourseName]=useState('Main')
- const [transferOpen,setTransferOpen]=useState(false),[cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false),[transferTable,setTransferTable]=useState(0)
- const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null)
+ const [access,setAccess]=useState<any>({businessRoles:[],permissions:[]}),[selectedTables,setSelectedTables]=useState<Record<number,number>>({})
+ const [draft,setDraft]=useState<OrderDraft>({branchId:0,orderType:'dine_in',customerId:0,reservationId:0,notes:'',waiterUserId:0})
+ const [menu,setMenu]=useState<any[]>([]),[mods,setMods]=useState<any[]>([]),[addOpen,setAddOpen]=useState(false),[selectedProduct,setSelectedProduct]=useState(0),[menuDetail,setMenuDetail]=useState<any>(null),[variantId,setVariantId]=useState(0),[modifierIds,setModifierIds]=useState<number[]>([]),[qty,setQty]=useState(1),[itemNotes,setItemNotes]=useState('')
+ const [cancelOpen,setCancelOpen]=useState(false),[cancelReason,setCancelReason]=useState(''),[urgent,setUrgent]=useState(false)
+ const [paymentOpen,setPaymentOpen]=useState(false),[paymentBusy,setPaymentBusy]=useState(false),[bill,setBill]=useState<any>(null),[markServedOnPayment,setMarkServedOnPayment]=useState(true)
  const [chargesOpen,setChargesOpen]=useState(false),[chargesBusy,setChargesBusy]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
- const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null)
- const [courses,setCourses]=useState<any[]>([]),[courseOpen,setCourseOpen]=useState(false),[serviceItem,setServiceItem]=useState<any>(null),[serviceSeat,setServiceSeat]=useState<number>(1),[serviceCourse,setServiceCourse]=useState<number>(1),[serviceCourseName,setServiceCourseName]=useState('Main')
+ const [receiptActions,setReceiptActions]=useState<{id:number;orderNo:string}|null>(null),[assignWaiterId,setAssignWaiterId]=useState(0)
 
  const load=()=>api('/restaurant/orders?status=active').then(setRows)
- useEffect(()=>{load()},[])
+ useEffect(()=>{load();api('/me/access').then(setAccess).catch(()=>{})},[])
+ const roles=asArray(access.businessRoles).length?asArray(access.businessRoles):[access.businessRole].filter(Boolean)
+ const canAssignWaiter=roles.some((r:string)=>['owner','administrator','admin','branch_manager','restaurant_manager'].includes(r))||asArray(access.permissions).includes('restaurant.assign_waiter')
 
  async function openNew(){
    const [b,t,s,c,r]=await Promise.all([api('/branches'),api('/restaurant/tables'),api('/staff'),api('/customers'),api('/restaurant/reservations')])
-   setBranches(b);setTables(t);setStaff(s);setCustomers(c);setReservations(r)
-   setDraft({branchId:Number(b[0]?.id||0),orderType:'dine_in',tableId:0,customerId:0,guestCount:1,waiterUserId:0,reservationId:0,notes:''});setNewOpen(true)
+   setBranches(asArray(b));setTables(asArray(t));setStaff(asArray(s));setCustomers(asArray(c));setReservations(asArray(r))
+   setDraft({branchId:Number(b[0]?.id||0),orderType:'dine_in',customerId:0,reservationId:0,notes:'',waiterUserId:0});setSelectedTables({});setNewOpen(true)
+ }
+ function toggleTable(t:any){
+   const id=Number(t.id),free=Math.max(0,Number(t.capacity||1)-Number(t.occupied_guests||0))
+   setSelectedTables(prev=>{const n={...prev};if(n[id]!==undefined)delete n[id];else if(free>0)n[id]=1;return n})
  }
  async function createOrder(){
-   if(draft.orderType==='dine_in'&&!draft.tableId)return
-   const o=await api('/restaurant/orders',{method:'POST',body:JSON.stringify({...draft,tableId:draft.tableId||null,customerId:draft.customerId||null,waiterUserId:draft.waiterUserId||null,reservationId:draft.reservationId||null})})
+   const tablePayload=Object.entries(selectedTables).map(([tableId,guests])=>({tableId:Number(tableId),guests:Number(guests)}))
+   if(draft.orderType==='dine_in'&&!tablePayload.length)return
+   const o=await api('/restaurant/orders',{method:'POST',body:JSON.stringify({...draft,waiterUserId:canAssignWaiter?(draft.waiterUserId||null):null,tables:draft.orderType==='dine_in'?tablePayload:[]})})
    setNewOpen(false);await load();await openOrder(Number(o.id))
  }
  async function openOrder(id:number){
    const d=await api('/restaurant/orders/'+id)
-   const [m,g,t,cr]=await Promise.all([api('/menu/available?branchId='+d.order.branch_id+'&orderType='+d.order.order_type),api('/menu/modifier-groups'),api('/restaurant/tables'),api('/restaurant/orders/'+id+'/courses').catch(()=>[])])
-   setDetail(d);setMenu(m);setMods(g);setTables(t);setCourses(Array.isArray(cr)?cr:[]);setDetailOpen(true)
+   const [m,g,t]=await Promise.all([api('/menu/available?branchId='+d.order.branch_id+'&orderType='+d.order.order_type),api('/menu/modifier-groups'),api('/restaurant/tables')])
+   setDetail(d);setMenu(asArray(m));setMods(asArray(g));setTables(asArray(t));setAssignWaiterId(Number(d.order.waiter_user_id||0));setDetailOpen(true)
  }
  async function refreshDetail(){if(detail?.order?.id)await openOrder(Number(detail.order.id))}
  async function chooseProduct(id:number){
    setSelectedProduct(id);setVariantId(0);setModifierIds([])
-   const p=menu.find(x=>Number(x.id)===id)
-   setMenuDetail(p?.menu_item_id?await api('/menu/items/'+p.menu_item_id):null)
+   const p=menu.find(x=>Number(x.id)===id);setMenuDetail(p?.menu_item_id?await api('/menu/items/'+p.menu_item_id):null)
  }
  const activeGroups=useMemo(()=>{const ids=new Set((menuDetail?.modifierGroupIds||[]).map(Number));return mods.filter(g=>ids.has(Number(g.id)))},[menuDetail,mods])
  async function addItem(){
-   if(!selectedProduct||!(qty>0))return
-   await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:selectedProduct,qty,variantId:variantId||null,modifierIds,notes:itemNotes,seatNo:detail.order.order_type==='dine_in'?seatNo:null,courseNo,courseName})})
-   setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');setSeatNo(1);setCourseNo(1);setCourseName('Main');await refreshDetail()
+   if(!selectedProduct||qty<=0)return
+   await api('/restaurant/orders/'+detail.order.id+'/items',{method:'POST',body:JSON.stringify({productId:selectedProduct,qty,variantId:variantId||null,modifierIds,notes:itemNotes,seatNo:null,courseNo:1,courseName:'Main'})})
+   setAddOpen(false);setSelectedProduct(0);setMenuDetail(null);setVariantId(0);setModifierIds([]);setQty(1);setItemNotes('');await refreshDetail()
  }
- async function adjustItemQty(item:any,delta:-1|1){
-   if(!detail?.order?.id)return
-   const out=await api('/restaurant/orders/'+detail.order.id+'/items/'+item.id+'/adjust',{method:'POST',body:JSON.stringify({delta})})
-   for(const t of (Array.isArray(out?.tickets)?out.tickets:[]))await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
-   await refreshDetail();await load()
- }
- async function sendKitchen(){
-   const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})})
-   await refreshDetail();await load()
-   const tickets=Array.isArray(out?.tickets)?out.tickets:[]
-   for(const t of tickets)await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
- }
- async function holdResume(){
-   const action=detail.order.held?'resume':'hold';await api('/restaurant/orders/'+detail.order.id+'/'+action,{method:'POST',body:'{}'});await refreshDetail();await load()
- }
- async function openBillPayment(){if(!detail?.order?.id)return;const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
- async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){if(!detail?.order?.id)return;setPaymentBusy(true);try{const orderId=Number(detail.order.id),orderNo=String(detail.order.order_no||'ORDER');const out=await api('/restaurant/orders/'+orderId+'/payments',{method:'POST',body:JSON.stringify({payments:lines})});setPaymentOpen(false);setBill(null);await refreshDetail();await load();if(out.order?.status==='closed'){setDetail((d:any)=>d?{...d,order:{...d.order,...out.order}}:d);setReceiptActions({id:orderId,orderNo})}}finally{setPaymentBusy(false)}}
- async function openCharges(){
-   if(!detail?.order)return
-   const settings=await api('/document-settings')
-   setTaxRate(Number(detail.order.tax_rate??settings.default_tax_rate??0))
-   setServiceRate(Number(detail.order.service_charge_rate??settings.default_service_charge_rate??0))
-   setTip(Number(detail.order.tip||0))
-   setTaxInclusive(detail.order.tax_inclusive===true||detail.order.tax_inclusive==='true'?true:!!settings.tax_inclusive)
-   setAdjustType('discount');setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false);setAdjustMessage('')
-   setChargesOpen(true)
- }
- async function saveCharges(){
-   if(!detail?.order?.id)return
-   setChargesBusy(true)
-   try{
-     await api('/restaurant/orders/'+detail.order.id+'/charges',{method:'PUT',body:JSON.stringify({taxRate,serviceRate,tip,taxInclusive})})
-     await refreshDetail();await load();setAdjustMessage('Charges updated successfully.')
-   }finally{setChargesBusy(false)}
- }
- async function requestAdjustment(){
-   if(!detail?.order?.id||!adjustReason.trim())return
-   if(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))return
-   setChargesBusy(true)
-   try{
-     const out=await api('/transaction-adjustments/request',{method:'POST',body:JSON.stringify({
-       sourceType:'restaurant_order',sourceId:Number(detail.order.id),adjustmentType:adjustType,
-       requestedAmount:adjustType==='discount'?adjustAmount:0,requestedPercent:adjustType==='discount'?adjustPercent:0,
-       reason:adjustReason,urgent:adjustUrgent
-     })})
-     setAdjustMessage((adjustType==='foc'?'FOC':'Discount')+' request '+out.adjustment.reference_no+' sent to management for approval.')
-     setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false)
-   }finally{setChargesBusy(false)}
- }
- async function doTransfer(){if(!transferTable)return;await api('/restaurant/orders/'+detail.order.id+'/transfer',{method:'POST',body:JSON.stringify({toTableId:transferTable,notes:'Transferred from premium POS'})});setTransferOpen(false);await refreshDetail();await load()}
+ async function adjustItemQty(item:any,delta:-1|1){const out=await api('/restaurant/orders/'+detail.order.id+'/items/'+item.id+'/adjust',{method:'POST',body:JSON.stringify({delta})});for(const t of asArray(out?.tickets))await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf');await refreshDetail();await load()}
+ async function sendKitchen(){const out=await api('/restaurant/orders/'+detail.order.id+'/send-kitchen',{method:'POST',body:JSON.stringify({priority:'normal'})});for(const t of asArray(out?.tickets))await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf');await refreshDetail();await load()}
+ async function markServed(){await api('/restaurant/orders/'+detail.order.id+'/serve',{method:'POST',body:'{}'});await refreshDetail();await load()}
+ async function holdResume(){await api('/restaurant/orders/'+detail.order.id+'/'+(detail.order.held?'resume':'hold'),{method:'POST',body:'{}'});await refreshDetail();await load()}
+ async function assignWaiter(){if(!assignWaiterId)return;await api('/restaurant/orders/'+detail.order.id+'/waiter',{method:'PUT',body:JSON.stringify({waiterUserId:assignWaiterId,reason:'Assigned from restaurant order'})});await refreshDetail();await load()}
+ async function openBillPayment(){const b=await api('/restaurant/orders/'+detail.order.id+'/bill');setBill(b);setPaymentOpen(true)}
+ async function submitBillPayment(lines:Omit<PaymentLine,'id'>[]){setPaymentBusy(true);try{const orderId=Number(detail.order.id),orderNo=String(detail.order.order_no||'ORDER');const out=await api('/restaurant/orders/'+orderId+'/payments',{method:'POST',body:JSON.stringify({payments:lines,markServed:markServedOnPayment})});setPaymentOpen(false);setBill(null);await load();if(out.order?.status==='closed'){setDetailOpen(false);setReceiptActions({id:orderId,orderNo})}else await openOrder(orderId)}finally{setPaymentBusy(false)}}
+ async function openCharges(){const settings=await api('/document-settings');setTaxRate(Number(detail.order.tax_rate??settings.default_tax_rate??0));setServiceRate(Number(detail.order.service_charge_rate??settings.default_service_charge_rate??0));setTip(Number(detail.order.tip||0));setTaxInclusive(detail.order.tax_inclusive===true||detail.order.tax_inclusive==='true'?true:!!settings.tax_inclusive);setAdjustType('discount');setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false);setAdjustMessage('');setChargesOpen(true)}
+ async function saveCharges(){setChargesBusy(true);try{await api('/restaurant/orders/'+detail.order.id+'/charges',{method:'PUT',body:JSON.stringify({taxRate,serviceRate,tip,taxInclusive})});await refreshDetail();setAdjustMessage('Charges updated successfully.')}finally{setChargesBusy(false)}}
+ async function requestAdjustment(){if(!adjustReason.trim())return;setChargesBusy(true);try{const out=await api('/transaction-adjustments/request',{method:'POST',body:JSON.stringify({sourceType:'restaurant_order',sourceId:Number(detail.order.id),adjustmentType:adjustType,requestedAmount:adjustType==='discount'?adjustAmount:0,requestedPercent:adjustType==='discount'?adjustPercent:0,reason:adjustReason,urgent:adjustUrgent})});setAdjustMessage((adjustType==='foc'?'FOC':'Discount')+' request '+out.adjustment.reference_no+' sent for approval.');setAdjustAmount(0);setAdjustPercent(0);setAdjustReason('');setAdjustUrgent(false)}finally{setChargesBusy(false)}}
  async function requestCancel(){if(!cancelReason.trim())return;await api('/restaurant/orders/'+detail.order.id+'/request-cancel',{method:'POST',body:JSON.stringify({comment:cancelReason,urgent})});setCancelOpen(false);setCancelReason('');setUrgent(false)}
- async function fireCourse(no:number){
-   const out=await api('/restaurant/orders/'+detail.order.id+'/courses/'+no+'/fire',{method:'POST',body:JSON.stringify({priority:'normal'})})
-   for(const t of (Array.isArray(out?.tickets)?out.tickets:[]))await printPdf('/documents/kitchen-ticket/'+t.id+'/pdf')
-   await refreshDetail()
- }
- async function saveServiceItem(){
-   if(!serviceItem)return
-   await api('/restaurant/orders/'+detail.order.id+'/items/'+serviceItem.id+'/service',{method:'PUT',body:JSON.stringify({seatNo:detail.order.order_type==='dine_in'?serviceSeat:null,courseNo:serviceCourse,courseName:serviceCourseName})})
-   setServiceItem(null);await refreshDetail()
- }
- async function splitSeatOrder(no:number){
-   const out=await api('/restaurant/orders/'+detail.order.id+'/split-seat',{method:'POST',body:JSON.stringify({seatNo:no})})
-   setCourseOpen(false);await load();if(out?.newOrder?.id)await openOrder(Number(out.newOrder.id))
- }
-
  if(!rows)return <Loading/>
- const availableTables=tables.filter(t=>['available','reserved'].includes(t.status))
+
  const hasNew=detail?.items?.some((x:any)=>x.status==='new')
+ const activeItems=detail?.items?.filter((x:any)=>x.status!=='cancelled'&&Number(x.qty)>0)||[]
 
  return <div>
-  <PageHeading eyebrow="Front of house" title="Restaurant Orders" sub="Live tables, service status and bills." action={<button onClick={openNew} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>New Order</button>}/>
-  <div className="grid sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">{rows.map(o=><div key={o.id} className={'rounded-xl border bg-white p-4 premium-shadow '+(o.held?'border-amber-300':'border-slate-200')}><div className="flex justify-between gap-3"><div><b>{o.order_no}</b><div className="text-xs text-slate-400 mt-1">{nice(o.order_type)} {o.table_name&&'· '+o.table_name}</div></div><Badge tone={o.status==='ready'?'green':o.status==='preparing'?'amber':'blue'}>{nice(o.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Guests</span><b className="block text-base mt-1">{o.guest_count}</b></div><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Waiter</span><b className="block truncate mt-1">{o.waiter_name||'Unassigned'}</b></div></div><div className="mt-3 flex items-end justify-between"><div><span className="text-xs text-slate-400">Order total</span><div className="font-semibold">{money(o.total,currency)}</div></div><button onClick={()=>openOrder(Number(o.id))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium hover:border-[var(--brand-border)]">Open</button></div></div>)}</div>
+  <PageHeading eyebrow="Front of house" title="Restaurant Orders" sub="Each staff member owns the orders they create. Management can reassign when required." action={<button onClick={openNew} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"><Plus size={16} className="mr-1 inline"/>New Order</button>}/>
+  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{rows.map(o=><div key={o.id} className={'rounded-xl border bg-white p-4 premium-shadow '+(o.held?'border-amber-300':'border-slate-200')}><div className="flex justify-between gap-3"><div><b>{o.order_no}</b><div className="mt-1 text-xs text-slate-400">{nice(o.order_type)} {o.table_name&&'· '+o.table_name}</div></div><Badge tone={o.status==='ready'?'green':o.status==='preparing'?'amber':'blue'}>{nice(o.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-[11px]"><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Guests</span><b className="mt-1 block text-base">{o.guest_count}</b></div><div className="rounded-lg bg-slate-50 p-2.5"><span className="text-slate-400">Waiter</span><b className="mt-1 block truncate">{o.waiter_name||'Management order'}</b></div></div><div className="mt-3 flex items-end justify-between"><div><span className="text-xs text-slate-400">Order total</span><div className="font-semibold">{money(o.total,currency)}</div></div><button onClick={()=>openOrder(Number(o.id))} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium">Open</button></div></div>)}</div>
 
-  {newOpen&&<Modal title="Open Restaurant Order" onClose={()=>setNewOpen(false)}>
-    <div className="grid sm:grid-cols-2 gap-3">
-      <Field label="Order type"><select value={draft.orderType} onChange={e=>setDraft({...draft,orderType:e.target.value,tableId:e.target.value==='dine_in'?draft.tableId:0})} className="control"><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option><option value="counter">Counter</option></select></Field>
-      <Field label="Branch"><select value={draft.branchId} onChange={e=>setDraft({...draft,branchId:Number(e.target.value)})} className="control">{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-      {draft.orderType==='dine_in'&&<Field label="Table"><select value={draft.tableId} onChange={e=>setDraft({...draft,tableId:Number(e.target.value)})} className="control"><option value="0">Choose table</option>{tables.filter(t=>Number(t.branch_id)===draft.branchId&&['available','reserved'].includes(t.status)).map(t=><option key={t.id} value={t.id}>{t.area_name||'Floor'} · {t.name} ({t.capacity})</option>)}</select></Field>}
-      <Field label="Guests / covers"><input type="number" min="1" value={draft.guestCount} onChange={e=>setDraft({...draft,guestCount:Number(e.target.value)})} className="control"/></Field>
-      <Field label="Waiter"><select value={draft.waiterUserId} onChange={e=>setDraft({...draft,waiterUserId:Number(e.target.value)})} className="control"><option value="0">Unassigned</option>{staff.map(s=><option key={s.id} value={s.id}>{s.name} · {s.role}</option>)}</select></Field>
+  {newOpen&&<Modal title="Open Restaurant Order" onClose={()=>setNewOpen(false)} size="lg">
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Field label="Order type"><select value={draft.orderType} onChange={e=>setDraft({...draft,orderType:e.target.value})} className="control"><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option><option value="counter">Counter</option></select></Field>
+      <Field label="Branch"><select value={draft.branchId} onChange={e=>{setDraft({...draft,branchId:Number(e.target.value)});setSelectedTables({})}} className="control">{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
+    </div>
+    {draft.orderType==='dine_in'&&<div className="mt-4">
+      <div className="mb-2 flex items-end justify-between"><div><div className="text-[12px] font-semibold text-slate-700">Tables & guests</div><div className="text-[10px] text-slate-400">Select one or several tables. A table may host another party while seats remain.</div></div><Badge>{Object.values(selectedTables).reduce((n,v)=>n+Number(v),0)} guests</Badge></div>
+      <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">{tables.filter(t=>Number(t.branch_id)===draft.branchId).map(t=>{const free=Math.max(0,Number(t.capacity||1)-Number(t.occupied_guests||0)),selected=selectedTables[Number(t.id)]!==undefined;return <div key={t.id} className={'rounded-xl border p-3 '+(selected?'border-[var(--brand-primary)] bg-[var(--brand-soft)]':'border-slate-200 bg-white')}><div className="flex items-center gap-2"><input type="checkbox" checked={selected} disabled={!selected&&free<=0} onChange={()=>toggleTable(t)}/><div className="min-w-0 flex-1"><b className="text-[12px]">{t.area_name||'Floor'} · {t.name}</b><div className="text-[9.5px] text-slate-400">{Number(t.occupied_guests||0)}/{t.capacity} occupied · {free} free</div></div>{selected&&<input type="number" min="1" max={Math.max(1,free+Number(selectedTables[Number(t.id)]||0))} value={selectedTables[Number(t.id)]} onChange={e=>setSelectedTables(v=>({...v,[Number(t.id)]:Math.max(1,Number(e.target.value)||1)}))} className="control mt-0 w-20"/>}</div></div>})}</div>
+    </div>}
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {canAssignWaiter&&<Field label="Assign waiter (optional)"><select value={draft.waiterUserId} onChange={e=>setDraft({...draft,waiterUserId:Number(e.target.value)})} className="control"><option value="0">No waiter selected</option>{staff.filter(x=>asArray(x.roles).includes('waiter')||x.role==='waiter').map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>}
       <Field label="Customer"><select value={draft.customerId} onChange={e=>setDraft({...draft,customerId:Number(e.target.value)})} className="control"><option value="0">Walk-in</option>{customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
       <Field label="Reservation"><select value={draft.reservationId} onChange={e=>setDraft({...draft,reservationId:Number(e.target.value)})} className="control"><option value="0">None</option>{reservations.filter(r=>r.status==='reserved').map(r=><option key={r.id} value={r.id}>{new Date(r.reserved_at).toLocaleString()} · {r.guest_name||r.customer_name||'Guest'}</option>)}</select></Field>
     </div>
-    <textarea value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} className="control mt-3 min-h-20" placeholder="Order notes"/>
-    <button onClick={createOrder} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium">Open Order</button>
+    <textarea value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} className="control mt-3 min-h-20" placeholder="Order notes (optional)"/>
+    <button onClick={createOrder} disabled={draft.orderType==='dine_in'&&!Object.keys(selectedTables).length} className="mt-4 w-full rounded-xl bg-slate-900 py-3 font-medium text-white disabled:opacity-40">Open Order</button>
   </Modal>}
 
   {detailOpen&&detail&&<Modal title={detail.order.order_no+' · '+nice(detail.order.status)} onClose={()=>setDetailOpen(false)} size="lg">
-    <div className="mb-3 flex flex-wrap items-center gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{detail.order.table_name&&<Badge>{detail.order.table_name}</Badge>}<Badge>{detail.order.guest_count} guests</Badge>{detail.order.held&&<Badge tone="amber">Held</Badge>}</div>
-    <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{detail.items.filter((x:any)=>x.status!=='cancelled'&&Number(x.qty)>0).length?detail.items.filter((x:any)=>x.status!=='cancelled'&&Number(x.qty)>0).map((x:any)=><div key={x.id} className="flex items-center justify-between gap-3 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold text-slate-900">{x.product_name}{x.variant_name?' · '+x.variant_name:''}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-1">{x.seat_no&&<Badge>Seat {x.seat_no}</Badge>}<Badge tone="blue">{x.course_name||'Main'}</Badge><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge></div>
-        {x.modifiers?.length>0&&<div className="mt-1 text-[10.5px] text-slate-500">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}
-        {x.notes&&<div className="mt-1 text-[10.5px] text-amber-700">{x.notes}</div>}
-      </div>
-      <div className="shrink-0 text-right">
-        <div className="mb-2 text-[12px] font-semibold text-slate-800">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div>
-        {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<div className="inline-flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <button onClick={()=>adjustItemQty(x,-1)} className="grid h-9 w-9 place-items-center text-lg font-medium text-slate-600 hover:bg-slate-50" aria-label={'Remove one '+x.product_name}>−</button>
-          <span className="min-w-9 border-x border-slate-200 px-2 text-center text-[12px] font-semibold text-slate-800">{Number(x.qty)}</span>
-          <button onClick={()=>adjustItemQty(x,1)} className="grid h-9 w-9 place-items-center text-lg font-medium text-slate-600 hover:bg-slate-50" aria-label={'Add one '+x.product_name}>+</button>
-        </div>}
-      </div>
-    </div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
-    <div className="mt-4 rounded-xl bg-slate-900 text-white p-4">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <span className="text-slate-400">Subtotal</span><span className="text-right">{money(detail.order.subtotal,currency)}</span>
-        {Number(detail.order.discount||0)>0&&<><span className="text-slate-400">Discount</span><span className="text-right text-emerald-300">− {money(detail.order.discount,currency)}</span></>}
-        {Number(detail.order.service_charge||0)>0&&<><span className="text-slate-400">Service charge</span><span className="text-right">{money(detail.order.service_charge,currency)}</span></>}
-        {Number(detail.order.tax||0)>0&&<><span className="text-slate-400">Tax {detail.order.tax_inclusive?'(inclusive)':''}</span><span className="text-right">{money(detail.order.tax,currency)}</span></>}
-        {Number(detail.order.tip||0)>0&&<><span className="text-slate-400">Tip</span><span className="text-right">{money(detail.order.tip,currency)}</span></>}
-      </div>
-      <div className="mt-3 flex flex-col gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-end sm:justify-between">
-        <div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-semibold">{money(detail.order.total,currency)}</div><div className="mt-1 text-xs text-slate-300">{money(detail.order.amount_paid||0,currency)} paid · <span className="text-amber-300">{money(detail.order.balance_due??detail.order.total,currency)} due</span></div></div>
-        <div className="flex gap-2">
-          {!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-semibold text-white">+ Add Item</button>}
-          {!['paid','closed','cancelled'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<button onClick={openBillPayment} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-semibold text-white">Receive Payment</button>}
-        </div>
-      </div>
-    </div>
-    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send & Print KOT"/>}
-      <Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>
-      {detail.order.order_type==='dine_in'&&<Action onClick={()=>{setTransferTable(Number(availableTables[0]?.id||0));setTransferOpen(true)}} icon={ArrowRightLeft} label="Transfer Table"/>}
-      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}
-      {!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Review Bill / Receipt"/>}
-      {!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}
-    </div>
-    {Array.isArray(detail.transfers)&&detail.transfers.length>0&&<div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[.12em] text-slate-400">Table transfer trail</div>
-      <div className="mt-2 space-y-2">{detail.transfers.slice(0,6).map((tr:any)=><div key={tr.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px]"><span className="font-medium text-slate-700">{tr.from_table_name||'No table'} → {tr.to_table_name||'No table'}</span><span className="text-slate-400">{new Date(tr.created_at).toLocaleString()} · {tr.changed_by||'Staff'}</span></div>)}</div>
-    </div>}
-    <div className="mt-4 border-t border-slate-100 pt-3"><div className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-2">History</div>{detail.history.slice(0,6).map((h:any)=><div key={h.id} className="flex justify-between gap-3 py-1.5 text-xs"><span className="text-slate-400">{new Date(h.created_at).toLocaleString()}</span><b>{nice(h.to_status)}</b></div>)}</div>
+    <div className="mb-3 flex flex-wrap items-center gap-2"><Badge tone="blue">{nice(detail.order.order_type)}</Badge>{asArray(detail.tables).map((t:any)=><Badge key={t.id}>{t.name} · {t.guests} guest{Number(t.guests)===1?'':'s'}</Badge>)}<Badge>{detail.order.guest_count} total guests</Badge>{detail.order.waiter_name&&<Badge tone="green">{detail.order.waiter_name}</Badge>}</div>
+    {canAssignWaiter&&<div className="mb-3 flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="flex-1"><Field label="Assigned waiter"><select className="control" value={assignWaiterId} onChange={e=>setAssignWaiterId(Number(e.target.value))}><option value="0">Choose waiter</option>{staff.filter(x=>asArray(x.roles).includes('waiter')||x.role==='waiter').map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field></div><button onClick={assignWaiter} disabled={!assignWaiterId||assignWaiterId===Number(detail.order.waiter_user_id||0)} className="mb-[1px] inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-3 text-[11px] font-semibold text-white disabled:opacity-40"><UserRoundCheck size={14}/>Assign</button></div>}
+    <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">{activeItems.length?activeItems.map((x:any)=><div key={x.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0 flex-1"><div className="truncate text-[13px] font-semibold">{x.product_name}{x.variant_name?' · '+x.variant_name:''}</div><div className="mt-1 flex flex-wrap gap-1"><Badge tone={x.status==='ready'?'green':x.status==='preparing'?'amber':'slate'}>{nice(x.status)}</Badge></div>{x.modifiers?.length>0&&<div className="mt-1 text-[10.5px] text-slate-500">{x.modifiers.map((m:any)=>m.name).join(', ')}</div>}{x.notes&&<div className="mt-1 text-[10.5px] text-amber-700">{x.notes}</div>}</div><div className="shrink-0 text-right"><div className="mb-2 text-[12px] font-semibold">{money(Number(x.line_total)+(x.modifiers||[]).reduce((n:number,m:any)=>n+Number(m.price||0)*Number(m.qty||1),0),currency)}</div>{!['bill_requested','partially_paid','paid','closed','cancelled'].includes(detail.order.status)&&<div className="inline-flex overflow-hidden rounded-lg border border-slate-200"><button onClick={()=>adjustItemQty(x,-1)} className="h-9 w-9 text-lg">−</button><span className="grid min-w-9 place-items-center border-x border-slate-200 text-[12px] font-semibold">{Number(x.qty)}</span><button onClick={()=>adjustItemQty(x,1)} className="h-9 w-9 text-lg">+</button></div>}</div></div>):<div className="py-8 text-center text-sm text-slate-400">No items yet.</div>}</div>
+    <div className="mt-4 rounded-xl bg-slate-900 p-4 text-white"><div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs"><span className="text-slate-400">Subtotal</span><span className="text-right">{money(detail.order.subtotal,currency)}</span>{Number(detail.order.discount||0)>0&&<><span className="text-slate-400">Discount</span><span className="text-right text-emerald-300">− {money(detail.order.discount,currency)}</span></>}{Number(detail.order.service_charge||0)>0&&<><span className="text-slate-400">Service charge</span><span className="text-right">{money(detail.order.service_charge,currency)}</span></>}{Number(detail.order.tax||0)>0&&<><span className="text-slate-400">Tax</span><span className="text-right">{money(detail.order.tax,currency)}</span></>}</div><div className="mt-3 flex items-end justify-between border-t border-white/10 pt-3"><div><div className="text-xs text-slate-400">Order total</div><div className="text-2xl font-semibold">{money(detail.order.total,currency)}</div><div className="mt-1 text-xs text-slate-300">{money(detail.order.amount_paid||0,currency)} paid · <span className="text-amber-300">{money(detail.order.balance_due??detail.order.total,currency)} due</span></div></div><div className="flex gap-2">{!['paid','closed','cancelled'].includes(detail.order.status)&&<button onClick={()=>setAddOpen(true)} className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-semibold">+ Add Item</button>}{!['paid','closed','cancelled'].includes(detail.order.status)&&Number(detail.order.balance_due??detail.order.total)>0.005&&<button onClick={openBillPayment} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-[12px] font-semibold">Receive Payment</button>}</div></div></div>
+    {!['closed','cancelled'].includes(detail.order.status)&&<label className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] font-medium text-emerald-800"><input type="checkbox" checked={markServedOnPayment} onChange={e=>setMarkServedOnPayment(e.target.checked)}/><span><b className="block">When fully paid, mark served and close the kitchen ticket</b><span className="font-normal text-emerald-700">Turn this off only when a guest pays before preparation/service is finished.</span></span></label>}
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{hasNew&&<Action onClick={sendKitchen} icon={Send} label="Send to Kitchen"/>}<Action onClick={holdResume} icon={detail.order.held?Play:Pause} label={detail.order.held?'Resume':'Hold'}/>{!['served','closed','cancelled'].includes(detail.order.status)&&<Action onClick={markServed} icon={CheckCircle2} label="Mark Served"/>}{!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={openCharges} icon={SlidersHorizontal} label="Charges / Discount"/>}{!['paid','closed','cancelled'].includes(detail.order.status)&&<Action onClick={()=>openPdf('/documents/order/'+detail.order.id+'/pdf?type=interim&paper=80mm')} icon={ReceiptIcon} label="Review Bill"/>}{!['paid','closed'].includes(detail.order.status)&&<Action onClick={()=>setCancelOpen(true)} icon={Ban} label="Request Cancel" danger/>}</div>
+    <div className="mt-4 border-t border-slate-100 pt-3"><div className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-400">History</div>{detail.history.slice(0,8).map((h:any)=><div key={h.id} className="flex justify-between gap-3 py-1.5 text-xs"><span className="text-slate-400">{new Date(h.created_at).toLocaleString()}</span><span className="text-right"><b>{nice(h.to_status)}</b>{h.comment&&<span className="ml-2 text-slate-400">{h.comment}</span>}</span></div>)}</div>
   </Modal>}
 
   {addOpen&&detail&&<Modal title="Add Item to Order" onClose={()=>setAddOpen(false)}>
     <Field label="Menu item"><select value={selectedProduct} onChange={e=>chooseProduct(Number(e.target.value))} className="control"><option value="0">Choose item</option>{menu.map(p=><option key={p.id} value={p.id}>{p.name} · {money(p.resolved_price,currency)}</option>)}</select></Field>
     {menuDetail?.variants?.length>0&&<Field label="Variant"><select value={variantId} onChange={e=>setVariantId(Number(e.target.value))} className="control"><option value="0">Standard</option>{menuDetail.variants.map((v:any)=><option key={v.id} value={v.id}>{v.name}{Number(v.price_delta)?' · '+money(v.price_delta,currency):''}</option>)}</select></Field>}
     {activeGroups.map((g:any)=><div key={g.id} className="mt-3 rounded-xl border border-slate-200 p-3"><div className="flex justify-between"><b className="text-sm">{g.name}{g.required?' *':''}</b><span className="text-xs text-slate-400">Choose {g.min_select}–{g.max_select}</span></div><div className="mt-2 grid gap-2">{g.modifiers.map((m:any)=><label key={m.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={modifierIds.includes(Number(m.id))} onChange={e=>setModifierIds(v=>e.target.checked?[...v,Number(m.id)]:v.filter(id=>id!==Number(m.id)))}/>{m.name}{Number(m.price)?' · +'+money(m.price,currency):''}</label>)}</div></div>)}
-    <div className="grid grid-cols-2 gap-3 mt-3"><Field label="Quantity"><input type="number" min="1" value={qty} onChange={e=>setQty(Number(e.target.value))} className="control"/></Field>{detail.order.order_type==='dine_in'?<Field label="Seat"><select value={seatNo} onChange={e=>setSeatNo(Number(e.target.value))} className="control">{Array.from({length:Math.max(1,Number(detail.order.guest_count||1))},(_,i)=><option key={i+1} value={i+1}>Seat {i+1}</option>)}</select></Field>:<Field label="Item notes"><input value={itemNotes} onChange={e=>setItemNotes(e.target.value)} className="control" placeholder="No onions…"/></Field>}</div>
-    <div className="grid grid-cols-2 gap-3 mt-3"><Field label="Course"><select value={courseNo} onChange={e=>{const n=Number(e.target.value);setCourseNo(n);setCourseName(n===1?'Starter':n===2?'Main':n===3?'Dessert':'Course '+n)}} className="control"><option value="1">1 · Starter</option><option value="2">2 · Main</option><option value="3">3 · Dessert</option><option value="4">4 · Course 4</option></select></Field><Field label="Course name"><input value={courseName} onChange={e=>setCourseName(e.target.value)} className="control"/></Field></div>
-    {detail.order.order_type==='dine_in'&&<Field label="Item notes"><input value={itemNotes} onChange={e=>setItemNotes(e.target.value)} className="control" placeholder="No onions…"/></Field>}
-    <button onClick={addItem} disabled={!selectedProduct} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium disabled:opacity-40">Add to Order</button>
-  </Modal>}
-
-
-  {courseOpen&&detail&&<Modal title="Seats & Courses" onClose={()=>setCourseOpen(false)} size="md">
-    <div className="space-y-2">{courses.length?courses.map(cr=><div key={cr.course_no} className="rounded-xl border border-slate-200 p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-[12px] font-semibold">{cr.course_no}. {cr.course_name}</div><div className="mt-0.5 text-[9.5px] text-slate-400">{cr.item_count} items · {cr.ready_count} ready · {cr.served_count} served</div></div>{Number(cr.held_count)>0?<button onClick={()=>fireCourse(Number(cr.course_no))} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10px] font-semibold text-white">Fire Course</button>:<Badge tone="green">Fired</Badge>}</div></div>):<div className="py-6 text-center text-[11px] text-slate-400">Add items to create courses.</div>}</div>
-    {detail.order.order_type==='dine_in'&&<div className="mt-4 border-t border-slate-100 pt-3"><div className="text-[10px] font-semibold uppercase tracking-[.12em] text-slate-400">Split by seat</div><div className="mt-2 flex flex-wrap gap-2">{Array.from(new Set(detail.items.map((x:any)=>Number(x.seat_no||0)).filter(Boolean))).map((n:any)=><button key={n} onClick={()=>splitSeatOrder(Number(n))} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-medium"><UsersRound size={12}/>Seat {n}</button>)}</div></div>}
-  </Modal>}
-
-  {serviceItem&&<Modal title="Seat & Course" onClose={()=>setServiceItem(null)} size="sm">
-    <div className="grid gap-3 sm:grid-cols-2"><Field label="Seat"><select value={serviceSeat} onChange={e=>setServiceSeat(Number(e.target.value))} className="control">{Array.from({length:Math.max(1,Number(detail?.order?.guest_count||1))},(_,i)=><option key={i+1} value={i+1}>Seat {i+1}</option>)}</select></Field><Field label="Course"><select value={serviceCourse} onChange={e=>{const n=Number(e.target.value);setServiceCourse(n);setServiceCourseName(n===1?'Starter':n===2?'Main':n===3?'Dessert':'Course '+n)}} className="control"><option value="1">Starter</option><option value="2">Main</option><option value="3">Dessert</option><option value="4">Course 4</option></select></Field></div>
-    <Field label="Course name"><input value={serviceCourseName} onChange={e=>setServiceCourseName(e.target.value)} className="control"/></Field>
-    <button onClick={saveServiceItem} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white">Save Service Details</button>
+    <div className="mt-3 grid grid-cols-[110px_1fr] gap-3"><Field label="Quantity"><input type="number" min="1" value={qty} onChange={e=>setQty(Number(e.target.value))} className="control"/></Field><Field label="Item note (optional)"><input value={itemNotes} onChange={e=>setItemNotes(e.target.value)} className="control" placeholder="No onions, less salt…"/></Field></div>
+    <button onClick={addItem} disabled={!selectedProduct} className="mt-4 w-full rounded-xl bg-slate-900 py-3 font-medium text-white disabled:opacity-40">Add to Order</button>
   </Modal>}
 
   {chargesOpen&&detail&&<Modal title="Charges & Adjustments" onClose={()=>setChargesOpen(false)}>
-    <div className="grid sm:grid-cols-2 gap-3">
-      <Field label="Tax rate (%)"><input className="control" type="number" min="0" step="0.01" value={taxRate} onChange={e=>setTaxRate(Number(e.target.value))}/></Field>
-      <Field label="Tax mode"><select className="control" value={taxInclusive?'inclusive':'exclusive'} onChange={e=>setTaxInclusive(e.target.value==='inclusive')}><option value="exclusive">Exclusive · add to bill</option><option value="inclusive">Inclusive · included in price</option></select></Field>
-      <Field label="Service charge (%)"><input className="control" type="number" min="0" step="0.01" value={serviceRate} onChange={e=>setServiceRate(Number(e.target.value))}/></Field>
-      <Field label="Tip"><input className="control" type="number" min="0" step="0.01" value={tip} onChange={e=>setTip(Number(e.target.value))}/></Field>
-    </div>
+    <div className="grid gap-3 sm:grid-cols-2"><Field label="Tax rate (%)"><input className="control" type="number" min="0" step="0.01" value={taxRate} onChange={e=>setTaxRate(Number(e.target.value))}/></Field><Field label="Tax mode"><select className="control" value={taxInclusive?'inclusive':'exclusive'} onChange={e=>setTaxInclusive(e.target.value==='inclusive')}><option value="exclusive">Exclusive · add to bill</option><option value="inclusive">Inclusive · included in price</option></select></Field><Field label="Service charge (%)"><input className="control" type="number" min="0" step="0.01" value={serviceRate} onChange={e=>setServiceRate(Number(e.target.value))}/></Field><Field label="Tip"><input className="control" type="number" min="0" step="0.01" value={tip} onChange={e=>setTip(Number(e.target.value))}/></Field></div>
     <button onClick={saveCharges} disabled={chargesBusy} className="mt-4 w-full rounded-xl bg-slate-950 py-3 font-medium text-white disabled:opacity-40">{chargesBusy?'Saving…':'Save Tax / Service / Tip'}</button>
-
-    <div className="my-5 h-px bg-slate-200"/>
-    <div className="text-[11px] font-medium uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>Discount</button>
-      <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>FOC / Complimentary</button>
-    </div>
-    {adjustType==='discount'&&<div className="mt-3 grid grid-cols-2 gap-3">
-      <Field label="Fixed amount"><input className="control" type="number" min="0" step="0.01" value={adjustAmount||''} onChange={e=>{setAdjustAmount(Number(e.target.value));if(Number(e.target.value)>0)setAdjustPercent(0)}} placeholder="Amount"/></Field>
-      <Field label="Or percent (%)"><input className="control" type="number" min="0" max="100" step="0.01" value={adjustPercent||''} onChange={e=>{setAdjustPercent(Number(e.target.value));if(Number(e.target.value)>0)setAdjustAmount(0)}} placeholder="%"/></Field>
-    </div>}
-    <label className="mt-3 block text-[13px] font-medium text-slate-700">Reason<textarea className="control min-h-20" value={adjustReason} onChange={e=>setAdjustReason(e.target.value)} placeholder="Why is this adjustment required?"/></label>
+    <div className="my-5 h-px bg-slate-200"/><div className="text-[11px] font-medium uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
+    <div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>Discount</button><button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>FOC / Complimentary</button></div>
+    {adjustType==='discount'&&<div className="mt-3 grid grid-cols-2 gap-3"><Field label="Fixed amount"><input className="control" type="number" min="0" value={adjustAmount||''} onChange={e=>{setAdjustAmount(Number(e.target.value));if(Number(e.target.value)>0)setAdjustPercent(0)}}/></Field><Field label="Or percent (%)"><input className="control" type="number" min="0" max="100" value={adjustPercent||''} onChange={e=>{setAdjustPercent(Number(e.target.value));if(Number(e.target.value)>0)setAdjustAmount(0)}}/></Field></div>}
+    <label className="mt-3 block text-[13px] font-medium text-slate-700">Reason<textarea className="control min-h-20" value={adjustReason} onChange={e=>setAdjustReason(e.target.value)}/></label>
     <label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={adjustUrgent} onChange={e=>setAdjustUrgent(e.target.checked)}/>Mark approval request as urgent</label>
-    <button onClick={requestAdjustment} disabled={chargesBusy||!adjustReason.trim()||(adjustType==='discount'&&!(adjustAmount>0||adjustPercent>0))} className="mt-3 w-full rounded-xl bg-[var(--brand-primary)] py-3 font-medium text-white disabled:opacity-40">Send {adjustType==='foc'?'FOC':'Discount'} for Approval</button>
-    {adjustMessage&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[13px] font-medium text-emerald-700">{adjustMessage}</div>}
+    <button onClick={requestAdjustment} disabled={chargesBusy||!adjustReason.trim()} className="mt-3 w-full rounded-xl bg-[var(--brand-primary)] py-3 font-medium text-white disabled:opacity-40">Send for Approval</button>{adjustMessage&&<div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[13px] font-medium text-emerald-700">{adjustMessage}</div>}
   </Modal>}
 
-  <PaymentModal
-    open={paymentOpen}
-    title={detail?.order?.order_no?'Receive Payment · '+detail.order.order_no:'Receive Payment'}
-    total={Number(bill?.order?.total??detail?.order?.total??0)}
-    amountPaid={Number(bill?.amountPaid??detail?.order?.amount_paid??0)}
-    currency={currency}
-    busy={paymentBusy}
-    onClose={()=>{setPaymentOpen(false);setBill(null)}}
-    onSubmit={submitBillPayment}
-  />
+  <PaymentModal open={paymentOpen} title={detail?.order?.order_no?'Receive Payment · '+detail.order.order_no:'Receive Payment'} total={Number(bill?.order?.total??detail?.order?.total??0)} amountPaid={Number(bill?.amountPaid??detail?.order?.amount_paid??0)} currency={currency} busy={paymentBusy} onClose={()=>{setPaymentOpen(false);setBill(null)}} onSubmit={submitBillPayment}/>
 
-  {receiptActions&&<Modal title="Payment Complete" onClose={()=>setReceiptActions(null)} size="sm">
-    <div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10"><CheckCircle2 size={20}/></div>
-      <div><div className="text-[13px] font-semibold">{receiptActions.orderNo}</div><div className="mt-0.5 text-[10px] text-slate-400">Order fully settled</div></div>
-    </div>
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <button onClick={()=>printPdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button>
-      <button onClick={()=>sharePdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm',receiptActions.orderNo+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3 text-[11px] font-semibold text-slate-700"><Share2 size={15}/>Share</button>
-      <button onClick={()=>setReceiptActions(null)} className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-500">Done</button>
-    </div>
-  </Modal>}
+  {receiptActions&&<Modal title="Payment Complete" onClose={()=>setReceiptActions(null)} size="sm"><div className="flex items-center gap-3 rounded-xl bg-slate-950 p-4 text-white"><div className="grid h-10 w-10 place-items-center rounded-full bg-white/10"><CheckCircle2 size={20}/></div><div><div className="text-[13px] font-semibold">{receiptActions.orderNo}</div><div className="mt-0.5 text-[10px] text-slate-400">Served, settled and closed</div></div></div><div className="mt-3 grid grid-cols-2 gap-2"><button onClick={()=>printPdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm')} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand-primary)] px-3 py-3 text-[11px] font-semibold text-white"><Printer size={15}/>Print Receipt</button><button onClick={()=>sharePdf('/documents/order/'+receiptActions.id+'/pdf?type=invoice&paper=80mm',receiptActions.orderNo+'.pdf')} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-3 text-[11px] font-semibold"><Share2 size={15}/>Share</button><button onClick={()=>setReceiptActions(null)} className="col-span-2 rounded-lg border border-slate-200 px-3 py-2.5 text-[11px]">Done</button></div></Modal>}
 
-  {transferOpen&&<Modal title="Transfer Table" onClose={()=>setTransferOpen(false)}><Field label="Destination table"><select value={transferTable} onChange={e=>setTransferTable(Number(e.target.value))} className="control">{availableTables.map(t=><option key={t.id} value={t.id}>{t.area_name||'Floor'} · {t.name}</option>)}</select></Field><button onClick={doTransfer} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium">Transfer Order</button></Modal>}
-
-  {cancelOpen&&<Modal title="Request Order Cancellation" onClose={()=>setCancelOpen(false)}><p className="text-sm text-slate-500">Cancellation does not happen until management approves it.</p><textarea value={cancelReason} onChange={e=>setCancelReason(e.target.value)} className="control mt-4 min-h-28" placeholder="Reason for cancellation"/><label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)}/>Mark as urgent</label><button onClick={requestCancel} disabled={!cancelReason.trim()} className="mt-4 w-full rounded-xl bg-red-600 text-white py-3 font-medium disabled:opacity-40">Submit Cancellation Request</button></Modal>}
+  {cancelOpen&&<Modal title="Request Order Cancellation" onClose={()=>setCancelOpen(false)}><p className="text-sm text-slate-500">Management approval is required before cancellation.</p><textarea value={cancelReason} onChange={e=>setCancelReason(e.target.value)} className="control mt-4 min-h-28" placeholder="Reason for cancellation"/><label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)}/>Mark as urgent</label><button onClick={requestCancel} disabled={!cancelReason.trim()} className="mt-4 w-full rounded-xl bg-red-600 py-3 font-medium text-white disabled:opacity-40">Submit Cancellation Request</button></Modal>}
  </div>
 }
-
 function Field({label,children}:{label:string;children:any}){return <label className="text-[13px] font-medium text-slate-700">{label}{children}</label>}
-function Action({onClick,icon:Icon,label,danger=false}:{onClick:()=>void;icon:any;label:string;danger?:boolean}){return <button onClick={onClick} className={'rounded-xl border px-3 py-2.5 text-xs font-medium flex items-center justify-center gap-2 '+(danger?'border-red-200 text-red-600':'border-slate-200 text-slate-700')}><Icon size={15}/>{label}</button>}
+function Action({onClick,icon:Icon,label,danger=false}:{onClick:()=>void;icon:any;label:string;danger?:boolean}){return <button onClick={onClick} className={'flex items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-medium '+(danger?'border-red-200 text-red-600':'border-slate-200 text-slate-700')}><Icon size={15}/>{label}</button>}
 function ReceiptIcon({size=15}:{size?:number}){return <span style={{fontSize:size}}>🧾</span>}

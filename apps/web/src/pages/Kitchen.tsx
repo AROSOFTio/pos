@@ -5,7 +5,7 @@ import { PageHeading, Badge, Loading } from '../components'
 export default function Kitchen(){
  const [rows,setRows]=useState<any[]|null>(null)
  const load=()=>api('/kitchen/tickets?status=active').then(setRows)
- useEffect(()=>{load();const t=setInterval(load,12000);return()=>clearInterval(t)},[])
+ useEffect(()=>{load();const t=setInterval(load,3000);return()=>clearInterval(t)},[])
  async function move(id:number,status:string){await api('/kitchen/tickets/'+id+'/status',{method:'PUT',body:JSON.stringify({status})});load()}
  async function rush(id:number,p:string){await api('/kitchen/tickets/'+id+'/priority',{method:'PUT',body:JSON.stringify({priority:p})});load()}
  if(!rows)return <Loading/>

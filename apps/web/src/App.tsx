@@ -28,6 +28,7 @@ import Reports from './pages/Reports'
 import Staff from './pages/Staff'
 import NotificationBell from './components/NotificationBell'
 import StaffQuickMenu from './components/StaffQuickMenu'
+import StaffCodeGate from './components/StaffCodeGate'
 import SOP from './pages/SOP'
 import Training from './pages/Training'
 import Documentation from './pages/Documentation'
@@ -56,6 +57,9 @@ export default function App(){
   const [permissions,setPermissions]=useState<Set<string>>(new Set())
   const [path,setPath]=useState(window.location.pathname)
   const [workspace,setWorkspace]=useState<'management'|'operations'>('management')
+  const [operationsNavPosition,setOperationsNavPosition]=useState<'left'|'top'|'bottom'>('left')
+  const [sidebarStyle,setSidebarStyle]=useState<'brand'|'plain'|'custom'>('brand')
+  const [sidebarColor,setSidebarColor]=useState('')
 
   useEffect(()=>{const onPop=()=>setPath(window.location.pathname);window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[])
   useEffect(()=>{const token=localStorage.getItem('pos_token');if(!token){setLoading(false);return}api('/me').then(setUser).catch(()=>localStorage.removeItem('pos_token')).finally(()=>setLoading(false))},[])
@@ -66,6 +70,9 @@ export default function App(){
       setEnabled(new Set(m.filter((x:any)=>x.core||x.enabled).map((x:any)=>x.code)))
       setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
       setBusinessLogo(String(theme?.logo_url||''))
+      setOperationsNavPosition(['left','top','bottom'].includes(String(theme?.operations_nav_position))?theme.operations_nav_position:'left')
+      setSidebarStyle(['brand','plain','custom'].includes(String(theme?.sidebar_style))?theme.sidebar_style:'brand')
+      setSidebarColor(String(theme?.sidebar_color||''))
       applyTheme(String(theme?.theme_key||'green'),String(theme?.theme_mode||'light'),String(theme?.document_accent||''),String(theme?.theme_background||'clean'),String(theme?.theme_background_scope||'operations'),String(theme?.theme_background_image||''),String(theme?.theme_background_image_fit||'cover'))
     }).catch(()=>{})
   },[user])
@@ -143,6 +150,9 @@ export default function App(){
   })
   const primaryOps=allowedOps.filter(([name]:any)=>['POS','Supermarket','Restaurant','Orders','Kitchen','Shifts'].includes(name))
   const secondaryOps=allowedOps.filter(([name]:any)=>['Sales','Customers'].includes(name))
+  const lowLevelStaff=businessRoles.some(r=>['waiter','kitchen','bar','cashier'].includes(r))&&!businessRoles.some(r=>['owner','administrator','admin','branch_manager','restaurant_manager'].includes(r))
+  const terminalLocked=localStorage.getItem('mauzo_terminal_locked')==='1'
+  const staffSession=sessionStorage.getItem('mauzo_staff_session')==='1'
 
 
   const managementViews=new Set<ViewKey>(['Dashboard','Approvals','Products','Inventory','Suppliers','Purchasing','Expenses','Accounting','Reports','Staff','Branches','Settings'])
@@ -155,6 +165,8 @@ export default function App(){
     const fallback=(allowedOps[0]?.[0]||'POS') as ViewKey
     setWorkspace('operations');setView(fallback);setSidebar(false)
   }
+
+  if((terminalLocked||lowLevelStaff)&&!staffSession)return <StaffCodeGate business={business} logo={businessLogo}/>
 
   const renderView=()=> <>
     {view==='Dashboard'&&hasManagementAccess&&<Dashboard currency={currency} go={safeGo}/>}
@@ -197,7 +209,7 @@ export default function App(){
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
           <BusinessBrand name={business} logo={businessLogo}/>
-          <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
+          {operationsNavPosition==='top'&&<nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
             {primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(operationView===name?'active':'')}><Icon size={15}/>{operationLabel(name)}</button>)}
             {secondaryOps.length>0&&<details className="relative">
               <summary className={'ops-nav-item list-none rounded-lg px-3 py-2 text-[12px] '+(secondaryOps.some(([name]:any)=>name===operationView)?'active':'')}>More</summary>
@@ -205,7 +217,7 @@ export default function App(){
                 {secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold hover:bg-slate-50"><Icon size={15}/>{operationLabel(name)}</button>)}
               </div>
             </details>}
-          </nav>
+          </nav>}
           <div className="ml-auto flex items-center gap-2">
             {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 sm:block">Management</button>}
             <button onClick={()=>navigate('/training')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Training Manual"><GraduationCap size={16}/></button><button onClick={()=>navigate('/docs')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Documentation"><BookOpen size={16}/></button><button onClick={()=>navigate('/sop')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="SOP / Help"><HelpCircle size={16}/></button>
@@ -216,9 +228,19 @@ export default function App(){
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6">
+      {operationsNavPosition==='left'&&<aside className={'ops-side-nav fixed bottom-0 left-0 top-[62px] z-30 hidden w-[220px] border-r p-3 lg:flex lg:flex-col '+(sidebarStyle==='plain'?'plain':'colored')} style={sidebarStyle==='plain'?undefined:{background:sidebarStyle==='custom'&&sidebarColor?sidebarColor:'var(--brand-primary)'}}>
+        <div className="mb-2 px-3 pt-2 text-[9px] font-bold uppercase tracking-[.14em] opacity-70">Operations</div>
+        <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] font-semibold '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div>
+        {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-3 text-[9px] font-bold uppercase tracking-[.14em] opacity-60">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] font-semibold '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div></>}
+      </aside>}
+
+      <main className={'max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6 '+(operationsNavPosition==='left'?'lg:ml-[220px]':'mx-auto')+(operationsNavPosition==='bottom'?' lg:pb-24':'')}>
         <div className="page-enter"><ViewErrorBoundary key={operationView} onBack={()=>setView((allowedOps[0]?.[0]||'POS') as ViewKey)}>{renderOperationView()}</ViewErrorBoundary></div>
       </main>
+
+      {operationsNavPosition==='bottom'&&<nav className="fixed inset-x-0 bottom-0 z-40 hidden h-[64px] items-center justify-center gap-2 border-t border-slate-200 bg-white/95 px-4 shadow-[0_-8px_30px_rgba(15,23,42,.07)] backdrop-blur lg:flex">
+        {[...primaryOps,...secondaryOps].map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[12px] font-semibold '+(operationView===name?'active':'')}><Icon size={16}/>{operationLabel(name)}</button>)}
+      </nav>}
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[64px] border-t border-slate-200 bg-[var(--app-surface)] lg:hidden">
         {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={operationLabel(name)} active={operationView===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}

@@ -2268,3 +2268,34 @@ ON CONFLICT(business_id,role,permission_code) DO NOTHING;
 INSERT INTO role_permissions(business_id,role,permission_code,allowed)
 SELECT b.id,'auditor',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.view','inventory.cost')
 ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+
+
+-- 2026-10-03 restaurant workflow hardening
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sidebar_style TEXT NOT NULL DEFAULT 'brand';
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sidebar_color TEXT;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS operations_nav_position TEXT NOT NULL DEFAULT 'left';
+
+CREATE TABLE IF NOT EXISTS restaurant_order_tables (
+  order_id BIGINT REFERENCES restaurant_orders(id) ON DELETE CASCADE,
+  table_id BIGINT REFERENCES restaurant_tables(id) ON DELETE RESTRICT,
+  guest_count INT NOT NULL DEFAULT 1 CHECK(guest_count>0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(order_id,table_id)
+);
+CREATE INDEX IF NOT EXISTS idx_restaurant_order_tables_table ON restaurant_order_tables(table_id,order_id);
+
+INSERT INTO permission_catalog(code,name,section) VALUES
+('restaurant.assign_waiter','Assign or reassign waiter','Restaurant')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,r.role,'restaurant.assign_waiter',true
+FROM businesses b
+CROSS JOIN (VALUES ('administrator'),('branch_manager'),('restaurant_manager')) AS r(role)
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+
+INSERT INTO restaurant_order_tables(order_id,table_id,guest_count)
+SELECT id,table_id,GREATEST(1,guest_count)
+FROM restaurant_orders
+WHERE table_id IS NOT NULL
+ON CONFLICT(order_id,table_id) DO NOTHING;

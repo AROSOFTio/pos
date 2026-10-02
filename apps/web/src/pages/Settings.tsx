@@ -77,7 +77,7 @@ export default function Settings(){
        defaultServiceChargeRate:Number(s.default_service_charge_rate||0),
        receiptTitle:s.receipt_title,receiptPaymentOptions:s.receipt_payment_options,
        receiptHeaderNote:s.receipt_header_note,receiptShowLogo:true,receiptShowBusinessName:!!s.receipt_show_business_name,
-       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light',themeBackground:s.theme_background||'clean',themeBackgroundScope:s.theme_background_scope||'operations',themeBackgroundImage:s.theme_background_image||null,themeBackgroundImageFit:s.theme_background_image_fit||'cover'
+       themeKey:s.theme_key||'green',themeMode:s.theme_mode||'light',themeBackground:s.theme_background||'clean',themeBackgroundScope:s.theme_background_scope||'operations',themeBackgroundImage:s.theme_background_image||null,themeBackgroundImageFit:s.theme_background_image_fit||'cover',sidebarStyle:s.sidebar_style||'brand',sidebarColor:s.sidebar_color||null,operationsNavPosition:s.operations_nav_position||'left'
      })})
      setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'',next?.theme_background||'clean',next?.theme_background_scope||'operations',next?.theme_background_image||'',next?.theme_background_image_fit||'cover');setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
@@ -242,6 +242,15 @@ export default function Settings(){
             <Field label="Apply background to"><select className="control" value={s.theme_background_scope||'operations'} onChange={e=>{const scope=e.target.value;const next={...s,theme_background_scope:scope};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background||'clean',scope,next.theme_background_image||'',next.theme_background_image_fit||'cover')}}><option value="operations">Operations only</option><option value="all">Entire system</option></select></Field>
           </div>
           <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#22A53A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v,s.theme_background||'clean',s.theme_background_scope||'operations',s.theme_background_image||'',s.theme_background_image_fit||'cover')}}/></Field></div>
+        </div>
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <div className="text-[12px] font-semibold text-slate-700">Navigation & sidebar</div>
+          <div className="mt-1 text-[10.5px] text-slate-400">Choose where day-to-day operations navigation appears and how the sidebar looks. This changes appearance only; role permissions remain unchanged.</div>
+          <div className="mt-3 grid gap-4 md:grid-cols-3">
+            <Field label="Operations navigation"><select className="control" value={s.operations_nav_position||'left'} onChange={e=>patch('operations_nav_position',e.target.value)}><option value="left">Left sidebar (default)</option><option value="top">Top navigation</option><option value="bottom">Bottom navigation</option></select></Field>
+            <Field label="Sidebar appearance"><select className="control" value={s.sidebar_style||'brand'} onChange={e=>patch('sidebar_style',e.target.value)}><option value="brand">Brand colour</option><option value="plain">Plain / white</option><option value="custom">Custom colour</option></select></Field>
+            {s.sidebar_style==='custom'?<Field label="Custom sidebar colour"><input type="color" className="control h-11 p-1" value={s.sidebar_color||'#166534'} onChange={e=>patch('sidebar_color',e.target.value)}/></Field>:<div className="rounded-xl border border-slate-200 p-3"><div className="text-[11px] font-medium text-slate-600">Preview</div><div className="mt-2 h-10 rounded-lg border border-black/5" style={{background:s.sidebar_style==='plain'?'#ffffff':(s.document_accent||'#22A53A')}}/></div>}
+          </div>
         </div>
         <SaveButton saving={saving} onClick={save}/>
       </Panel>}

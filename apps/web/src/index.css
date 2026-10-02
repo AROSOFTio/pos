@@ -286,3 +286,12 @@ body{background:var(--pos-workspace)}
 [data-theme="dark"] .pos-panel,[data-theme="dark"] .pos-stat-card,[data-theme="dark"] .ops-cart{background:var(--app-surface);border-color:#303B46}
 [data-theme="dark"] .pos-panel-head{background:#1B232C;border-color:#2A3540}
 [data-theme="dark"] .ops-workspace{background:#0F1419}
+
+/* Restaurant operations navigation themes */
+.ops-side-nav.colored{color:#fff;border-color:rgba(255,255,255,.15);box-shadow:8px 0 24px rgba(15,23,42,.08)}
+.ops-side-nav.colored .ops-side-item{color:rgba(255,255,255,.86)}
+.ops-side-nav.colored .ops-side-item:hover{background:rgba(255,255,255,.10);color:#fff}
+.ops-side-nav.colored .ops-side-item.active{background:#fff;color:var(--brand-primary);box-shadow:0 5px 16px rgba(15,23,42,.12)}
+.ops-side-nav.plain{background:#fff;color:#586674;border-color:#DCE3E9}
+.ops-side-nav.plain .ops-side-item:hover{background:#F4F7F9;color:#172033}
+.ops-side-nav.plain .ops-side-item.active{background:var(--brand-soft);color:var(--brand-primary);box-shadow:inset 3px 0 0 var(--brand-primary)}
