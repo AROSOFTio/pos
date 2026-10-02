@@ -1018,6 +1018,21 @@ app.post('/api/document-settings/logo',auth,tenant,permit('settings.manage'),bra
 app.post('/api/document-settings/background',auth,tenant,permit('settings.manage'),brandingUpload.single('image'),async(req,res)=>{const bid=await getBiz(req);if(!req.file)return res.status(400).json({error:'Choose a PNG, JPG or WebP image under 5MB'});const url='/uploads/branding/'+req.file.filename;const q=await pool.query("UPDATE businesses SET theme_background_image=$1,theme_background='image' WHERE id=$2 RETURNING theme_background_image,theme_background",[url,bid]);await audit(req.user,bid,'upload_background','business',bid,{backgroundImage:url});res.json({ok:true,backgroundImage:q.rows[0].theme_background_image,themeBackground:q.rows[0].theme_background})});
 app.put('/api/document-settings',auth,tenant,permit('settings.manage'),async(req,res)=>{const bid=await getBiz(req);const {name=null,address=null,phone=null,email=null,taxId=null,logoUrl=null,documentFooter=null,documentAccent='#101828',documentPaperSize='A4',defaultTaxRate=0,taxInclusive=false,defaultServiceChargeRate=0,receiptTitle='ORDER BILL',receiptPaymentOptions='CASH | MTN MOMO | AIRTEL MONEY | CARD',receiptHeaderNote=null,receiptShowLogo=true,receiptShowBusinessName=false,themeKey='green',themeMode='light',themeBackground='clean',themeBackgroundScope='operations',themeBackgroundImage=null,themeBackgroundImageFit='cover'}=req.body||{};const q=await pool.query("UPDATE businesses SET name=coalesce(nullif(trim($1),''),name),address=$2,phone=$3,email=$4,tax_id=$5,logo_url=$6,document_footer=$7,document_accent=$8,document_paper_size=CASE WHEN $9 IN ('58mm','80mm','A4','A5') THEN $9 ELSE 'A4' END,default_tax_rate=$10,tax_inclusive=$11,default_service_charge_rate=$12,receipt_title=$13,receipt_payment_options=$14,receipt_header_note=$15,receipt_show_logo=$16,receipt_show_business_name=$17,theme_key=$18,theme_mode=$19,theme_background=CASE WHEN $20 IN ('clean','soft','rich') THEN $20 ELSE 'clean' END,theme_background_scope=CASE WHEN $21 IN ('operations','all') THEN $21 ELSE 'operations' END,theme_background_image=$22,theme_background_image_fit=CASE WHEN $23 IN ('cover','contain','repeat') THEN $23 ELSE 'cover' END WHERE id=$24 RETURNING id,name,country,currency,address,phone,email,tax_id,logo_url,document_footer,document_accent,document_paper_size,default_tax_rate,tax_inclusive,default_service_charge_rate,receipt_title,receipt_payment_options,receipt_header_note,receipt_show_logo,receipt_show_business_name,theme_key,theme_mode,theme_background,theme_background_scope",[name,address,phone,email,taxId,logoUrl,documentFooter,documentAccent,documentPaperSize,Math.max(0,Number(defaultTaxRate||0)),!!taxInclusive,Math.max(0,Number(defaultServiceChargeRate||0)),String(receiptTitle||'ORDER BILL').slice(0,80),String(receiptPaymentOptions||'').slice(0,300),receiptHeaderNote||null,!!receiptShowLogo,!!receiptShowBusinessName,String(themeKey||'green'),String(themeMode||'light'),String(themeBackground||'clean'),String(themeBackgroundScope||'operations'),themeBackgroundImage||null,String(themeBackgroundImageFit||'cover'),bid]);await audit(req.user,bid,'update','document_settings',bid,{name});res.json(q.rows[0])});
 function drawBusinessLogo(doc,biz,opts={}){const logo=String(biz.logo_url||''),local=logo.startsWith('/uploads/')?logo.replace(/^\/uploads\//,'uploads/'):null,{x,y,...imageOpts}=opts||{};try{if(local&&fs.existsSync(local)){if(Number.isFinite(x)&&Number.isFinite(y))doc.image(local,x,y,imageOpts);else doc.image(local,imageOpts);return true}if(logo.startsWith('data:image/')&&logo.includes('base64,')){const src=Buffer.from(logo.split('base64,')[1],'base64');if(Number.isFinite(x)&&Number.isFinite(y))doc.image(src,x,y,imageOpts);else doc.image(src,imageOpts);return true}}catch{}return false}
+function drawBusinessLogoCentered(doc,biz,{centerX,y,maxWidth=60,maxHeight=45}={}){
+  const logo=String(biz.logo_url||''),local=logo.startsWith('/uploads/')?logo.replace(/^\/uploads\//,'uploads/'):null;
+  try{
+    let src=null;
+    if(local&&fs.existsSync(local))src=local;
+    else if(logo.startsWith('data:image/')&&logo.includes('base64,'))src=Buffer.from(logo.split('base64,')[1],'base64');
+    if(!src)return null;
+    const img=doc.openImage(src);
+    if(!img?.width||!img?.height)return null;
+    const scale=Math.min(maxWidth/img.width,maxHeight/img.height,1);
+    const width=img.width*scale,height=img.height*scale,x=centerX-width/2;
+    doc.image(img,x,y,{width,height});
+    return {x,y,width,height,bottom:y+height};
+  }catch{return null}
+}
 function pdfAccent(biz){const c=String(biz.document_accent||'#22A53A');return /^#[0-9a-f]{6}$/i.test(c)?c:'#22A53A'}
 function pdfMoney(biz,n){return String(biz.currency||'')+' '+Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2})}
 function pdfHeader(doc,biz,title,number){
@@ -1025,14 +1040,12 @@ function pdfHeader(doc,biz,title,number){
   const right=doc.page.width-(doc.page.margins.right||42);
   const top=doc.page.margins.top||42;
   const usable=right-m;
+  const centerX=doc.page.width/2;
   const accent=pdfAccent(biz);
 
-  let y=top-4;
-  const logoW=Math.min(72,Math.max(52,usable*.12));
-  const logoH=52;
-  const hadLogo=drawBusinessLogo(doc,biz,{fit:[logoW,logoH],x:(doc.page.width-logoW)/2,y});
-
-  if(hadLogo)y+=logoH+5;
+  let y=top-3;
+  const logo=drawBusinessLogoCentered(doc,biz,{centerX,y,maxWidth:72,maxHeight:48});
+  if(logo)y=logo.bottom+3;
 
   doc.font('Helvetica-Bold')
     .fontSize(14)
@@ -1040,36 +1053,27 @@ function pdfHeader(doc,biz,title,number){
     .text(String(biz.name||'Business').toUpperCase(),m,y,{width:usable,align:'center'});
 
   y=doc.y+3;
-
   const contact=[biz.address,biz.phone,biz.email,biz.tax_id?'TIN '+biz.tax_id:null].filter(Boolean).join('  •  ');
   if(contact){
-    doc.font('Helvetica')
-      .fontSize(7.8)
-      .fillColor('#64748B')
+    doc.font('Helvetica').fontSize(7.8).fillColor('#64748B')
       .text(contact,m,y,{width:usable,align:'center'});
     y=doc.y+5;
-  }else{
-    y+=4;
-  }
+  }else y+=4;
 
   doc.moveTo(m,y).lineTo(right,y).lineWidth(1.2).strokeColor('#CBD5E1').stroke();
-  y+=12;
+  y+=11;
 
-  doc.font('Helvetica-Bold')
-    .fontSize(16)
-    .fillColor('#111827')
+  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827')
     .text(String(title||'DOCUMENT').toUpperCase(),m,y,{width:usable,align:'center'});
 
   if(number){
-    doc.font('Helvetica-Bold')
-      .fontSize(8.5)
-      .fillColor(accent)
-      .text(String(number),m,doc.y+3,{width:usable,align:'center'});
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(accent)
+      .text(String(number),m,doc.y+2,{width:usable,align:'center'});
   }
 
-  y=doc.y+9;
+  y=doc.y+8;
   doc.moveTo(m,y).lineTo(right,y).lineWidth(2).strokeColor(accent).stroke();
-  doc.y=y+14;
+  doc.y=y+13;
   doc.fillColor('#111827');
 }
 function pdfFooter(doc,biz){
@@ -1133,42 +1137,41 @@ function thermalPair(doc,paper,left,right,{bold=false,size=8}={}){
     .text(String(right||''),{width:rightW,align:'right'});
 }
 function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
-  const width=thermalWidth(paper),logo=String(biz.logo_url||'');
+  const width=thermalWidth(paper),centerX=width/2;
   let y=doc.y;
-  const logoW=paper==='58mm'?40:52,logoH=paper==='58mm'?30:40;
-
-  if(logo){
-    const drawn=drawBusinessLogo(doc,biz,{x:(width-logoW)/2,y,fit:[logoW,logoH]});
-    if(drawn)y+=logoH+4;
-  }
+  const logo=drawBusinessLogoCentered(doc,biz,{
+    centerX,y,
+    maxWidth:paper==='58mm'?38:48,
+    maxHeight:paper==='58mm'?28:34
+  });
+  if(logo)y=logo.bottom+1.5;
 
   doc.font('Courier-Bold')
     .fontSize(paper==='58mm'?8.8:10)
     .fillColor('#111')
-    .text(String(biz.name||'BUSINESS').toUpperCase(),10,y,{width:width-20,align:'center'});
+    .text(String(biz.name||'BUSINESS').toUpperCase(),0,y,{width,align:'center'});
 
   y=doc.y+2;
-
   const contact=[biz.address,biz.phone,biz.email].filter(Boolean).join(' | ');
   if(contact){
     doc.font('Courier').fontSize(paper==='58mm'?6.2:6.8).fillColor('#333')
-      .text(contact,10,y,{width:width-20,align:'center'});
+      .text(contact,6,y,{width:width-12,align:'center'});
     y=doc.y+1;
   }
 
   if(biz.tax_id){
     doc.font('Courier').fontSize(6.5).fillColor('#444')
-      .text('TIN: '+biz.tax_id,10,y,{width:width-20,align:'center'});
+      .text('TIN: '+biz.tax_id,6,y,{width:width-12,align:'center'});
     y=doc.y+1;
   }
 
-  doc.y=y;
-  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper,'='),{align:'center'});
+  doc.y=y+1;
+  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
   doc.font('Courier-Bold').fontSize(paper==='58mm'?10:11)
-    .text(String(title||biz.receipt_title||'RECEIPT').toUpperCase(),{align:'center'});
-  if(number)doc.font('Courier-Bold').fontSize(8).text('# '+number,{align:'center'});
-  if(biz.receipt_header_note)doc.font('Courier').fontSize(6.5).fillColor('#444').text(biz.receipt_header_note,{align:'center'});
-  doc.moveDown(.15).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),{align:'center'});
+    .text(String(title||biz.receipt_title||'RECEIPT').toUpperCase(),0,doc.y,{width,align:'center'});
+  if(number)doc.font('Courier-Bold').fontSize(8).text('# '+number,0,doc.y,{width,align:'center'});
+  if(biz.receipt_header_note)doc.font('Courier').fontSize(6.5).fillColor('#444').text(biz.receipt_header_note,0,doc.y,{width,align:'center'});
+  doc.moveDown(.15).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),0,doc.y,{width,align:'center'});
   doc.font('Courier').fontSize(7).fillColor('#222');
   for(const line of meta.filter(Boolean))doc.text(String(line).toUpperCase());
   doc.text(thermalRule(paper),{align:'center'}).moveDown(.1);
@@ -1214,19 +1217,20 @@ function thermalPageHeight(itemCount=1,extraLines=0,paper='80mm'){
   return Math.max(base,Math.min(1500,base+Math.max(0,itemCount-1)*row+extraLines*12));
 }
 function thermalKotHeader(doc,biz,x,paper='80mm'){
-  const width=thermalWidth(paper),logo=String(biz.logo_url||'');
+  const width=thermalWidth(paper),centerX=width/2;
   let y=doc.y;
-  const logoW=paper==='58mm'?38:46,logoH=paper==='58mm'?28:32;
-  if(logo){
-    const drawn=drawBusinessLogo(doc,biz,{x:(width-logoW)/2,y,fit:[logoW,logoH]});
-    if(drawn)y+=logoH+3;
-  }
+  const logo=drawBusinessLogoCentered(doc,biz,{
+    centerX,y,
+    maxWidth:paper==='58mm'?36:44,
+    maxHeight:paper==='58mm'?26:30
+  });
+  if(logo)y=logo.bottom+1.5;
   doc.font('Courier-Bold').fontSize(paper==='58mm'?8:9).fillColor('#111')
-    .text(String(biz.name||'BUSINESS').toUpperCase(),10,y,{width:width-20,align:'center'});
-  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});
-  doc.font('Courier-Bold').fontSize(13).fillColor('#111').text('KITCHEN ORDER TICKET',{align:'center'});
-  doc.font('Courier-Bold').fontSize(9).text('# '+x.ticket_no,{align:'center'});
-  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});
+    .text(String(biz.name||'BUSINESS').toUpperCase(),0,y,{width,align:'center'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
+  doc.font('Courier-Bold').fontSize(13).fillColor('#111').text('KITCHEN ORDER TICKET',0,doc.y,{width,align:'center'});
+  doc.font('Courier-Bold').fontSize(9).text('# '+x.ticket_no,0,doc.y,{width,align:'center'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
   doc.font('Courier-Bold').fontSize(8).text('STATION: '+String(x.station_name||'KITCHEN').toUpperCase());
   doc.text('ORDER:   '+String(x.order_no||'').toUpperCase());
   if(x.table_name)doc.fontSize(10).text('TABLE:   '+String(x.table_name).toUpperCase());
