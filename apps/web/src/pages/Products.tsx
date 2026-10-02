@@ -121,11 +121,8 @@ export default function Products({currency,allowScanning=false}:{currency:string
             <option value="prepared">Prepared / produced here</option>
             <option value="both">Both supplier + prepared here</option>
           </select>
-          <span className="mt-1 block text-[10px] font-normal leading-4 text-slate-400">
-            {form.stockSource==='prepared'?'Example: Chapati, cake or juice made by your team.':form.stockSource==='both'?'Use when the item may be bought or also prepared internally.':'Example: bottled drinks or packaged goods delivered by a supplier.'}
-          </span>
         </Field>
-        <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="How many do you already have?"/>{editing&&<span className="mt-1 block text-[10px] font-normal text-slate-400">To add more later, use Inventory → Add / Refill Stock or Receive Delivery. Use Correct Stock only for a real difference.</span>}</Field>
+        <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="How many do you already have?"/></Field>
         {!editing&&Number(form.stock||0)>0&&<Field label="Where is the opening stock?"><select className="control" value={form.openingLocationId} onChange={e=>setForm({...form,openingLocationId:e.target.value})}><option value="">Default stock location</option>{locations.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>}
         <Field label="Reorder / refill alert at"><input className="control" inputMode="decimal" type="text" value={form.reorderLevel} onChange={e=>setForm({...form,reorderLevel:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Optional"/></Field>
         <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]" checked={form.lotTrackingRequired} onChange={e=>setForm({...form,lotTrackingRequired:e.target.checked})}/><span><b>Require batch / expiry when receiving</b><span className="mt-0.5 block text-[10px] leading-4 text-slate-500">Use for food, drinks, medicine or anything where expiry must be tracked.</span></span></label>

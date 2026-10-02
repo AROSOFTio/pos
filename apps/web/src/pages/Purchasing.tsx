@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Truck, WalletCards, ClipboardList, AlertTriangle, Plus, Eye, FileText, ReceiptText, CreditCard } from 'lucide-react'
 import { api, money, nice, openPdf } from '../api'
-import { PageHeading, Stat, Panel, DataTable, Badge, Loading, Modal } from '../components'
+import { PageHeading, Stat, Panel, DataTable, Badge, Modal } from '../components'
 
 type DraftItem={productId:number;name:string;qty:number;unitCost:number}
 
 export default function Purchasing({currency}:{currency:string}){
- const [o,setO]=useState<any>(null),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[returns,setReturns]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
+ const [o,setO]=useState<any>({openOrders:0,purchaseValueMonth:0,receiptsToday:0,lowStock:0}),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[returns,setReturns]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
+ const [loadError,setLoadError]=useState('')
  const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false)
  const [suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([]),[supplierProducts,setSupplierProducts]=useState<any[]>([])
  const [supplierId,setSupplierId]=useState<number>(0),[branchId,setBranchId]=useState<number>(0),[selectedProduct,setSelectedProduct]=useState<number>(0),[notes,setNotes]=useState('')
@@ -16,7 +17,18 @@ export default function Purchasing({currency}:{currency:string}){
  const [returnOpen,setReturnOpen]=useState(false),[returnSupplier,setReturnSupplier]=useState(0),[returnReason,setReturnReason]=useState(''),[returnItems,setReturnItems]=useState<any[]>([{productId:0,locationId:0,qty:1,unitCost:0}]),[balances,setBalances]=useState<any[]>([])
  const [invoiceOpen,setInvoiceOpen]=useState(false),[invoicePay,setInvoicePay]=useState<any>(null),[invoiceSupplier,setInvoiceSupplier]=useState(0),[invoicePo,setInvoicePo]=useState(0),[invoiceGrn,setInvoiceGrn]=useState(0),[invoiceNo,setInvoiceNo]=useState(''),[invoiceDate,setInvoiceDate]=useState(''),[dueDate,setDueDate]=useState(''),[invoiceTax,setInvoiceTax]=useState(0),[invoiceItems,setInvoiceItems]=useState<any[]>([{description:'',qty:1,unitCost:0}]),[payAmount,setPayAmount]=useState(0),[payMethod,setPayMethod]=useState('cash'),[payReference,setPayReference]=useState('')
 
- const load=()=>Promise.all([api('/purchasing/overview'),api('/purchase-orders'),api('/grns'),api('/purchasing/invoices').catch(()=>[]),api('/purchasing/returns').catch(()=>[])]).then(([o,p,g,i,r])=>{setO(o);setPos(p);setGrns(g);setInvoices(Array.isArray(i)?i:[]);setReturns(Array.isArray(r)?r:[])})
+ const load=async()=>{
+   setLoadError('')
+   const [ov,p,g,i,r]=await Promise.all([
+     api('/purchasing/overview').catch((e:any)=>{setLoadError(e.message||'Could not load purchasing summary');return {openOrders:0,purchaseValueMonth:0,receiptsToday:0,lowStock:0}}),
+     api('/purchase-orders').catch((e:any)=>{setLoadError(e.message||'Could not load purchase orders');return []}),
+     api('/grns').catch(()=>[]),
+     api('/purchasing/invoices').catch(()=>[]),
+     api('/purchasing/returns').catch(()=>[])
+   ])
+   setO(ov&&typeof ov==='object'?ov:{openOrders:0,purchaseValueMonth:0,receiptsToday:0,lowStock:0})
+   setPos(Array.isArray(p)?p:[]);setGrns(Array.isArray(g)?g:[]);setInvoices(Array.isArray(i)?i:[]);setReturns(Array.isArray(r)?r:[])
+ }
  useEffect(()=>{load()},[])
  const total=useMemo(()=>items.reduce((n,x)=>n+x.qty*x.unitCost,0),[items])
 
@@ -24,7 +36,7 @@ export default function Purchasing({currency}:{currency:string}){
    const [s,b]=await Promise.all([api('/suppliers'),api('/branches')])
    setSuppliers(s);setBranches(b);setSupplierId(0);setBranchId(Number(b[0]?.id||0));setSupplierProducts([]);setItems([]);setNotes('');setPreview(false);setCreateOpen(true)
  }
- async function chooseSupplier(id:number){setSupplierId(id);setItems([]);setSelectedProduct(0);setSupplierProducts(id?await api('/suppliers/'+id+'/products'):[])}
+ async function chooseSupplier(id:number){setSupplierId(id);setItems([]);setSelectedProduct(0);if(!id){setSupplierProducts([]);return}const r=await api('/suppliers/'+id+'/products');setSupplierProducts(Array.isArray(r)?r:Array.isArray(r?.products)?r.products:[])}
  function addProduct(){
    const p=supplierProducts.find(x=>Number(x.id)===selectedProduct);if(!p)return
    if(items.some(x=>x.productId===selectedProduct))return
@@ -77,9 +89,9 @@ export default function Purchasing({currency}:{currency:string}){
    setSaving(true);try{await api('/purchasing/returns',{method:'POST',body:JSON.stringify({supplierId:returnSupplier,reason:returnReason.trim(),items:returnItems.filter(x=>x.productId&&x.locationId&&Number(x.qty)>0)})});setReturnOpen(false);await load()}finally{setSaving(false)}
  }
 
- if(!o)return <Loading/>
  return <div>
-  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receiving, supplier invoices and payments." action={<div className="flex gap-2"><button onClick={section==='orders'?openCreate:section==='invoices'?openInvoice:openReturn} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium"><Plus size={16} className="inline mr-1"/>{section==='orders'?'New Purchase Order':section==='invoices'?'Supplier Invoice':'Purchase Return'}</button></div>}/>
+  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receipts, invoices and returns." action={<div className="flex flex-wrap gap-2"><button onClick={openCreate} className="ui-btn ui-btn-primary"><Plus size={14}/>New PO</button><button onClick={()=>{setSection('orders');document.getElementById('open-purchase-orders')?.scrollIntoView({behavior:'smooth',block:'start'})}} className="ui-btn"><Truck size={14}/>Receive Delivery</button><button onClick={openInvoice} className="ui-btn"><ReceiptText size={14}/>Supplier Invoice</button><button onClick={openReturn} className="ui-btn"><ClipboardList size={14}/>Purchase Return</button></div>}/>
+  {loadError&&<div className="mb-3 flex items-center justify-between rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[12px] text-red-700"><span>{loadError}</span><button onClick={load} className="font-semibold">Retry</button></div>}
   <div className="mb-4 flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button onClick={()=>setSection('orders')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='orders'?'bg-slate-950 text-white':'text-slate-500')}>Purchase Orders</button><button onClick={()=>setSection('invoices')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='invoices'?'bg-slate-950 text-white':'text-slate-500')}>Supplier Invoices</button><button onClick={()=>setSection('returns')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='returns'?'bg-slate-950 text-white':'text-slate-500')}>Returns</button></div>
   {section==='orders'&&<>
   <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -89,7 +101,7 @@ export default function Purchasing({currency}:{currency:string}){
     <Stat label="Low Stock" value={o.lowStock} sub="Needs attention" icon={AlertTriangle} tone={o.lowStock?'amber':'emerald'}/>
   </div>
   <div className="grid xl:grid-cols-[1.3fr_.7fr] gap-4 mt-4">
-    <Panel title="Purchase Orders"><DataTable head={['PO','Supplier','Status','Received','Total','Actions']} rows={pos.map(x=>[
+    <div id="open-purchase-orders"><Panel title="Purchase Orders"><DataTable head={['PO','Supplier','Status','Received','Total','Actions']} rows={pos.map(x=>[
       <div><b>{x.po_no}</b><div className="text-[11px] text-slate-400">{x.branch_name}</div></div>,
       x.supplier_name,
       <Badge tone={x.status==='rejected'?'red':x.status==='ordered'||x.status==='received'?'green':x.status==='pending_approval'?'amber':'slate'}>{nice(x.status)}</Badge>,
@@ -99,7 +111,7 @@ export default function Purchasing({currency}:{currency:string}){
         {(x.status==='draft'||x.status==='rejected')&&<button onClick={()=>setSubmitPo(x)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-medium">{x.status==='rejected'?'Resubmit':'Submit'}</button>}{(x.status==='ordered'||x.status==='partial')&&<button onClick={()=>openReceive(x)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-white">Receive</button>}
         <button onClick={()=>openPdf('/documents/purchase-order/'+x.id+'/pdf')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-600" title="Open PDF"><FileText size={15}/></button>
       </div>
-    ])}/></Panel>
+    ])}/></Panel></div>
     <Panel title="Recent GRNs"><DataTable head={['GRN','Supplier','Total']} rows={grns.slice(0,12).map(x=>[<b>{x.grn_no}</b>,x.supplier_name,money(x.total,currency)])}/></Panel>
   </div>  </>}
 
@@ -133,7 +145,6 @@ export default function Purchasing({currency}:{currency:string}){
           <select value={selectedProduct} onChange={e=>setSelectedProduct(Number(e.target.value))} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="0">Add supplier product</option>{supplierProducts.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
           <button onClick={addProduct} className="rounded-lg bg-slate-900 text-white px-4 text-sm font-medium">Add</button>
         </div>
-        {!supplierId&&<p className="mt-2 text-xs text-slate-400">Choose a supplier first. Only products registered for that supplier will appear.</p>}
       </div>
       <div className="space-y-2 max-h-64 overflow-y-auto">{items.map((x,i)=><div key={x.productId} className="grid grid-cols-[1fr_90px_110px_34px] gap-2 items-center rounded-xl border border-slate-100 p-2.5"><b className="text-sm truncate">{x.name}</b><input type="number" min="0.001" step="0.001" value={x.qty} onChange={e=>patchItem(i,{qty:Number(e.target.value)})} className="rounded-lg border border-slate-200 px-2 py-2 text-sm"/><input type="number" min="0" value={x.unitCost} onChange={e=>patchItem(i,{unitCost:Number(e.target.value)})} className="rounded-lg border border-slate-200 px-2 py-2 text-sm"/><button onClick={()=>setItems(v=>v.filter((_,k)=>k!==i))} className="text-slate-400 hover:text-red-500">×</button></div>)}</div>
       <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Purchase notes (optional)" className="w-full min-h-20 rounded-xl border border-slate-200 p-3"/>
@@ -148,8 +159,8 @@ export default function Purchasing({currency}:{currency:string}){
   </Modal>}
 
   {receivePo&&<Modal title={'Receive '+receivePo.po_no} onClose={()=>!saving&&setReceivePo(null)} size="xl">
-    <div className="grid gap-3 sm:grid-cols-2"><label className="text-[11px] font-medium text-slate-600">Supplier reference<input className="control" value={receiveRef} onChange={e=>setReceiveRef(e.target.value)} placeholder="Delivery note / invoice reference"/></label><label className="text-[11px] font-medium text-slate-600">Receiving notes<input className="control" value={receiveNotes} onChange={e=>setReceiveNotes(e.target.value)}/></label></div>
-    <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto">{receiveItems.map((x,i)=><div key={x.itemId} className="rounded-xl border border-slate-200 p-3"><div className="mb-2 text-[11px] font-semibold text-slate-800">{x.name}{x.lotTrackingRequired&&<Badge tone="amber">Batch + expiry required</Badge>}</div><div className="grid gap-2 sm:grid-cols-4"><label className="text-[9.5px] text-slate-500">Qty<input className="control" type="number" min="0" step="0.001" value={x.qty} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,qty:Number(e.target.value)}:z))}/></label><label className="text-[9.5px] text-slate-500">Unit cost<input className="control" type="number" min="0" value={x.unitCost} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,unitCost:Number(e.target.value)}:z))}/></label><label className="text-[9.5px] text-slate-500">Lot / batch<input className="control" value={x.lotNo} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,lotNo:e.target.value}:z))} placeholder={x.lotTrackingRequired?"Required":"Optional"}/></label><label className="text-[9.5px] text-slate-500">Expiry<input type="date" className="control" value={x.expiryDate} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,expiryDate:e.target.value}:z))}/></label></div></div>)}</div>
+    <div className="grid gap-3 sm:grid-cols-2"><label className="text-[12px] font-medium text-slate-700">Supplier reference<input className="control" value={receiveRef} onChange={e=>setReceiveRef(e.target.value)} placeholder="Delivery note / invoice reference"/></label><label className="text-[12px] font-medium text-slate-700">Receiving notes<input className="control" value={receiveNotes} onChange={e=>setReceiveNotes(e.target.value)}/></label></div>
+    <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto">{receiveItems.map((x,i)=><div key={x.itemId} className="rounded-xl border border-slate-200 p-3"><div className="mb-2 text-[11px] font-semibold text-slate-800">{x.name}{x.lotTrackingRequired&&<Badge tone="amber">Batch + expiry required</Badge>}</div><div className="grid gap-2 sm:grid-cols-4"><label className="text-[11px] font-medium text-slate-600">Qty<input className="control" type="number" min="0" step="0.001" value={x.qty} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,qty:Number(e.target.value)}:z))}/></label><label className="text-[11px] font-medium text-slate-600">Unit cost<input className="control" type="number" min="0" value={x.unitCost} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,unitCost:Number(e.target.value)}:z))}/></label><label className="text-[11px] font-medium text-slate-600">Lot / batch<input className="control" value={x.lotNo} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,lotNo:e.target.value}:z))} placeholder={x.lotTrackingRequired?"Required":"Optional"}/></label><label className="text-[11px] font-medium text-slate-600">Expiry<input type="date" className="control" value={x.expiryDate} onChange={e=>setReceiveItems(v=>v.map((z,k)=>k===i?{...z,expiryDate:e.target.value}:z))}/></label></div></div>)}</div>
     <button onClick={postReceive} disabled={saving||!receiveItems.some(x=>Number(x.qty)>0)} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">{saving?'Posting…':'Post Goods Receipt'}</button>
   </Modal>}
 

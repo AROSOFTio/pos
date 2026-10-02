@@ -128,7 +128,7 @@ export default function Inventory({currency,onOpenPurchasing}:{currency:string;o
  const nav:Array<[Section,string]>=[['overview','Overview'],['stock','Stock on Hand'],['movements','History'],['transfers','Transfers'],['counts','Count Stock'],['locations','Locations'],['lots','Batches & Expiry'],['batches','Kitchen Prep']]
 
  return <div>
-  <PageHeading eyebrow="Stock control" title="Inventory" sub="Add, receive, move, count and correct stock without accounting jargon." action={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button>}/>
+  <PageHeading eyebrow="Stock control" title="Inventory" sub="Stock balances, movements and controls." action={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button>}/>
   {error&&<div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800">{error}</div>}
 
   <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
@@ -142,7 +142,6 @@ export default function Inventory({currency,onOpenPurchasing}:{currency:string;o
     <Stat label="Needs Reorder" value={o?.lowStock||0} sub="Products at or below reorder level" icon={AlertTriangle} tone={o?.lowStock?'amber':'emerald'}/>
     <Stat label="Counts in Progress" value={o?.openCounts||0} sub="Physical counts not yet posted" icon={ClipboardList} tone="violet"/>
    </div>
-   <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-[11px] leading-5 text-emerald-900"><b>Need to increase stock?</b> If you made/prepared it here, use <b>Add / Refill Stock</b>. If a supplier brought it, use <b>Receive Delivery</b>. Use <b>Correct Stock</b> only when the physical quantity is unexpectedly different.</div>
    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <Quick icon={PackagePlus} title="Add / Refill Stock" sub="Prepared or produced here" onClick={()=>openRestock()}/>
     <Quick icon={Truck} title="Receive Delivery" sub="Stock brought by a supplier" onClick={()=>onOpenPurchasing?.()}/>
@@ -156,7 +155,7 @@ export default function Inventory({currency,onOpenPurchasing}:{currency:string;o
    </div>
   </>}
 
-  {section==='stock'&&<Panel title="Stock on Hand" sub="What is physically available at each location." action={<SearchBox value={query} setValue={setQuery}/>}>
+  {section==='stock'&&<Panel title="Stock on Hand" sub="Current quantity by location." action={<SearchBox value={query} setValue={setQuery}/>}>
    {stockRows.length?<DataTable head={['Product','Branch / Location','On Hand','Restock Method','Reorder At','Average Cost','Stock Value','Actions']} rows={stockRows.map(x=>[
     <div><b>{x.product_name}</b><div className="text-[10px] text-slate-400">{x.sku||'No SKU'}{x.lot_tracking_required?' · Batch tracked':''}</div>{x.lot_tracking_required&&Number(x.unassigned_lot_qty)>0&&<div className="mt-1 text-[9.5px] font-semibold text-amber-600">{Number(x.unassigned_lot_qty)} needs batch / expiry</div>}</div>,
     <div>{x.branch_name}<div className="text-[10px] text-slate-400">{x.location_name}</div></div>,
@@ -165,36 +164,34 @@ export default function Inventory({currency,onOpenPurchasing}:{currency:string;o
    ])}/>:<Empty text="No stock balances found."/>}
   </Panel>}
 
-  {section==='movements'&&<Panel title="Stock History" sub="Every increase and reduction with its source." action={<SearchBox value={query} setValue={setQuery}/>}>
+  {section==='movements'&&<Panel title="Stock History" sub="All stock movements." action={<SearchBox value={query} setValue={setQuery}/>}>
    {movementRows.length?<DataTable head={['Date','Product','Branch','What happened','Qty','Before','After','Reference','By']} rows={movementRows.map(x=>[new Date(x.created_at).toLocaleString(),<b>{x.product_name}</b>,x.branch_name||'-',<Badge tone={Number(x.quantity)<0?'amber':'green'}>{movementName(x.movement_type)}</Badge>,Number(x.quantity),Number(x.stock_before),Number(x.stock_after),x.reference_no||'-',x.created_by||'-'])}/>:<Empty text="No matching stock activity."/>}
   </Panel>}
 
-  {section==='transfers'&&<Panel title="Stock Transfers" sub="Stock moved between your stores, bars and kitchens." action={<button onClick={()=>setTransferOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Move Stock</button>}>
+  {section==='transfers'&&<Panel title="Stock Transfers" sub="Location-to-location transfers." action={<button onClick={()=>setTransferOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Move Stock</button>}>
    {transfers.length?<DataTable head={['Reference','From','To','Qty','Status','By','Date']} rows={transfers.map(x=>[<b>{x.reference_no}</b>,x.from_location,x.to_location,Number(x.total_qty),<Badge tone="green">{nice(x.status)}</Badge>,x.created_by||'-',new Date(x.created_at).toLocaleString()])}/>:<Empty text="No stock transfers yet."/>}
   </Panel>}
 
-  {section==='counts'&&<Panel title="Physical Stock Counts" sub="Count what is actually on the shelf and let Mauzo correct the difference." action={<button onClick={()=>setCountOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Start Count</button>}>
+  {section==='counts'&&<Panel title="Physical Stock Counts" sub="Physical stock counts." action={<button onClick={()=>setCountOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Start Count</button>}>
    {counts.length?<DataTable head={['Reference','Location','Branch','Status','Created','Action']} rows={counts.map(x=>[<b>{x.reference_no}</b>,x.location_name,x.branch_name,<Badge tone={x.status==='posted'?'green':'amber'}>{x.status==='posted'?'Completed':'In progress'}</Badge>,new Date(x.created_at).toLocaleString(),x.status==='draft'?<button onClick={()=>openCount(x)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-[10px] font-semibold">Enter Count</button>:'-'])}/>:<Empty text="No stock counts yet."/>}
   </Panel>}
 
-  {section==='locations'&&<Panel title="Stock Locations" sub="Stores, kitchens, bars and other places where stock is kept." action={<button onClick={()=>setLocationOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Add Location</button>}>
+  {section==='locations'&&<Panel title="Stock Locations" sub="Inventory locations." action={<button onClick={()=>setLocationOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Add Location</button>}>
    {loc.length?<DataTable head={['Location','Branch','Type','Units','Stock Value']} rows={loc.map(x=>[<b>{x.name}</b>,x.branch_name,nice(x.location_type),Number(x.total_units),money(x.stock_value,currency)])}/>:<Empty text="No inventory locations yet."/>}
   </Panel>}
 
   {section==='lots'&&<>
-   <div className="mb-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] leading-5 text-blue-800"><b>Batch / expiry does not add stock.</b> Use this to label stock already on hand. Supplier deliveries must be received from an approved Purchase Order in Purchasing.</div>
-   <Panel title="Batches & Expiry" sub="Track expiry dates without changing your stock balance." action={<button onClick={()=>setLotOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Assign Batch</button>}>
+   <Panel title="Batches & Expiry" sub="Batch and expiry tracking." action={<button onClick={()=>setLotOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Assign Batch</button>}>
     {lots.length?<DataTable head={['Product','Batch / Lot','Location','Expiry','Qty','Cost','Status']} rows={lots.map(x=>[<b>{x.product_name}</b>,x.lot_no,x.location_name,x.expiry_date?new Date(x.expiry_date).toLocaleDateString():'-',Number(x.qty),money(x.unit_cost,currency),x.expiry_date?<Badge tone={Number(x.days_to_expiry)<0?'red':Number(x.days_to_expiry)<=7?'amber':'green'}>{Number(x.days_to_expiry)<0?'Expired':Number(x.days_to_expiry)+' days'}</Badge>:<Badge>No expiry</Badge>])}/>:<Empty text="No batch-controlled stock yet."/>}
    </Panel>
-   <div className="mt-4"><Panel title="Batch History" sub="Where tracked batches came from and how they were used.">{lotMoves.length?<DataTable head={['Date','Product','Batch','Location','Activity','Qty','Reference','By']} rows={lotMoves.slice(0,100).map(x=>[new Date(x.created_at).toLocaleString(),<b>{x.product_name}</b>,x.lot_no||'-',x.location_name,movementName(x.movement_type),Number(x.quantity),x.reference_no||'-',x.created_by||'-'])}/>:<Empty text="No batch movement history yet."/>}</Panel></div>
+   <div className="mt-4"><Panel title="Batch History" sub="Batch movement history.">{lotMoves.length?<DataTable head={['Date','Product','Batch','Location','Activity','Qty','Reference','By']} rows={lotMoves.slice(0,100).map(x=>[new Date(x.created_at).toLocaleString(),<b>{x.product_name}</b>,x.lot_no||'-',x.location_name,movementName(x.movement_type),Number(x.quantity),x.reference_no||'-',x.created_by||'-'])}/>:<Empty text="No batch movement history yet."/>}</Panel></div>
   </>}
 
-  {section==='batches'&&<Panel title="Prepare with Recipe" sub="Use ingredients to produce finished stock and calculate the real food cost automatically." action={<button onClick={()=>setBatchOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Prepare Batch</button>}>
+  {section==='batches'&&<Panel title="Prepare with Recipe" sub="Recipe-based production." action={<button onClick={()=>setBatchOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Prepare Batch</button>}>
    {batches.length?<DataTable head={['Batch','Recipe','Location','Yield','Cost','Prepared By','Date']} rows={batches.map(x=>[<b>{x.batch_no}</b>,x.recipe_name,x.location_name,Number(x.actual_yield),money(x.total_cost,currency),x.prepared_by||'-',new Date(x.prepared_at).toLocaleString()])}/>:<Empty text="No preparation batches yet."/>}
   </Panel>}
 
   {restockOpen&&<Modal title="Add / Refill Stock" onClose={()=>!busy&&setRestockOpen(false)} size="md">
-   <div className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5 text-[12px] text-slate-600"><span><b className="text-slate-800">Prepared here?</b> Add the new quantity below.</span><button type="button" onClick={()=>{setRestockOpen(false);onOpenPurchasing?.()}} className="shrink-0 font-semibold text-[var(--brand-primary)]">Supplier delivery →</button></div>
    <div className="grid gap-3 sm:grid-cols-2">
     <Field label="Location"><select className="control" value={restock.locationId} onChange={e=>setRestock({...restock,locationId:e.target.value,productId:''})}><option value="">Choose location</option>{loc.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>
     <Field label="Product"><select className="control" value={restock.productId} onChange={e=>setRestock({...restock,productId:e.target.value})}><option value="">Choose product</option>{restockProducts.map(x=>{const b=bal.find(z=>Number(z.product_id)===Number(x.id)&&Number(z.location_id)===Number(restock.locationId));return <option key={x.id} value={x.id}>{x.name}{restock.locationId?' · '+Number(b?.qty||0)+' available':''}</option>})}</select></Field>
@@ -202,12 +199,10 @@ export default function Inventory({currency,onOpenPurchasing}:{currency:string;o
     <Field label="Note"><input className="control" value={restock.notes} onChange={e=>setRestock({...restock,notes:e.target.value})} placeholder="e.g. Morning chapati batch"/></Field>
    </div>
    {chosenProduct&&restock.locationId&&Number(restock.qty)>0&&<div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center"><div><div className="text-[9px] uppercase tracking-wide text-slate-400">Current</div><div className="mt-1 text-[16px] font-bold text-slate-800">{Number(chosenRestock?.qty||0)}</div></div><div><div className="text-[9px] uppercase tracking-wide text-slate-400">Add</div><div className="mt-1 text-[16px] font-bold text-emerald-600">+{Number(restock.qty)}</div></div><div><div className="text-[9px] uppercase tracking-wide text-slate-400">New stock</div><div className="mt-1 text-[16px] font-bold text-slate-950">{Number(chosenRestock?.qty||0)+Number(restock.qty)}</div></div></div>}
-   {chosenRecipe&&chosenProduct&&<div className="mt-3 rounded-lg bg-blue-50 px-3 py-2.5 text-[12px] leading-5 text-blue-900"><b>Recipe available:</b> use Prepare with Recipe to deduct ingredients automatically.</div>}
-   <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">{chosenRecipe&&<button onClick={prepareWithRecipe} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="rounded-lg border border-[var(--brand-primary)] bg-white px-4 py-3 text-[11px] font-semibold text-[var(--brand-primary)] disabled:opacity-40">Prepare with Recipe</button>}<button onClick={postRestock} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="rounded-lg bg-[var(--brand-primary)] px-4 py-3 text-[11px] font-semibold text-white disabled:opacity-40">{busy?'Adding…':'Add Stock'}</button></div>
+   <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={()=>{setRestockOpen(false);onOpenPurchasing?.()}} className="ui-btn"><Truck size={14}/>Receive Delivery</button>{chosenRecipe&&<button onClick={prepareWithRecipe} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="ui-btn disabled:opacity-40">Prepare with Recipe</button>}<button onClick={postRestock} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="ui-btn ui-btn-primary disabled:opacity-40">{busy?'Adding…':'Add Stock'}</button></div>
   </Modal>}
 
   {adjustOpen&&<Modal title="Correct Stock" onClose={()=>!busy&&setAdjustOpen(false)} size="md">
-   <p className="mb-3 text-[11px] leading-5 text-slate-500"><b>Correction only.</b> Use this when physical stock is unexpectedly different from Mauzo. Do not use it for normal refill or supplier delivery.</p>
    <div className="grid gap-3 sm:grid-cols-2">
     <Field label="Location"><select className="control" value={adjust.locationId} onChange={e=>setAdjust({...adjust,locationId:e.target.value,productId:''})}><option value="">Choose location</option>{loc.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>
     <Field label="What happened?"><select className="control" value={adjust.action} onChange={e=>setAdjust({...adjust,action:e.target.value})}><option value="increase">Found unexpected extra stock</option><option value="decrease">Stock missing / correction</option><option value="wastage">Wasted / damaged</option><option value="spoilage">Expired / spoiled</option></select></Field>
