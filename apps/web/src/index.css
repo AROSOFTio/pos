@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root{
-  --brand-primary:#3B8F5A;
-  --brand-primary-soft:rgba(59,143,90,.07);
-  --brand-soft:#F2F8F4;
-  --brand-border:#D7E9DD;
+  --brand-primary:#4E28F9;
+  --brand-primary-soft:rgba(78,40,249,.07);
+  --brand-soft:#F3F0FF;
+  --brand-border:#DED7FF;
   --app-bg:#F7F9F7;
   --app-surface:#FFFFFF;
   --app-text:#172033;
@@ -353,3 +353,145 @@ body{background:var(--workspace-premium)}
 .data-table td,.data-table th{padding-top:.68rem!important;padding-bottom:.68rem!important}
 .ops-ui,.management-main{background-image:none!important;background-color:var(--workspace-premium)!important}
 html[data-background] .ops-ui section,html[data-background] .ops-ui header{background:#FFFFFF}
+
+
+/* 2026-10 Ticky-inspired clean product system */
+:root{
+  --brand-primary:#4E28F9;
+  --brand-primary-soft:rgba(78,40,249,.075);
+  --brand-soft:#F3F0FF;
+  --brand-border:#DED7FF;
+  --app-bg:#F7F8FC;
+  --app-surface:#FFFFFF;
+  --app-text:#171A24;
+  --app-muted:#667085;
+  --pos-line:#E7E9F0;
+  --workspace-premium:#F7F8FC;
+}
+body{background:#F7F8FC;color:#171A24}
+.management-main,.ops-workspace,.ops-ui{background:#F7F8FC!important;background-image:none!important}
+
+/* light premium sidebars - no dark/green blocks */
+.management-sidebar{
+  background:#F8F9FD!important;
+  color:#202331!important;
+  border-color:#E8E9F0!important;
+  box-shadow:none!important;
+}
+.management-sidebar .brand-lockup-name{color:#171A24!important}
+.management-sidebar .brand-lockup-sub{color:#98A2B3!important}
+.management-sidebar .brand-lockup-mark{background:#F3F0FF!important;color:#4E28F9!important}
+.management-sidebar .mgmt-nav-title{
+  color:#98A2B3!important;
+  font-size:10px!important;
+  font-weight:600!important;
+  letter-spacing:.09em!important;
+}
+.management-sidebar .mgmt-nav-item{
+  color:#252936!important;
+  font-size:14px!important;
+  line-height:1.25!important;
+  font-weight:500!important;
+  min-height:44px;
+  border-radius:11px!important;
+  padding-left:12px!important;
+  padding-right:12px!important;
+}
+.management-sidebar .mgmt-nav-item:hover{
+  background:#F1F0F8!important;
+  color:#171A24!important;
+}
+.management-sidebar .mgmt-nav-item.active{
+  background:#FFFFFF!important;
+  color:#4E28F9!important;
+  box-shadow:0 0 0 1px #E7E1FF,0 4px 12px rgba(78,40,249,.055)!important;
+}
+.management-sidebar>div:last-child{border-color:#E8E9F0!important}
+.management-sidebar>div:last-child .text-slate-400{color:#98A2B3!important}
+.management-sidebar>div:last-child .text-slate-300{color:#B0B7C3!important}
+
+/* operations gets a tiny lavender distinction, still neutral and clean */
+.ops-side-nav.colored,.ops-side-nav.plain{
+  background:#FBFAFF!important;
+  color:#252936!important;
+  border-color:#E8E5F3!important;
+  box-shadow:none!important;
+}
+.ops-side-nav.colored>div:first-child,.ops-side-nav.plain>div:first-child{color:#98A2B3!important}
+.ops-side-nav.colored .ops-side-item,.ops-side-nav.plain .ops-side-item{
+  color:#252936!important;
+  font-size:14px!important;
+  line-height:1.25!important;
+  font-weight:500!important;
+  min-height:44px;
+  border-radius:11px!important;
+}
+.ops-side-nav.colored .ops-side-item:hover,.ops-side-nav.plain .ops-side-item:hover{
+  background:#F3F0FF!important;
+  color:#4E28F9!important;
+}
+.ops-side-nav.colored .ops-side-item.active,.ops-side-nav.plain .ops-side-item.active{
+  background:#FFFFFF!important;
+  color:#4E28F9!important;
+  box-shadow:0 0 0 1px #E6DFFF,0 4px 12px rgba(78,40,249,.06)!important;
+}
+
+.management-header,.ops-chrome{
+  background:#FFFFFF!important;
+  border-color:#E8E9F0!important;
+  box-shadow:0 1px 0 rgba(16,24,40,.025)!important;
+}
+.ops-chrome .ops-nav-item.active{
+  background:#F3F0FF!important;color:#4E28F9!important;box-shadow:inset 0 0 0 1px #E6DFFF!important
+}
+
+/* compact clean content rhythm */
+.management-main>.page-enter,.ops-workspace>.page-enter{padding-top:14px!important}
+.ui-eyebrow{color:#4E28F9!important;font-size:10px!important;font-weight:600!important;letter-spacing:.08em!important}
+.ui-page-title{font-size:25px!important;font-weight:600!important;letter-spacing:-.025em!important;color:#171A24!important}
+.pos-panel{
+  background:#FFFFFF!important;
+  border:1px solid #E7E9F0!important;
+  border-radius:14px!important;
+  box-shadow:0 2px 8px rgba(16,24,40,.025)!important;
+}
+.pos-panel-head{
+  min-height:52px!important;
+  background:#FFFFFF!important;
+  border-color:#ECEEF3!important;
+  padding:.75rem 1rem!important;
+}
+.pos-stat-card{
+  min-height:94px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:13px!important;
+  padding:14px!important;
+  background:#FFFFFF!important;
+  border:1px solid #E7E9F0!important;
+  border-radius:14px!important;
+  box-shadow:0 2px 8px rgba(16,24,40,.025)!important;
+}
+.pos-stat-card:hover{box-shadow:0 7px 20px rgba(78,40,249,.055)!important;border-color:#DDD7F5!important}
+.pos-stat-card .stat-icon{box-shadow:0 6px 14px rgba(78,40,249,.12)}
+.management-dashboard{max-width:1520px!important;margin:0 auto!important}
+.management-dashboard>.grid,.management-dashboard>.ops-section-strip{margin-top:10px!important}
+.management-dashboard .kpi-strip{gap:10px!important}
+.management-dashboard .kpi-strip>div{
+  background:#FFFFFF!important;
+  border:1px solid #E7E9F0!important;
+  border-radius:12px!important;
+  min-height:70px!important;
+  padding:12px 14px!important;
+}
+.control,.ui-control{background:#FFFFFF!important;border-color:#E4E7EC!important}
+.control:focus,.ui-control:focus{border-color:#4E28F9!important;box-shadow:0 0 0 3px rgba(78,40,249,.07)!important}
+.ui-btn-primary{background:#4E28F9!important;border-color:#4E28F9!important}
+.ui-btn-primary:hover{background:#4321DA!important}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline-color:#4E28F9!important}
+::selection{background:rgba(78,40,249,.18)!important}
+
+/* slightly tighter data density like reference */
+.data-table{font-size:12.5px!important}
+.data-table th{font-size:9.5px!important;letter-spacing:.06em!important}
+.data-table td,.data-table th{padding-top:.62rem!important;padding-bottom:.62rem!important}

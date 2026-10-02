@@ -331,7 +331,7 @@ function BusinessBrand({name,logo,dark=false}:{name:string;logo:string;dark?:boo
 }
 
 const themePalettes:Record<string,{primary:string;soft:string;border:string;bg:string;surface:string;text:string;muted:string;sidebar:string}>={
-  green:{primary:'#3B8F5A',soft:'#F2F8F4',border:'#D7E9DD',bg:'#F6F8F7',surface:'#FFFFFF',text:'#18212B',muted:'#667085',sidebar:'#F8FAF9'},
+  green:{primary:'#4E28F9',soft:'#F3F0FF',border:'#DED7FF',bg:'#F7F8FC',surface:'#FFFFFF',text:'#171A24',muted:'#667085',sidebar:'#F8F9FD'},
   blue:{primary:'#2563EB',soft:'#EFF6FF',border:'#BFDBFE',bg:'#F6F8FC',surface:'#FFFFFF',text:'#172033',muted:'#64748B',sidebar:'#FAFBFD'},
   maroon:{primary:'#8B1E3F',soft:'#FBEFF3',border:'#E9BAC8',bg:'#FAF7F8',surface:'#FFFFFF',text:'#23171B',muted:'#74636A',sidebar:'#FDFBFC'},
   gold:{primary:'#B7791F',soft:'#FFF8E7',border:'#EED7A2',bg:'#FAF9F5',surface:'#FFFFFF',text:'#211D15',muted:'#716856',sidebar:'#FEFDF9'},

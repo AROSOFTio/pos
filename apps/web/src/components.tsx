@@ -14,22 +14,22 @@ export function PageHeading({eyebrow,title,sub,action}:{eyebrow:string;title:str
 }
 
 export function Stat({label,value,sub,icon:Icon,tone='emerald'}:{label:string;value:any;sub:string;icon:any;tone?:string}) {
-  const tones:any={emerald:'bg-[var(--brand-soft)] text-[var(--brand-primary)]',blue:'bg-blue-50 text-blue-700',amber:'bg-amber-50 text-amber-700',violet:'bg-violet-50 text-violet-700',rose:'bg-rose-50 text-rose-700'}
+  const tones:any={emerald:'bg-[var(--brand-primary)] text-white',blue:'bg-[#6D4AFF] text-white',amber:'bg-[#F59E0B] text-white',violet:'bg-[#4E28F9] text-white',rose:'bg-[#F04438] text-white'}
   return <div className="pos-stat-card group">
-    <div className="flex items-start justify-between gap-3">
-      <div className={'grid h-9 w-9 place-items-center rounded-[10px] '+tones[tone]}><Icon size={16}/></div>
-      <ArrowUpRight size={14} className="text-slate-300 transition group-hover:text-slate-500"/>
+    <div className={'stat-icon grid h-12 w-12 shrink-0 place-items-center rounded-[12px] '+tones[tone]}><Icon size={21}/></div>
+    <div className="min-w-0 flex-1">
+      <div className="stat-label truncate text-[12.5px] font-medium text-slate-500">{label}</div>
+      <div className="stat-value mt-0.5 truncate text-[22px] font-semibold tracking-[-.025em] text-slate-950">{value}</div>
+      <div className="stat-sub mt-0.5 truncate text-[10.5px] leading-4 text-slate-400">{sub}</div>
     </div>
-    <div className="mt-4 text-[20px] font-bold tracking-[-.035em] text-slate-950 sm:text-[22px]">{value}</div>
-    <div className="mt-1 text-[12px] font-semibold text-slate-700">{label}</div>
-    <div className="mt-1 text-[11px] leading-4 text-slate-500">{sub}</div>
+    <ArrowUpRight size={13} className="mt-1 shrink-0 text-slate-300 transition group-hover:text-[var(--brand-primary)]"/>
   </div>
 }
 
 export function Panel({title,sub,children,action}:{title:string;sub?:string;children:ReactNode;action?:ReactNode}) {
   return <section className="pos-panel">
     <div className="pos-panel-head">
-      <div className="min-w-0"><h3 className="truncate text-[13px] font-bold tracking-[-.01em] text-slate-900">{title}</h3>{sub&&<p className="mt-0.5 text-[11px] leading-4 text-slate-500">{sub}</p>}</div>{action&&<div className="shrink-0">{action}</div>}
+      <div className="min-w-0"><h3 className="truncate text-[14px] font-semibold tracking-[-.012em] text-slate-900">{title}</h3>{sub&&<p className="mt-0.5 text-[11px] leading-4 text-slate-500">{sub}</p>}</div>{action&&<div className="shrink-0">{action}</div>}
     </div>
     <div className="p-4 sm:p-5">{children}</div>
   </section>
