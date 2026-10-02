@@ -1096,6 +1096,14 @@ function pdfFooter(doc,biz){
   const text=String(biz.document_footer||'Powered by MauzoPOS');
   doc.font('Helvetica').fontSize(7.5).fillColor('#94A3B8').text(text,m,y,{width:right-m,align:'center'});
 }
+function pdfPageNumbers(doc,biz){
+  const range=doc.bufferedPageRange();
+  for(let i=range.start;i<range.start+range.count;i++){
+    doc.switchToPage(i);
+    const m=doc.page.margins.left||42,right=doc.page.width-(doc.page.margins.right||42),y=doc.page.height-28;
+    doc.font('Helvetica').fontSize(7).fillColor('#94A3B8').text('Page '+(i-range.start+1)+' of '+range.count,m,y,{width:right-m,align:'right',lineBreak:false});
+  }
+}
 function pdfSectionTitle(doc,title,sub=''){
   const m=doc.page.margins.left||42,accent='#111827';
   doc.moveDown(.2).font('Helvetica-Bold').fontSize(11).fillColor(accent).text(title,m,doc.y);
@@ -1680,7 +1688,7 @@ async function scheduledReportWorker(){
 }
 function startBackgroundWorkers(){setTimeout(scheduledReportWorker,15000);setInterval(scheduledReportWorker,60000)}
 
-registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission});
+registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission,pdfHeader,pdfFooter,pdfMetaGrid,pdfSectionTitle,pdfTable,pdfMetricCards,pdfMoney,pdfPageNumbers});
 app.get('*',(req,res)=>res.sendFile(process.cwd()+'/public/index.html'));
 
 init().then(()=>app.listen(port,'0.0.0.0',()=>{console.log('POS running on '+port);startBackgroundWorkers()})).catch(e=>{console.error(e);process.exit(1)});
