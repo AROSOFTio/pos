@@ -1022,14 +1022,19 @@ function pdfAccent(biz){const c=String(biz.document_accent||'#22A53A');return /^
 function pdfMoney(biz,n){return String(biz.currency||'')+' '+Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2})}
 function pdfHeader(doc,biz,title,number){
   const m=doc.page.margins.left||42,right=doc.page.width-(doc.page.margins.right||42),top=doc.page.margins.top||42,accent=pdfAccent(biz);
-  const hadLogo=drawBusinessLogo(doc,biz,{fit:[105,56],x:m,y:top-4});
-  if(!hadLogo)doc.font('Helvetica-Bold').fontSize(18).fillColor('#111827').text(biz.name||'Business',m,top,{width:260});else if(biz.receipt_show_business_name)doc.font('Helvetica-Bold').fontSize(9).fillColor('#334155').text(biz.name||'',m,top+58,{width:260});
-  doc.font('Helvetica-Bold').fontSize(17).fillColor('#111827').text(title,m+290,top,{width:right-m-290,align:'right'});
-  if(number)doc.font('Helvetica').fontSize(9).fillColor('#64748B').text(number,m+290,top+24,{width:right-m-290,align:'right'});
+  const logoW=54,logoH=46,brandX=m+64,brandW=Math.max(180,Math.min(265,right-m-300));
+  const hadLogo=drawBusinessLogo(doc,biz,{fit:[logoW,logoH],x:m,y:top-3});
+  if(!hadLogo){
+    doc.roundedRect(m,top-2,46,46,8).fill('#F8FAFC');
+    doc.font('Helvetica-Bold').fontSize(16).fillColor(accent).text(String(biz.name||'B').slice(0,1).toUpperCase(),m,top+11,{width:46,align:'center'});
+  }
+  doc.font('Helvetica-Bold').fontSize(13).fillColor('#111827').text(biz.name||'Business',brandX,top+2,{width:brandW,ellipsis:true});
   const contact=[biz.address,biz.phone,biz.email,biz.tax_id?'TIN '+biz.tax_id:null].filter(Boolean).join('  •  ');
-  if(contact)doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(contact,m,top+66,{width:right-m});
-  doc.moveTo(m,top+84).lineTo(right,top+84).lineWidth(2).strokeColor(accent).stroke();
-  doc.y=top+98;doc.fillColor('#111827');
+  if(contact)doc.font('Helvetica').fontSize(7.6).fillColor('#64748B').text(contact,brandX,top+22,{width:brandW,height:24,ellipsis:true});
+  doc.font('Helvetica-Bold').fontSize(16).fillColor('#111827').text(title,m+300,top,{width:right-m-300,align:'right'});
+  if(number)doc.font('Helvetica-Bold').fontSize(8.5).fillColor(accent).text(number,m+300,top+24,{width:right-m-300,align:'right'});
+  doc.moveTo(m,top+62).lineTo(right,top+62).lineWidth(2).strokeColor(accent).stroke();
+  doc.y=top+77;doc.fillColor('#111827');
 }
 function pdfFooter(doc,biz){
   const m=doc.page.margins.left||42,right=doc.page.width-(doc.page.margins.right||42),y=doc.page.height-28;
@@ -1092,9 +1097,16 @@ function thermalPair(doc,paper,left,right,{bold=false,size=8}={}){
     .text(String(right||''),{width:rightW,align:'right'});
 }
 function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
-  const width=thermalWidth(paper),logo=String(biz.logo_url||'');
-  if(logo){const lw=paper==='58mm'?48:58,lh=paper==='58mm'?38:44,ly=doc.y;if(drawBusinessLogo(doc,biz,{x:(width-lw)/2,y:ly,fit:[lw,lh]}))doc.y=ly+lh+5;}
-  if(!logo||biz.receipt_show_business_name)doc.font('Courier-Bold').fontSize(paper==='58mm'?9:10).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),{align:'center'});
+  const width=thermalWidth(paper),logo=String(biz.logo_url||''),brandY=doc.y;
+  if(logo){
+    const lw=paper==='58mm'?38:44,lh=paper==='58mm'?30:34;
+    const drawn=drawBusinessLogo(doc,biz,{x:10,y:brandY,fit:[lw,lh]});
+    const nameX=drawn?10+lw+6:10,nameW=drawn?width-nameX-10:width-20;
+    doc.font('Courier-Bold').fontSize(paper==='58mm'?8.3:9.4).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),nameX,brandY+3,{width:nameW});
+    doc.y=Math.max(doc.y,brandY+lh+4);
+  }else{
+    doc.font('Courier-Bold').fontSize(paper==='58mm'?9:10).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),{align:'center'});
+  }
   const contact=[biz.address,biz.phone,biz.email].filter(Boolean).join(' | ');
   if(contact)doc.font('Courier').fontSize(paper==='58mm'?6.2:6.8).fillColor('#333').text(contact,{align:'center'});
   if(biz.tax_id)doc.font('Courier').fontSize(6.5).fillColor('#444').text('TIN: '+biz.tax_id,{align:'center'});
@@ -1148,8 +1160,12 @@ function thermalPageHeight(itemCount=1,extraLines=0,paper='80mm'){
   return Math.max(base,Math.min(1500,base+Math.max(0,itemCount-1)*row+extraLines*12));
 }
 function thermalKotHeader(doc,biz,x,paper='80mm'){
-  const logo=String(biz.logo_url||'');
-  if(logo){const lw=48,lh=34,ly=doc.y;if(drawBusinessLogo(doc,biz,{x:(doc.page.width-lw)/2,y:ly,fit:[lw,lh]}))doc.y=ly+lh+4;}
+  const logo=String(biz.logo_url||''),width=thermalWidth(paper),brandY=doc.y;
+  if(logo){
+    const lw=38,lh=28,drawn=drawBusinessLogo(doc,biz,{x:10,y:brandY,fit:[lw,lh]});
+    doc.font('Courier-Bold').fontSize(8).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),drawn?54:10,brandY+6,{width:drawn?width-64:width-20});
+    doc.y=Math.max(doc.y,brandY+lh+4);
+  }else doc.font('Courier-Bold').fontSize(8).fillColor('#111').text(String(biz.name||'BUSINESS').toUpperCase(),{align:'center'});
   doc.font('Courier-Bold').fontSize(13).fillColor('#111').text('KITCHEN ORDER TICKET',{align:'center'});
   doc.font('Courier-Bold').fontSize(9).text('# '+x.ticket_no,{align:'center'});
   doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),{align:'center'});

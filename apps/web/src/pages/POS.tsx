@@ -11,7 +11,7 @@ export default function POS({currency}:{currency:string}){
  const [busy,setBusy]=useState(false),[paymentOpen,setPaymentOpen]=useState(false),[balancesOpen,setBalancesOpen]=useState(false),[balances,setBalances]=useState<any[]>([])
  const [selectedSale,setSelectedSale]=useState<any>(null),[success,setSuccess]=useState<any>(null)
  const [customers,setCustomers]=useState<any[]>([]),[customerId,setCustomerId]=useState(0)
- const [chargesOpen,setChargesOpen]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
+ const [chargesOpen,setChargesOpen]=useState(false),[advancedCharges,setAdvancedCharges]=useState(false),[taxRate,setTaxRate]=useState(0),[serviceRate,setServiceRate]=useState(0),[tip,setTip]=useState(0),[taxInclusive,setTaxInclusive]=useState(false)
  const [adjustment,setAdjustment]=useState<Adjustment|null>(null),[adjustType,setAdjustType]=useState<'discount'|'foc'>('discount'),[adjustAmount,setAdjustAmount]=useState(0),[adjustPercent,setAdjustPercent]=useState(0),[adjustReason,setAdjustReason]=useState(''),[adjustUrgent,setAdjustUrgent]=useState(false),[adjustMessage,setAdjustMessage]=useState('')
  const [query,setQuery]=useState('')
 
@@ -99,34 +99,34 @@ export default function POS({currency}:{currency:string}){
 
  return <div>
   <PageHeading
-    eyebrow="Fast checkout"
-    title="Sales"
-    sub="Quick item selection, payments and customer balances."
-    action={<div className="flex gap-2">
-      <button onClick={openBalances} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Clock3 size={16}/>Open Balances</button>
-      <select value={type} onChange={e=>setType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-medium"><option value="counter">Counter</option><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option></select>
+    eyebrow="Counter"
+    title="New Sale"
+    sub="Choose items, review the bill and take payment."
+    action={<div className="flex flex-wrap gap-2">
+      <button onClick={openBalances} className="ops-secondary inline-flex items-center gap-2 px-3.5"><Clock3 size={15}/>Balances</button>
+      <select value={type} onChange={e=>setType(e.target.value)} className="ops-secondary px-3.5 text-[12px]"><option value="counter">Counter Sale</option><option value="dine_in">Dine-in</option><option value="takeaway">Takeaway</option><option value="delivery">Delivery</option></select>
     </div>}
   />
 
-  <div className="grid xl:grid-cols-[1fr_410px] gap-3">
-    <Panel title="Menu" sub={shown.length+' items available'}>
+  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
+    <Panel title="Products" sub={shown.length+' available'}>
       <div className="mb-3 flex flex-col gap-2 sm:flex-row">
-        <div className="flex-1"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products" className="control mt-0"/></div>
+        <div className="flex-1"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search products, menu items…" className="control mt-0"/></div>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-3">{cats.map(c=><button key={c} onClick={()=>setCategory(c)} className={'whitespace-nowrap rounded-full px-4 py-2 text-xs font-medium '+(category===c?'bg-slate-900 text-white':'bg-slate-100 text-slate-600')}>{c}</button>)}</div>
-      <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-3 2xl:grid-cols-4">{shown.map(p=><button key={p.id} onClick={()=>add(p)} className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-[var(--brand-border)] hover:shadow-sm"><div className="h-28 bg-slate-50">{p.image_url?<img src={p.image_url} alt={p.name} className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-[10px] font-medium text-slate-300">No image</div>}</div><div className="p-3"><div className="line-clamp-2 text-[13px] font-medium text-slate-800">{p.name}</div><div className="mt-0.5 text-[10px] text-slate-400">{p.category_name||'Other'}</div><div className="mt-2 text-[13px] font-semibold text-[var(--brand-primary)]">{money(p.resolved_price,currency)}</div></div></button>)}</div>
+      <div className="flex gap-2 overflow-x-auto pb-3">{cats.map(c=><button key={c} onClick={()=>setCategory(c)} className={'whitespace-nowrap rounded-lg px-3.5 py-2 text-[11px] font-bold '+(category===c?'bg-slate-950 text-white':'border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white')}>{c}</button>)}</div>
+      <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{shown.map(p=><button key={p.id} onClick={()=>add(p)} className="ops-product-card"><div className="h-28 bg-slate-100">{p.image_url?<img src={p.image_url} alt={p.name} className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-[10px] font-medium text-slate-300">No image</div>}</div><div className="p-3.5"><div className="line-clamp-2 text-[13px] font-bold text-slate-900">{p.name}</div><div className="mt-0.5 text-[10px] text-slate-400">{p.category_name||'Other'}</div><div className="mt-2 text-[13px] font-semibold text-[var(--brand-primary)]">{money(p.resolved_price,currency)}</div></div></button>)}</div>
     </Panel>
 
-    <Panel title="Current sale" sub={cart.reduce((n,x)=>n+x.qty,0)+' item(s)'} action={<button onClick={()=>setChargesOpen(true)} disabled={!cart.length} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium disabled:opacity-40"><SlidersHorizontal size={14}/>Charges</button>}>
+    <Panel title="Current Sale" sub={cart.reduce((n,x)=>n+x.qty,0)+' item(s)'} action={<button onClick={()=>{setAdvancedCharges(false);setChargesOpen(true)}} disabled={!cart.length} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600 disabled:opacity-40"><SlidersHorizontal size={14}/>Discount / FOC</button>}>
       <label className="mb-3 block text-xs font-medium text-slate-500">Customer / credit account
         <select value={customerId} onChange={e=>setCustomerId(Number(e.target.value))} className="control">
           <option value="0">Walk-in · balance cannot remain unpaid</option>
           {customers.map(x=><option key={x.id} value={x.id}>{x.name}{x.credit_enabled?' · Credit '+money(x.credit_limit,currency):''}{Number(x.balance)>0?' · Owes '+money(x.balance,currency):''}</option>)}
         </select>
       </label>
-      <div className="space-y-1 min-h-48">{cart.length?cart.map((x,i)=><div key={x.id} className="flex gap-3 items-center py-3 border-b border-slate-100"><div className="flex-1"><b className="text-sm">{x.name}</b><div className="text-xs text-slate-400">{money(x.price,currency)}</div></div><div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1"><button onClick={()=>qty(i,-1)} className="h-7 w-7 rounded-md bg-white">−</button><b className="w-5 text-center text-sm">{x.qty}</b><button onClick={()=>qty(i,1)} className="h-7 w-7 rounded-md bg-white">+</button></div><b className="text-sm">{money(x.price*x.qty,currency)}</b></div>):<div className="h-48 grid place-items-center text-center text-slate-400"><div><ShoppingCart className="mx-auto mb-2"/><span className="text-sm">Tap menu items to start a sale</span></div></div>}</div>
+      <div className="min-h-52 space-y-1">{cart.length?cart.map((x,i)=><div key={x.id} className="flex items-center gap-3 border-b border-slate-100 py-3.5"><div className="flex-1"><b className="text-sm">{x.name}</b><div className="text-xs text-slate-400">{money(x.price,currency)}</div></div><div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1"><button onClick={()=>qty(i,-1)} className="h-8 w-8 rounded-md bg-white font-bold shadow-sm">−</button><b className="w-5 text-center text-sm">{x.qty}</b><button onClick={()=>qty(i,1)} className="h-8 w-8 rounded-md bg-white font-bold shadow-sm">+</button></div><b className="text-sm">{money(x.price*x.qty,currency)}</b></div>):<div className="h-48 grid place-items-center text-center text-slate-400"><div><ShoppingCart className="mx-auto mb-2"/><span className="text-sm">Tap menu items to start a sale</span></div></div>}</div>
 
-      <div className="mt-4 rounded-xl bg-slate-900 text-white p-5">
+      <div className="ops-checkout mt-4">
         <div className="grid grid-cols-2 gap-y-1 text-xs">
           <span className="text-slate-400">Subtotal</span><span className="text-right">{money(subtotal,currency)}</span>
           {discount>0&&<><span className="text-slate-400">{foc?'FOC':'Approved discount'}</span><span className="text-right text-emerald-300">− {money(discount,currency)}</span></>}
@@ -134,9 +134,9 @@ export default function POS({currency}:{currency:string}){
           {tax>0&&<><span className="text-slate-400">Tax {taxInclusive?'(inclusive)':''}</span><span className="text-right">{money(tax,currency)}</span></>}
           {appliedTip>0&&<><span className="text-slate-400">Tip</span><span className="text-right">{money(appliedTip,currency)}</span></>}
         </div>
-        <div className="mt-3 border-t border-white/10 pt-3"><div className="flex justify-between text-sm text-slate-400"><span>Payable</span><span>{cart.reduce((n,x)=>n+x.qty,0)} items</span></div><div className="mt-2 text-2xl font-semibold">{money(finalTotal,currency)}</div></div>
+        <div className="mt-4 border-t border-white/10 pt-4"><div className="flex justify-between text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400"><span>Total Payable</span><span>{cart.reduce((n,x)=>n+x.qty,0)} items</span></div><div className="ops-total mt-2">{money(finalTotal,currency)}</div></div>
         {adjustment&&<div className="mt-2 text-[11px]"><Badge tone={adjustment.status==='approved'?'green':adjustment.status==='rejected'?'red':'amber'}>{nice(adjustment.status)} · {adjustment.reference_no}</Badge></div>}
-        <button disabled={!cart.length||busy||(adjustment?.status==='pending')} onClick={startNewPayment} className="mt-4 w-full rounded-xl bg-[var(--brand-primary)] text-white py-3 font-semibold disabled:opacity-40">{busy?'Processing…':foc&&approved?'Complete Approved FOC':'Take Payment'}</button>
+        <button disabled={!cart.length||busy||(adjustment?.status==='pending')} onClick={startNewPayment} className="ops-primary mt-4 w-full text-[14px] disabled:opacity-40">{busy?'Processing…':foc&&approved?'Complete Approved FOC':'TAKE PAYMENT'}</button>
       </div>
     </Panel>
   </div>
@@ -152,16 +152,21 @@ export default function POS({currency}:{currency:string}){
     onSubmit={submitPayment}
   />
 
-  {chargesOpen&&<Modal title="Charges & Discount Control" onClose={()=>setChargesOpen(false)}>
-    <div className="grid sm:grid-cols-2 gap-3">
+  {chargesOpen&&<Modal title="Discount / FOC" onClose={()=>setChargesOpen(false)}>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+      <div className="text-[11px] font-semibold text-slate-700">Current bill settings</div>
+      <div className="mt-1 text-[10px] text-slate-500">Tax {taxRate}% · Service {serviceRate}%{tip>0?' · Tip '+money(tip,currency):''}</div>
+      <button onClick={()=>setAdvancedCharges(v=>!v)} className="mt-2 text-[10px] font-bold text-[var(--brand-primary)]">{advancedCharges?'Hide advanced charges':'Advanced charges'}</button>
+    </div>
+    {advancedCharges&&<div className="mt-3 grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2">
       <Field label="Tax rate (%)"><input className="control" type="number" min="0" step="0.01" value={taxRate} onChange={e=>setTaxRate(Number(e.target.value))}/></Field>
-      <Field label="Tax mode"><select className="control" value={taxInclusive?'inclusive':'exclusive'} onChange={e=>setTaxInclusive(e.target.value==='inclusive')}><option value="exclusive">Exclusive · add to total</option><option value="inclusive">Inclusive · in item prices</option></select></Field>
+      <Field label="Tax mode"><select className="control" value={taxInclusive?'inclusive':'exclusive'} onChange={e=>setTaxInclusive(e.target.value==='inclusive')}><option value="exclusive">Exclusive</option><option value="inclusive">Inclusive</option></select></Field>
       <Field label="Service charge (%)"><input className="control" type="number" min="0" step="0.01" value={serviceRate} onChange={e=>setServiceRate(Number(e.target.value))}/></Field>
       <Field label="Tip"><input className="control" type="number" min="0" step="0.01" value={tip} onChange={e=>setTip(Number(e.target.value))}/></Field>
-    </div>
+    </div>}
 
-    <div className="my-5 h-px bg-slate-200"/>
-    <div className="text-[11px] font-medium uppercase tracking-[.14em] text-slate-400">Management-controlled adjustment</div>
+    <div className="my-4 h-px bg-slate-200"/>
+    <div className="text-[11px] font-bold uppercase tracking-[.12em] text-slate-400">Management approval</div>
     <div className="mt-3 grid grid-cols-2 gap-2">
       <button onClick={()=>setAdjustType('discount')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='discount'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>Discount</button>
       <button onClick={()=>setAdjustType('foc')} className={'rounded-xl border px-3 py-2.5 text-sm font-medium '+(adjustType==='foc'?'border-[var(--brand-primary)] bg-[var(--brand-soft)] text-[var(--brand-primary)]':'border-slate-200')}>FOC</button>

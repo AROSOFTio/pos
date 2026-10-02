@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChefHat, Clock3, ClipboardList, DoorOpen, Plus, RefreshCw, Route, Sparkles, Table2, UsersRound, UtensilsCrossed } from 'lucide-react'
+import { CalendarDays, Clock3, ClipboardList, DoorOpen, Plus, RefreshCw, Route, Sparkles, Table2, UsersRound, UtensilsCrossed } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { Badge, DataTable, Loading, Modal, PageHeading, Panel, Stat } from '../components'
 import type { ViewKey } from '../App'
@@ -52,7 +52,7 @@ export default function Restaurant({currency,go}:{currency:string;go:(v:ViewKey)
    return t.status===tableFilter
  }),[branchTables,query,tableFilter])
  const activeDeliveries=orders.filter(x=>x.order_type==='delivery'&&!['paid','closed','cancelled'].includes(x.status))
- const nav:Array<[Section,string,any]>=[['dashboard','Dashboard',Sparkles],['tables','Tables',Table2],['reservations','Reservations',CalendarDays],['waitlist','Waitlist',Clock3],['service','Service',UtensilsCrossed],['delivery','Delivery',Route],['dayclose','Day Close',DoorOpen]]
+ const nav:Array<[Section,string,any]>=[['dashboard','Overview',Sparkles],['tables','Floor',Table2],['reservations','Reservations',CalendarDays],['waitlist','Waitlist',Clock3],['service','Orders',UtensilsCrossed],['delivery','Delivery',Route],['dayclose','Close Day',DoorOpen]]
 
  async function createReservation(){
    if(!branchId||!reservation.reservedAt||!reservation.guestName.trim())return
@@ -86,20 +86,19 @@ export default function Restaurant({currency,go}:{currency:string;go:(v:ViewKey)
  if(loading&&!branches.length)return <Loading/>
 
  return <div>
-   <PageHeading eyebrow="Restaurant operations" title="Restaurant" sub="Tables, guests, service, kitchen flow and daily close." action={<div className="flex items-center gap-2"><select value={branchId} onChange={e=>setBranchId(Number(e.target.value)||0)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px]">{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><button onClick={load} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500"><RefreshCw size={14}/></button></div>}/>
+   <PageHeading eyebrow="Service" title="Restaurant Floor" sub="Seat guests, follow live orders and keep service moving." action={<div className="flex items-center gap-2"><select value={branchId} onChange={e=>setBranchId(Number(e.target.value)||0)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px]">{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><button onClick={load} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500"><RefreshCw size={14}/></button></div>}/>
    {(error||message)&&<div className={'mb-4 rounded-xl border px-3.5 py-3 text-[11px] '+(error?'border-red-100 bg-red-50 text-red-700':'border-emerald-100 bg-emerald-50 text-emerald-700')}>{error||message}</div>}
 
-   <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
-     {nav.map(([id,label,Icon])=><button key={id} onClick={()=>setSection(id)} className={'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[10.5px] font-medium transition '+(section===id?'bg-slate-950 text-white':'text-slate-500 hover:bg-slate-50')}><Icon size={13}/>{label}</button>)}
+   <div className="ops-subnav mb-4 flex gap-1 overflow-x-auto">
+     {nav.map(([id,label,Icon])=><button key={id} onClick={()=>setSection(id)} className={'inline-flex shrink-0 items-center gap-1.5 px-3 py-2 text-[10.5px] font-bold transition '+(section===id?'bg-slate-950 text-white':'text-slate-500 hover:bg-white')}><Icon size={13}/>{label}</button>)}
    </div>
 
    {section==='dashboard'&&<>
-     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
        <Stat label="Open Orders" value={orders.length} sub="Running now" icon={ClipboardList}/>
        <Stat label="Available Tables" value={Number(overview.availableTables||overview.available||0)} sub="Ready to seat" icon={Table2} tone="blue"/>
        <Stat label="Reservations" value={Number(service.reservations?.reserved||0)} sub="Expected today" icon={CalendarDays} tone="violet"/>
        <Stat label="Waiting Guests" value={Number(service.waitlist?.waiting||0)} sub="Current waitlist" icon={UsersRound} tone="amber"/>
-       <Stat label="Kitchen Overdue" value={Number(service.kitchen?.overdue||0)} sub="Over 20 minutes" icon={ChefHat} tone={Number(service.kitchen?.overdue||0)?'amber':'emerald'}/>
      </div>
      <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
        <Panel title="Floor status" sub={branchTables.length+' tables'}>
@@ -118,7 +117,7 @@ export default function Restaurant({currency,go}:{currency:string;go:(v:ViewKey)
 
    {section==='tables'&&<>
      <div className="mb-3 flex flex-col gap-2 sm:flex-row"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search tables or areas" className="control mt-0 flex-1"/><div className="flex gap-1 overflow-x-auto">{(['all','available','reserved','occupied','dirty','clean'] as TableFilter[]).map(f=><button key={f} onClick={()=>setTableFilter(f)} className={'shrink-0 rounded-lg px-3 py-2 text-[10px] font-medium capitalize '+(tableFilter===f?'bg-slate-950 text-white':'border border-slate-200 bg-white text-slate-500')}>{f}</button>)}</div></div>
-     {visibleTables.length?<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{visibleTables.map(t=>{const order=orderByTable.get(Number(t.id));return <article key={t.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><div className="text-[15px] font-semibold text-slate-900">{t.name}</div><div className="mt-1 text-[9.5px] text-slate-400">{t.area_name||'Main Floor'} · {t.capacity} seats</div></div><Badge tone={t.status==='occupied'?'blue':t.status==='reserved'?'amber':'green'}>{t.status==='available'?'Available':nice(t.status)}</Badge></div><div className="mt-4 flex items-end justify-between"><div><div className="text-[9px] text-slate-400">Party</div><div className="mt-1 text-[13px] font-semibold">{t.current_party_size||0}/{t.capacity}</div></div><button onClick={()=>go('Orders')} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10px] font-semibold text-white">{order?'Open Order':'New Order'}</button></div>{t.cleanliness_status==='dirty'&&<div className="mt-3 rounded-lg bg-red-50 px-2.5 py-2 text-[9.5px] font-medium text-red-600">Needs cleaning</div>}</article>})}</div>:<Empty text="No matching tables."/>}
+     {visibleTables.length?<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{visibleTables.map(t=>{const order=orderByTable.get(Number(t.id));return <article key={t.id} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,.05)]"><div className="flex items-start justify-between gap-3"><div><div className="text-[15px] font-semibold text-slate-900">{t.name}</div><div className="mt-1 text-[9.5px] text-slate-400">{t.area_name||'Main Floor'} · {t.capacity} seats</div></div><Badge tone={t.status==='occupied'?'blue':t.status==='reserved'?'amber':'green'}>{t.status==='available'?'Available':nice(t.status)}</Badge></div><div className="mt-4 flex items-end justify-between"><div><div className="text-[9px] text-slate-400">Party</div><div className="mt-1 text-[13px] font-semibold">{t.current_party_size||0}/{t.capacity}</div></div><button onClick={()=>go('Orders')} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10px] font-semibold text-white">{order?'Open Order':'New Order'}</button></div>{t.cleanliness_status==='dirty'&&<div className="mt-3 rounded-lg bg-red-50 px-2.5 py-2 text-[9.5px] font-medium text-red-600">Needs cleaning</div>}</article>})}</div>:<Empty text="No matching tables."/>}
    </>}
 
    {section==='reservations'&&<Panel title="Reservations" sub="Bookings and arrivals" action={<button onClick={()=>setReservationOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13}/>Reservation</button>}>

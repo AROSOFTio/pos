@@ -3,35 +3,35 @@ import { createPortal } from 'react-dom'
 import { ArrowUpRight, X } from 'lucide-react'
 
 export function PageHeading({eyebrow,title,sub,action}:{eyebrow:string;title:string;sub:string;action?:ReactNode}) {
-  return <div className="mb-4 flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
+  return <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div className="min-w-0">
-      <div className="text-[9px] font-semibold uppercase tracking-[.13em] text-[var(--brand-primary)]">{eyebrow}</div>
-      <h2 className="mt-1 text-[21px] font-semibold tracking-[-.025em] text-slate-900 sm:text-[25px]">{title}</h2>
-      {sub&&<p className="mt-1 max-w-2xl truncate text-[11px] text-slate-400">{sub}</p>}
+      {eyebrow&&<div className="text-[10px] font-bold uppercase tracking-[.14em] text-[var(--brand-primary)]">{eyebrow}</div>}
+      <h2 className={(eyebrow?'mt-1 ':'')+"text-[22px] font-bold tracking-[-.035em] text-slate-950 sm:text-[27px]"}>{title}</h2>
+      {sub&&<p className="mt-1 max-w-3xl text-[12px] leading-5 text-slate-500">{sub}</p>}
     </div>
     {action&&<div className="shrink-0">{action}</div>}
   </div>
 }
 
 export function Stat({label,value,sub,icon:Icon,tone='emerald'}:{label:string;value:any;sub:string;icon:any;tone?:string}) {
-  const tones:any={emerald:'bg-emerald-50 text-emerald-700',blue:'bg-blue-50 text-blue-700',amber:'bg-amber-50 text-amber-700',violet:'bg-violet-50 text-violet-700',rose:'bg-rose-50 text-rose-700'}
-  return <div className="rounded-[11px] border border-slate-200/80 bg-[var(--app-surface)] p-3.5 premium-shadow">
+  const tones:any={emerald:'bg-[var(--brand-soft)] text-[var(--brand-primary)]',blue:'bg-blue-50 text-blue-700',amber:'bg-amber-50 text-amber-700',violet:'bg-violet-50 text-violet-700',rose:'bg-rose-50 text-rose-700'}
+  return <div className="pos-stat-card group">
     <div className="flex items-start justify-between gap-3">
-      <div className={'grid h-8 w-8 place-items-center rounded-lg '+tones[tone]}><Icon size={15}/></div>
-      <ArrowUpRight size={13} className="text-slate-300"/>
+      <div className={'grid h-9 w-9 place-items-center rounded-[10px] '+tones[tone]}><Icon size={16}/></div>
+      <ArrowUpRight size={14} className="text-slate-300 transition group-hover:text-slate-500"/>
     </div>
-    <div className="mt-3 text-[18px] font-semibold tracking-[-.02em] text-slate-900 sm:text-[19px]">{value}</div>
-    <div className="mt-0.5 text-[12px] font-medium text-slate-700">{label}</div>
-    <div className="mt-0.5 text-[10px] leading-4 text-slate-400">{sub}</div>
+    <div className="mt-4 text-[20px] font-bold tracking-[-.035em] text-slate-950 sm:text-[22px]">{value}</div>
+    <div className="mt-1 text-[12px] font-semibold text-slate-700">{label}</div>
+    <div className="mt-1 text-[11px] leading-4 text-slate-500">{sub}</div>
   </div>
 }
 
 export function Panel({title,sub,children,action}:{title:string;sub?:string;children:ReactNode;action?:ReactNode}) {
-  return <section className="overflow-hidden rounded-[11px] border border-slate-200/80 bg-[var(--app-surface)] premium-shadow">
-    <div className="flex min-h-[52px] items-center justify-between gap-3 border-b border-slate-100 px-3.5 py-3 sm:px-4">
-      <div className="min-w-0"><h3 className="truncate text-[13px] font-semibold tracking-[-.01em] text-slate-900">{title}</h3>{sub&&<p className="mt-0.5 text-[10.5px] leading-4 text-slate-500">{sub}</p>}</div>{action&&<div className="shrink-0">{action}</div>}
+  return <section className="pos-panel">
+    <div className="pos-panel-head">
+      <div className="min-w-0"><h3 className="truncate text-[13px] font-bold tracking-[-.01em] text-slate-900">{title}</h3>{sub&&<p className="mt-0.5 text-[11px] leading-4 text-slate-500">{sub}</p>}</div>{action&&<div className="shrink-0">{action}</div>}
     </div>
-    <div className="p-3.5 sm:p-4">{children}</div>
+    <div className="p-4 sm:p-5">{children}</div>
   </section>
 }
 

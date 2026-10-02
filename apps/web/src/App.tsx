@@ -1,7 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, BarChart3, Boxes, ChefHat, ClipboardList, Eye, EyeOff, LayoutDashboard, Landmark, LogOut, Menu as MenuIcon, Package, ReceiptText, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Truck, UserRound, UsersRound, UtensilsCrossed, X, Building2 } from 'lucide-react'
 import { api, nice, type User } from './api'
-import { MauzoLogo } from './Brand'
+import { MauzoLogo, MauzoMark } from './Brand'
 import Marketing from './Marketing'
 import Register from './Register'
 import ResetPassword from './ResetPassword'
@@ -32,6 +32,12 @@ import StaffQuickMenu from './components/StaffQuickMenu'
 export type ViewKey='Dashboard'|'POS'|'Supermarket'|'Sales'|'Orders'|'Kitchen'|'Restaurant'|'Customers'|'Approvals'|'Products'|'Inventory'|'Suppliers'|'Purchasing'|'Expenses'|'Accounting'|'Shifts'|'Reports'|'Staff'|'Branches'|'Settings'
 
 const administration=[['Approvals',ShieldCheck],['Products',Boxes],['Inventory',Package],['Suppliers',UsersRound],['Purchasing',Truck],['Expenses',ReceiptText],['Accounting',Landmark],['Shifts',Banknote],['Reports',BarChart3],['Staff',UsersRound],['Branches',Building2],['Settings',SettingsIcon]] as const
+
+const operationLabel=(name:string)=>({
+  POS:'Sell',Supermarket:'Checkout',Restaurant:'Tables',Orders:'Orders',Kitchen:'Kitchen',
+  Sales:'History',Customers:'Customers',Shifts:'My Shift'
+} as Record<string,string>)[name]||name
+
 
 export default function App(){
   const [user,setUser]=useState<User|null>(null)
@@ -129,6 +135,9 @@ export default function App(){
     if(name==='Shifts')return elevated||businessRoles.some(r=>['branch_manager','cashier','accountant'].includes(r))
     return false
   })
+  const primaryOps=allowedOps.filter(([name]:any)=>['POS','Supermarket','Restaurant','Orders','Kitchen','Shifts'].includes(name))
+  const secondaryOps=allowedOps.filter(([name]:any)=>['Sales','Customers'].includes(name))
+
 
   const managementViews=new Set<ViewKey>(['Dashboard','Approvals','Products','Inventory','Suppliers','Purchasing','Expenses','Accounting','Reports','Staff','Branches','Settings'])
   const canAccessView=(v:ViewKey)=>{
@@ -177,16 +186,22 @@ export default function App(){
       {operationView==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>setView(hasRestaurant?'Restaurant':'POS')}/>}
     </>
 
-  return <div className="ops-ui min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-[var(--app-surface)]/98">
+  return <div className="ops-ui ops-workspace min-h-screen text-[var(--app-text)]">
+      <header className="ops-chrome sticky top-0 z-40 border-b">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
-          <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
-          <BusinessBrand name={business} logo={businessLogo}/>
+          <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
+          <BusinessBrand name={business} logo={businessLogo} dark/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
-            {allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(operationView===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}><Icon size={15}/>{name}</button>)}
+            {primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(operationView===name?'active':'')}><Icon size={15}/>{operationLabel(name)}</button>)}
+            {secondaryOps.length>0&&<details className="relative">
+              <summary className={'ops-nav-item list-none rounded-lg px-3 py-2 text-[12px] '+(secondaryOps.some(([name]:any)=>name===operationView)?'active':'')}>More</summary>
+              <div className="absolute right-0 top-11 z-50 min-w-[170px] rounded-xl border border-slate-200 bg-white p-1.5 text-slate-700 shadow-xl">
+                {secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-[12px] font-semibold hover:bg-slate-50"><Icon size={15}/>{operationLabel(name)}</button>)}
+              </div>
+            </details>}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-medium text-slate-600 sm:block">Management</button>}
+            {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 hover:bg-white/10 sm:block">Management</button>}
             <NotificationBell/>
             <StaffQuickMenu user={user} roles={businessRoles.length?businessRoles:[businessRole||user.role]}/>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
@@ -199,15 +214,19 @@ export default function App(){
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-[64px] border-t border-slate-200 bg-[var(--app-surface)] lg:hidden">
-        {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={name==='Sales'?'History':name} active={operationView===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}
+        {allowedOps.slice(0,4).map(([name,Icon]:any)=><div key={name} className="flex-1"><MobileNav icon={Icon} label={operationLabel(name)} active={operationView===name} onClick={()=>safeGo(name as ViewKey)}/></div>)}
         {allowedOps.length>4&&<div className="flex-1"><MobileNav icon={MenuIcon} label="More" active={false} onClick={()=>setSidebar(true)}/></div>}
       </nav>
 
       {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/35 lg:hidden" onClick={()=>setSidebar(false)}>
-        <aside className="absolute inset-y-0 left-0 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] border-slate-200 bg-white shadow-2xl" onClick={e=>e.stopPropagation()}>
-          <div className="flex h-[64px] items-center border-b border-slate-100 px-4"><BusinessBrand name={business} logo={businessLogo}/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
-          <div className="flex-1 overflow-y-auto p-3"><div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-400">Operations</div><div className="space-y-1">{allowedOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'bg-[var(--brand-soft)] font-semibold text-[var(--brand-primary)]':'text-slate-700 hover:bg-slate-50')}><Icon size={18}/><span>{name}</span></button>)}</div></div>
-          <div className="border-t border-slate-100 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
+        <aside className="ops-chrome absolute inset-y-0 left-0 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] shadow-2xl" onClick={e=>e.stopPropagation()}>
+          <div className="flex h-[64px] items-center border-b border-white/10 px-4"><BusinessBrand name={business} logo={businessLogo} dark/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Operate</div>
+            <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div>
+            {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div></>}
+          </div>
+          <div className="border-t border-white/10 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-white/10 bg-white/5 py-3 text-[12px] font-semibold text-white">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
         </aside>
       </div>}
     </div>
@@ -216,22 +235,25 @@ export default function App(){
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
-    <aside className={'fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] border-slate-200 bg-[var(--app-sidebar)] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
-      <div className="flex h-[62px] items-center border-b border-slate-100 px-4">
-        <BusinessBrand name={business} logo={businessLogo}/>
+    <aside className={'management-sidebar fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[244px] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
+      <div className="flex h-[66px] items-center border-b border-white/10 px-4">
+        <BusinessBrand name={business} logo={businessLogo} dark/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
       </div>
-      <div className="px-3 pt-4">
-        <div className="px-2"><div className="text-[9px] uppercase tracking-[.12em] text-slate-400">Business</div><div className="mt-1 truncate text-[12px] font-medium text-slate-700">{business}</div></div>
-      </div>
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
-        <div className="mt-4"><button onClick={()=>safeGo('Dashboard')} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] '+(view==='Dashboard'?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'text-slate-600 hover:bg-slate-100')}><LayoutDashboard size={16}/>Overview</button></div>
-        {managementRows.length>0&&<NavGroup title="Management" rows={managementRows} view={view} go={safeGo}/>}
+        <div className="mt-4"><button onClick={()=>safeGo('Dashboard')} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12px] '+(view==='Dashboard'?'active font-semibold':'font-medium')}><LayoutDashboard size={16}/>Overview</button></div>
+        {managementRows.length>0&&<>
+          <NavGroup title="Control" rows={managementRows.filter(([name]:any)=>['Approvals','Shifts'].includes(name))} view={view} go={safeGo}/>
+          <NavGroup title="Stock & Purchasing" rows={managementRows.filter(([name]:any)=>['Products','Inventory','Purchasing','Suppliers'].includes(name))} view={view} go={safeGo}/>
+          <NavGroup title="Finance" rows={managementRows.filter(([name]:any)=>['Expenses','Accounting','Reports'].includes(name))} view={view} go={safeGo}/>
+          <NavGroup title="Organisation" rows={managementRows.filter(([name]:any)=>['Staff','Branches'].includes(name))} view={view} go={safeGo}/>
+          <NavGroup title="System" rows={managementRows.filter(([name]:any)=>name==='Settings')} view={view} go={safeGo}/>
+        </>}
       </nav>
       <div className="border-t border-slate-100 p-3">
-        <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="mb-2 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--brand-primary)]">Open Operations</button>
+        <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="mb-2 w-full rounded-lg bg-[var(--brand-primary)] px-3 py-2.5 text-[11px] font-bold text-white">Open Operations</button>
         <div className="flex items-center gap-2 rounded-xl px-2 py-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><UserRound size={15}/></div>
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-slate-300"><UserRound size={15}/></div>
           <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div>
           <button onClick={logout} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
         </div>
@@ -239,8 +261,8 @@ export default function App(){
       </div>
     </aside>
 
-    <main className="min-w-0 lg:ml-[236px]">
-      <header className="sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b border-slate-200/80 bg-[var(--app-surface)] px-3 sm:px-5 lg:px-6">
+    <main className="min-w-0 lg:ml-[244px]">
+      <header className="management-header sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b px-3 sm:px-5 lg:px-6">
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
         <div className="ml-auto flex items-center gap-2">
@@ -263,13 +285,16 @@ class ViewErrorBoundary extends Component<{children:ReactNode;onBack:()=>void},{
   }
 }
 
-function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){return <div className="mt-5"><div className="mb-1 px-3 text-[9px] font-medium uppercase tracking-[.12em] text-slate-400">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] transition-colors '+(view===name?'bg-[var(--brand-soft)] font-medium text-[var(--brand-primary)]':'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
+function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){if(!rows.length)return null;return <div className="mt-4"><div className="mgmt-nav-title mb-1.5 px-3 text-[9px] font-bold uppercase tracking-[.14em]">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12px] transition-colors '+(view===name?'active font-semibold':'font-medium')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
 function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[var(--brand-primary)]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
 
-function BusinessBrand({name,logo}:{name:string;logo:string}){
-  return <div className="flex min-w-0 items-center gap-2">
-    {logo?<div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-white p-1 ring-1 ring-slate-200"><img src={logo} alt="" className="max-h-full max-w-full object-contain"/></div>:<MauzoLogo compact className="max-w-[150px] overflow-hidden"/>}
-    {logo&&<div className="min-w-0"><div className="max-w-[160px] truncate text-[12px] font-semibold text-slate-800">{name}</div><div className="text-[8px] text-slate-300">MauzoPOS</div></div>}
+function BusinessBrand({name,logo,dark=false}:{name:string;logo:string;dark?:boolean}){
+  return <div className="brand-lockup">
+    <div className="brand-lockup-mark">{logo?<img src={logo} alt="" className="max-h-full max-w-full object-contain"/>:<MauzoMark className="h-8 w-8"/>}</div>
+    <div className="min-w-0">
+      <div className={"brand-lockup-name max-w-[190px] "+(dark?'text-white':'text-slate-900')}>{name||'Your Business'}</div>
+      <div className={"brand-lockup-sub "+(dark?'text-slate-500':'')}>Powered by MauzoPOS</div>
+    </div>
   </div>
 }
 

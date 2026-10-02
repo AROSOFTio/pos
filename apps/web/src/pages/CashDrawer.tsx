@@ -128,7 +128,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
  if(session===undefined)return <Loading/>
 
  return <div>
-  <PageHeading eyebrow="" title="Shifts" sub="" action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
+  <PageHeading eyebrow="Cash Control" title="My Shift" sub="Opening cash, drawer movements and close-out in one place." action={<div className="flex gap-2">{settings?.canManage&&<button onClick={beginSettings} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><Settings2 size={13}/>Controls</button>}<button onClick={()=>load()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button></div>}/>
 
   {(error||message)&&<div className={'mb-4 rounded-xl border px-3.5 py-3 text-[12px] '+(error?'border-red-100 bg-red-50 text-red-700':'border-emerald-100 bg-emerald-50 text-emerald-700')}>{error||message}</div>}
 
@@ -166,7 +166,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
     </div>
 
     <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_.8fr]">
-      <Panel title="Cash">
+      <Panel title="Quick Cash Actions" sub="Use these only for physical cash moving in or out of this drawer.">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <QuickAction icon={ArrowDownLeft} label="Add Cash" onClick={()=>beginMove('additional_float')}/>
           <QuickAction icon={WalletCards} label="Pay Out" onClick={()=>beginMove('expense')}/>
@@ -179,7 +179,7 @@ export default function CashDrawer({currency,onOpened}:{currency:string;onOpened
         </div>
       </Panel>
 
-      <Panel title="Expected">
+      <Panel title="Drawer Reconciliation" sub="What should physically be in this till right now.">
         <div className="space-y-2.5">
           <Line label="Opening" value={money(session.opening_cash||0,currency)}/>
           <Line label="+ Sales" value={money(session.cashSales||0,currency)}/>

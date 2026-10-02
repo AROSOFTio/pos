@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, BarChart3, Boxes, Clock3, CircleDollarSign, Package, RefreshCw, ReceiptText, ShoppingCart, TrendingUp, UsersRound, UtensilsCrossed, WalletCards } from 'lucide-react'
+import { AlertTriangle, BarChart3, Clock3, CircleDollarSign, Package, RefreshCw, ShoppingCart, TrendingUp, UtensilsCrossed, WalletCards } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, money, nice } from '../api'
 import { Badge, DataTable, Loading, PageHeading, Panel, Stat } from '../components'
@@ -7,7 +7,7 @@ import type { ViewKey } from '../App'
 
 const today=()=>new Date().toISOString().slice(0,10)
 const monthStart=()=>today().slice(0,8)+'01'
-const pieColors=['#0f172a','#2563eb','#16a34a','#d97706','#7c3aed','#dc2626','#0891b2','#64748b']
+const pieColors=['#22A53A','#0F172A','#2563EB','#D97706','#DC2626','#64748B']
 
 export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=>void}){
   const [dash,setDash]=useState<any|null>(null),[finance,setFinance]=useState<any|null>(null),[approvals,setApprovals]=useState<any[]>([]),[activity,setActivity]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([])
@@ -53,7 +53,7 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
   ].filter(Boolean) as any[]
 
   return <div>
-    <PageHeading eyebrow="Management Intelligence" title="Executive Overview" sub="Sales, profitability, cash, restaurant operations, inventory and staff performance in one live command centre." action={<button onClick={load} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[11px] font-medium text-slate-600"><RefreshCw size={13} className="mr-1 inline"/>Refresh</button>}/>
+    <PageHeading eyebrow="Management" title="Business Overview" sub="The numbers and exceptions that need your attention." action={<button onClick={load} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[11px] font-medium text-slate-600"><RefreshCw size={13} className="mr-1 inline"/>Refresh</button>}/>
 
     <div className="mb-4 grid gap-3 sm:grid-cols-3">
       <label className="text-[10.5px] font-medium text-slate-500">From<input type="date" className="control mt-1" value={from} onChange={e=>setFrom(e.target.value)}/></label>
@@ -68,16 +68,18 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
       <Stat label="Cash collected" value={money(dash.payments?.total,currency)} sub={(dash.payments?.count||0)+' posted payments'} icon={WalletCards} tone="emerald"/>
     </div>
 
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Stat label="Average check" value={money(avgCheck,currency)} sub={(dash.sales?.count||0)+' transactions'} icon={ReceiptText} tone="blue"/>
-      <Stat label="Spend per cover" value={money(spendPerCover,currency)} sub={covers+' restaurant covers'} icon={UtensilsCrossed} tone="violet"/>
-      <Stat label="Inventory value" value={money(dash.inventory?.valuation,currency)} sub={(dash.inventory?.low_stock||0)+' products need attention'} icon={Boxes} tone="amber"/>
-      <Stat label="Receivables" value={money(dash.customers?.receivable,currency)} sub={(dash.customers?.count||0)+' customer accounts'} icon={UsersRound} tone="rose"/>
+    <div className="ops-section-strip mt-3">
+      <div className="kpi-strip">
+        <Metric label="Average check" value={money(avgCheck,currency)}/>
+        <Metric label="Spend / cover" value={money(spendPerCover,currency)}/>
+        <Metric label="Inventory value" value={money(dash.inventory?.valuation,currency)}/>
+        <Metric label="Receivables" value={money(dash.customers?.receivable,currency)}/>
+      </div>
     </div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-      <Panel title="Business performance trend" sub="Sales against expenses and refunds across the selected period">
-        <div className="h-[320px]">{(dash.trend||[]).length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={dash.trend}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="d" tickFormatter={(v:any)=>String(v).slice(5,10)} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:10}}/><Area type="monotone" dataKey="sales" name="Sales" stroke="#0f172a" fill="#0f172a" fillOpacity={.08}/><Area type="monotone" dataKey="expenses" name="Expenses" stroke="#d97706" fill="#d97706" fillOpacity={.04}/><Area type="monotone" dataKey="refunds" name="Refunds" stroke="#dc2626" fill="#dc2626" fillOpacity={.03}/></AreaChart></ResponsiveContainer>:<Empty text="No movement in this period."/>}</div>
+      <Panel title="Sales & Profit Trend" sub="Revenue movement against expenses and refunds">
+        <div className="h-[320px]">{(dash.trend||[]).length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={dash.trend}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="d" tickFormatter={(v:any)=>String(v).slice(5,10)} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:10}}/><Area type="monotone" dataKey="sales" name="Sales" stroke="var(--brand-primary)" fill="var(--brand-primary)" fillOpacity={.08}/><Area type="monotone" dataKey="expenses" name="Expenses" stroke="#d97706" fill="#d97706" fillOpacity={.04}/><Area type="monotone" dataKey="refunds" name="Refunds" stroke="#dc2626" fill="#dc2626" fillOpacity={.03}/></AreaChart></ResponsiveContainer>:<Empty text="No movement in this period."/>}</div>
       </Panel>
       <Panel title="Payment mix" sub="How customers are paying">
         <div className="h-[320px]">{(dash.paymentMix||[]).length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dash.paymentMix} dataKey="total" nameKey="payment_method" innerRadius={62} outerRadius={98} paddingAngle={2}>{dash.paymentMix.map((_:any,i:number)=><Cell key={i} fill={pieColors[i%pieColors.length]}/>)}</Pie><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:10}}/></PieChart></ResponsiveContainer>:<Empty text="No payment data in this period."/>}</div>
@@ -91,12 +93,12 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
     </div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-2">
-      <Panel title="Sales by branch" sub="Compare branch contribution to revenue"><div className="h-[290px]">{(dash.branches||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.branches} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="#0f172a" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No branch sales in this period."/>}</div></Panel>
-      <Panel title="Sales by category" sub="Which menu/product categories generate revenue"><div className="h-[290px]">{(dash.categorySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.categorySales} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="category" width={95} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="revenue" fill="#2563eb" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No category sales in this period."/>}</div></Panel>
+      <Panel title="Sales by branch" sub="Compare branch contribution to revenue"><div className="h-[290px]">{(dash.branches||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.branches} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="#0F172A" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No branch sales in this period."/>}</div></Panel>
+      <Panel title="Sales by category" sub="Which menu/product categories generate revenue"><div className="h-[290px]">{(dash.categorySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.categorySales} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="category" width={95} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="revenue" fill="var(--brand-primary)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No category sales in this period."/>}</div></Panel>
     </div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_1fr]">
-      <Panel title="Hourly sales pattern" sub="Identify the strongest and weakest trading hours"><div className="h-[280px]">{(dash.hourlySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.hourlySales}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="hour" tickFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip labelFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="#16a34a" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>:<Empty text="No hourly sales data."/>}</div></Panel>
+      <Panel title="Hourly sales pattern" sub="Identify the strongest and weakest trading hours"><div className="h-[280px]">{(dash.hourlySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.hourlySales}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="hour" tickFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip labelFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="var(--brand-primary)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>:<Empty text="No hourly sales data."/>}</div></Panel>
       <Panel title="Management attention" sub="Items that require action now">
         <div className="space-y-2">{attention.length?attention.map((x:any)=><button key={x.label} onClick={()=>go(x.go)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 px-3.5 py-3 text-left hover:bg-slate-50"><span className="flex items-center gap-2 text-[11px] font-medium text-slate-600"><AlertTriangle size={14} className={x.tone==='red'?'text-red-500':'text-amber-500'}/>{x.label}</span><Badge tone={x.tone}>{x.value}</Badge></button>):<div className="rounded-xl bg-emerald-50 p-4 text-[11px] text-emerald-700">No immediate management exceptions detected.</div>}</div>
         <div className="mt-4 grid grid-cols-2 gap-2"><Metric label="Refund rate" value={refundRate.toFixed(1)+'%'}/><Metric label="Expense / sales" value={expenseRatio.toFixed(1)+'%'}/><Metric label="Kitchen avg." value={Number(dash.kitchen?.avg_minutes||0).toFixed(1)+' min'}/><Metric label="Active staff" value={String(dash.staff?.count||0)}/></div>

@@ -265,9 +265,9 @@ export default function Settings(){
             <div className="md:col-span-2"><Field label="Payment options shown"><input className="control" value={s.receipt_payment_options||''} onChange={e=>patch('receipt_payment_options',e.target.value)}/></Field></div>
             <div className="md:col-span-2"><Field label="Footer / message"><textarea className="control min-h-24" value={s.document_footer||''} onChange={e=>patch('document_footer',e.target.value)}/></Field></div>
           </div>
-          <div className="mt-3 flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-3">
-            <div className="text-[10.5px] text-slate-500">The uploaded logo is used automatically on printed documents.</div>
-            <label className="flex items-center gap-2 text-[11px] font-medium text-slate-600"><input type="checkbox" checked={!!s.receipt_show_business_name} onChange={e=>patch('receipt_show_business_name',e.target.checked)} className="accent-[var(--brand-primary)]"/>Also show business name with the logo</label>
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+            <div className="text-[11px] font-semibold text-slate-700">Branding rule</div>
+            <div className="mt-1 text-[10.5px] leading-5 text-slate-500">Your business logo and company name are always shown together on receipts, bills, vouchers and reports. MauzoPOS branding stays secondary.</div>
           </div>
           <SaveButton saving={saving} onClick={save}/>
         </Panel>
