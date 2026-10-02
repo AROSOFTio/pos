@@ -809,6 +809,7 @@ CREATE TABLE IF NOT EXISTS payment_allocations (
 
 CREATE INDEX IF NOT EXISTS idx_payments_business_date ON payments(business_id,received_at,status);
 CREATE INDEX IF NOT EXISTS idx_payments_method_date ON payments(business_id,payment_method,received_at);
+
 CREATE INDEX IF NOT EXISTS idx_payment_allocations_source ON payment_allocations(business_id,source_type,source_id);
 CREATE INDEX IF NOT EXISTS idx_restaurant_orders_sale ON restaurant_orders(business_id,sale_id);
 
@@ -1988,6 +1989,10 @@ WITH defs(code,name,type,normal,parent_code,manual) AS (
 
  ('6000','Operating Expenses','expense','debit',NULL,false),
  ('6110','Salaries & Wages','expense','debit','6000',true),
+ ('6115','Staff Welfare & Meals','expense','debit','6000',true),
+ ('6415','Staff Travel & Field Allowances','expense','debit','6000',true),
+ ('6515','Staff Airtime & Communications','expense','debit','6000',true),
+ ('1140','Employee Advances','asset','debit','1100',true),
  ('6210','Electricity','expense','debit','6000',true),
  ('6220','Water','expense','debit','6000',true),
  ('6230','Gas / Fuel','expense','debit','6000',true),
@@ -2010,12 +2015,12 @@ ON CONFLICT(business_id,account_code) DO NOTHING;
 WITH defs(code,parent_code) AS (
  VALUES
  ('1100','1000'),('1110','1100'),('1111','1110'),('1112','1110'),('1113','1110'),('1114','1110'),('1115','1110'),('1116','1110'),
- ('1120','1100'),('1130','1100'),('1131','1130'),('1132','1130'),('1133','1130'),('1134','1130'),('1135','1130'),('1150','1100'),
+ ('1120','1100'),('1140','1100'),('1130','1100'),('1131','1130'),('1132','1130'),('1133','1130'),('1134','1130'),('1135','1130'),('1150','1100'),
  ('2100','2000'),('2110','2100'),('2120','2100'),('2130','2100'),('2140','2100'),('2150','2100'),('2160','2100'),
  ('3100','3000'),('3200','3000'),('3300','3000'),
  ('4110','4000'),('4120','4000'),('4130','4000'),('4140','4000'),('4150','4000'),('4160','4000'),('4170','4000'),('4200','4000'),
  ('5110','5000'),('5120','5000'),('5130','5000'),('5140','5000'),('5150','5000'),
- ('6110','6000'),('6210','6000'),('6220','6000'),('6230','6000'),('6310','6000'),('6410','6000'),('6510','6000'),('6520','6000'),('6530','6000'),('6540','6000'),('6550','6000'),('6560','6000'),('6570','6000'),('6800','6000')
+ ('6110','6000'),('6115','6000'),('6415','6000'),('6515','6000'),('6210','6000'),('6220','6000'),('6230','6000'),('6310','6000'),('6410','6000'),('6510','6000'),('6520','6000'),('6530','6000'),('6540','6000'),('6550','6000'),('6560','6000'),('6570','6000'),('6800','6000')
 )
 UPDATE accounts child SET parent_account_id=parent.id
 FROM defs d,accounts parent
@@ -2136,3 +2141,21 @@ CREATE TABLE IF NOT EXISTS employee_allowances (
 CREATE INDEX IF NOT EXISTS idx_employee_allowances_business_date ON employee_allowances(business_id,allowance_date,status);
 CREATE INDEX IF NOT EXISTS idx_employee_allowances_employee ON employee_allowances(business_id,employee_id,allowance_date);
 CREATE INDEX IF NOT EXISTS idx_expenses_trace ON expenses(business_id,expense_date,branch_id,terminal_id,payment_method);
+
+
+-- Mauzo reporting permission alignment v3
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'branch_manager',p.code,true
+FROM businesses b JOIN permission_catalog p ON p.code IN ('accounting.view','accounting.export','reports.activity')
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'restaurant_manager',p.code,true
+FROM businesses b JOIN permission_catalog p ON p.code IN ('accounting.view','accounting.export','reports.activity','reports.export')
+ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
+
+
+-- Mauzo payment terminal traceability v3
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS terminal_id BIGINT REFERENCES terminals(id) ON DELETE SET NULL;
+UPDATE payments p SET terminal_id=cs.terminal_id FROM cash_sessions cs WHERE p.cash_session_id=cs.id AND p.terminal_id IS NULL AND cs.terminal_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payments_terminal_date ON payments(business_id,terminal_id,received_at,status);

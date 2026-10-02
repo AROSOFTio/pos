@@ -45,7 +45,7 @@ export default function Accounting({currency}:{currency:string}){
   }finally{setSaving(false)}
  }
  const manual=accounts.filter((x:any)=>x.allow_manual_entries&&x.is_active)
- const paymentAccounts=accounts.filter((x:any)=>x.is_active&&x.account_type==='asset'&&(String(x.account_code).startsWith('111')||/(cash|bank|mobile|card|wallet)/i.test(x.name)))
+ const paymentAccounts=accounts.filter((x:any)=>x.is_active&&x.allow_manual_entries&&x.account_type==='asset'&&(String(x.account_code).startsWith('111')||/(cash|bank|mobile|card|wallet)/i.test(x.name)))
  const debit=journal.lines.reduce((n:number,x:any)=>n+Number(x.debit||0),0),credit=journal.lines.reduce((n:number,x:any)=>n+Number(x.credit||0),0)
  async function saveAllowance(){
   if(!allowance.employeeId||!(Number(allowance.amount)>0)||!String(allowance.reason||'').trim())return

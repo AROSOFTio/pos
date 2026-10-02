@@ -140,6 +140,16 @@ export async function postExpenseAccounting(client,{bid,expenseId,userId=null}){
   const debit=x.expense_account_id?{accountId:Number(x.expense_account_id),debit:amount,memo:x.description}:{accountKey:'default_expense',debit:amount,memo:x.description};
   return postJournal(client,{bid,branchId:x.branch_id,cashSessionId:x.cash_session_id,entryDate:isoDateValue(x.expense_date),postingKey:'expense:'+expenseId,sourceModule:'expenses',sourceReference:x.reference_no,referenceType:'expense',referenceId:expenseId,description:x.description,userId,lines:[debit,{...(x.payment_account_id?{accountId:Number(x.payment_account_id)}:{accountKey:paymentAccountKey(x.payment_method||'cash')}),credit:amount,memo:'Expense payment'}]});
 }
+export async function postInventoryConsumptionAccounting(client,{bid,consumptionId,userId=null}){
+  const q=await client.query("SELECT ic.*,coalesce(sum(ici.qty*ici.unit_cost),0)::numeric total FROM inventory_consumptions ic JOIN inventory_consumption_items ici ON ici.consumption_id=ic.id WHERE ic.id=$1 AND ic.business_id=$2 GROUP BY ic.id",[consumptionId,bid]);
+  if(!q.rowCount)throw new Error('Inventory consumption not found for accounting');
+  const x=q.rows[0],amount=positive(x.total);if(amount<=0)return null;
+  const debit=x.consumption_type==='staff_meal'?await accountByCode(client,bid,'6115'):await accountByCode(client,bid,'6550');
+  const buckets=await client.query("SELECT CASE WHEN p.item_type='ingredient' OR lower(coalesce(p.category,''))='ingredient' THEN 'raw_material_inventory' ELSE 'finished_goods_inventory' END account_key,coalesce(sum(ici.qty*ici.unit_cost),0)::numeric amount FROM inventory_consumption_items ici JOIN products p ON p.id=ici.product_id WHERE ici.consumption_id=$1 GROUP BY 1",[consumptionId]);
+  const lines=[{accountId:debit.id,debit:amount,memo:'Internal food consumption'}];
+  for(const row of buckets.rows){const v=positive(row.amount);if(v>0)lines.push({accountKey:row.account_key,credit:v,memo:'Inventory consumed'})}
+  return postJournal(client,{bid,entryDate:isoDateValue(x.created_at),postingKey:'inventory_consumption:'+consumptionId,sourceModule:'inventory',sourceReference:x.reference_no,referenceType:'inventory_consumption',referenceId:consumptionId,description:(x.consumption_type==='staff_meal'?'Staff meal':'Complimentary food')+' · '+x.reference_no,userId,lines});
+}
 export async function postSupplierPaymentAccounting(client,{bid,supplierPaymentId,userId=null}){
   const q=await client.query('SELECT * FROM supplier_payments WHERE id=$1 AND business_id=$2',[supplierPaymentId,bid]);if(!q.rowCount)throw new Error('Supplier payment not found for accounting');
   const x=q.rows[0],amount=positive(x.amount);if(amount<=0)return null;
@@ -223,8 +233,36 @@ async function accountBalanceRows(pool,bid,{from=null,to=null,asOf=null,branchId
 }
 function parseDate(v){return v?isoDateValue(v):null;}
 
-export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit}){
+export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission}){
   const documentDir='uploads/documents';fs.mkdirSync(documentDir,{recursive:true});
+  async function reportBranchIds(req,bid,requestedBranchId=null){
+    if(req.user?.role==='saas_admin'||await hasPermission(req,bid,'branch.all'))return requestedBranchId?[Number(requestedBranchId)]:null;
+    const q=await pool.query('SELECT branch_id FROM user_branch_assignments WHERE business_id=$1 AND user_id=$2 ORDER BY branch_id',[bid,req.user.id]);
+    const ids=q.rows.map(x=>Number(x.branch_id));
+    if(requestedBranchId){
+      if(ids.length&&!ids.includes(Number(requestedBranchId)))throw new Error('You are not assigned to the selected branch');
+      return [Number(requestedBranchId)];
+    }
+    return ids.length?ids:null;
+  }
+  async function validatePaymentSourceAccount(client,bid,method,accountId){
+    const a=await client.query("SELECT id,account_code,name FROM accounts WHERE id=$1 AND business_id=$2 AND account_type='asset' AND is_active=true AND allow_manual_entries=true",[Number(accountId),bid]);
+    if(!a.rowCount)throw new Error('Payment/source account is invalid');
+    const x=a.rows[0],m=String(method||'cash').toLowerCase(),label=(String(x.account_code||'')+' '+String(x.name||'')).toLowerCase();
+    const ok=m==='cash'?/(1111|1116|cash|petty)/.test(label)
+      :m.includes('mtn')?/(1113|mtn|mobile|wallet)/.test(label)
+      :m.includes('airtel')?/(1114|airtel|mobile|wallet)/.test(label)
+      :m.includes('mobile')||m==='momo'?/(1113|1114|mobile|wallet)/.test(label)
+      :m.includes('card')?/(1115|card)/.test(label)
+      :/(1112|bank)/.test(label);
+    if(!ok)throw new Error('The selected source account does not match the payment method');
+    return x;
+  }
+  async function allowanceDebitAccount(client,bid,type){
+    const t=String(type||'').trim().toLowerCase();
+    const code=t==='transport'||t==='field'||t==='accommodation'?'6415':t==='meal'?'6115':t==='airtime'?'6515':t==='advance'?'1140':'6800';
+    return accountByCode(client,bid,code);
+  }
   const documentUpload=multer({storage:multer.diskStorage({destination:(_req,_file,cb)=>cb(null,documentDir),filename:(_req,file,cb)=>{const ext=path.extname(file.originalname||'').toLowerCase().slice(0,10);cb(null,'doc-'+Date.now()+'-'+crypto.randomBytes(6).toString('hex')+ext)}}),limits:{fileSize:10*1024*1024},fileFilter:(_req,file,cb)=>cb(null,/^(image\/(png|jpe?g|webp)|application\/pdf)$/i.test(file.mimetype))});
 
   app.get('/api/accounting/accounts',auth,tenant,permit('accounting.view'),async(req,res)=>{try{const bid=await getBiz(req),q=await pool.query("SELECT a.*,p.account_code parent_code,p.name parent_name,coalesce(sum(CASE WHEN je.status='posted' THEN jl.debit ELSE 0 END),0)::numeric total_debit,coalesce(sum(CASE WHEN je.status='posted' THEN jl.credit ELSE 0 END),0)::numeric total_credit FROM accounts a LEFT JOIN accounts p ON p.id=a.parent_account_id LEFT JOIN journal_lines jl ON jl.account_id=a.id LEFT JOIN journal_entries je ON je.id=jl.journal_entry_id WHERE a.business_id=$1 GROUP BY a.id,p.account_code,p.name ORDER BY a.account_code",[bid]);res.json(q.rows.map(x=>({...x,current_balance:x.normal_balance==='debit'?Number(x.total_debit)-Number(x.total_credit):Number(x.total_credit)-Number(x.total_debit)})))}catch(e){res.status(400).json({error:e.message})}});
@@ -338,22 +376,23 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
   });
 
   /* Mauzo detailed reporting v2 */
-  async function detailedReport(bid,type,{from=null,to=null,branchId=null,expiryDays=30}={}){
-    const p=[bid,from,to,branchId];
+  async function detailedReport(bid,type,{from=null,to=null,branchIds=null,expiryDays=30}={}){
+    const p=[bid,from,to,branchIds];
     const dateSql=(col)=>`(\$2::date IS NULL OR ${col} >= \$2::date) AND (\$3::date IS NULL OR ${col} <= \$3::date)`;
-    const branchSql=(col)=>`(\$4::bigint IS NULL OR ${col}=\$4)`;
+    const branchSql=(col)=>`(\$4::bigint[] IS NULL OR ${col}=ANY(\$4::bigint[]))`;
     const n=v=>Number(v||0);
     if(type==='sales'){
-      const q=await pool.query(`SELECT s.id,s.created_at,s.receipt_no,coalesce(b.name,'-') branch,coalesce(s.order_type,'counter') counter,coalesce(s.cashier,'-') cashier,s.subtotal,s.discount,s.tax,s.total,s.payment_method,s.amount_paid,s.balance_due,coalesce(sum(si.qty),0)::numeric items,coalesce(sum(si.qty*si.unit_cost),0)::numeric cogs
+      const q=await pool.query(`SELECT s.id,s.created_at,s.receipt_no,coalesce(b.name,'-') branch,coalesce(s.order_type,'counter') order_type,coalesce(pc.counter,'Unassigned') counter,coalesce(s.cashier,'-') cashier,s.subtotal,s.discount,s.tax,s.total,s.payment_method,s.amount_paid,s.balance_due,coalesce(sum(si.qty),0)::numeric items,coalesce(sum(si.qty*si.unit_cost),0)::numeric cogs
         FROM sales s LEFT JOIN branches b ON b.id=s.branch_id LEFT JOIN sale_items si ON si.sale_id=s.id
+        LEFT JOIN LATERAL (SELECT string_agg(DISTINCT coalesce(t.name,cs.shift_no),' · ') counter FROM payment_allocations pa JOIN payments p ON p.id=pa.payment_id LEFT JOIN cash_sessions cs ON cs.id=p.cash_session_id LEFT JOIN terminals t ON t.id=coalesce(p.terminal_id,cs.terminal_id) WHERE pa.business_id=s.business_id AND ((pa.source_type='sale' AND pa.source_id=s.id) OR (pa.source_type='restaurant_order' AND EXISTS(SELECT 1 FROM restaurant_orders ro WHERE ro.id=pa.source_id AND ro.sale_id=s.id)))) pc ON true
         WHERE s.business_id=$1 AND s.voided=false AND ${dateSql('s.created_at::date')} AND ${branchSql('s.branch_id')}
-        GROUP BY s.id,b.name ORDER BY s.created_at DESC,s.id DESC LIMIT 1000`,p);
+        GROUP BY s.id,b.name,pc.counter ORDER BY s.created_at DESC,s.id DESC`,p);
       const rows=q.rows.map(x=>({...x,subtotal:n(x.subtotal),discount:n(x.discount),tax:n(x.tax),total:n(x.total),amount_paid:n(x.amount_paid),balance_due:n(x.balance_due),items:n(x.items),cogs:n(x.cogs),gross_profit:n(x.total)-n(x.cogs)}));
-      return {title:'Sales Detail',columns:[['created_at','Date'],['receipt_no','Receipt'],['branch','Branch'],['counter','Counter / Type'],['cashier','Cashier'],['payment_method','Payment'],['items','Items'],['subtotal','Gross'],['discount','Discount'],['tax','Tax'],['total','Net Sales'],['cogs','COGS'],['gross_profit','Gross Profit'],['balance_due','Balance Due']],rows,summary:{grossSales:rows.reduce((a,x)=>a+x.subtotal,0),discounts:rows.reduce((a,x)=>a+x.discount,0),netSales:rows.reduce((a,x)=>a+x.total,0),cogs:rows.reduce((a,x)=>a+x.cogs,0),grossProfit:rows.reduce((a,x)=>a+x.gross_profit,0),transactions:rows.length}};
+      return {title:'Sales Detail',columns:[['created_at','Date'],['receipt_no','Receipt'],['branch','Branch'],['counter','Counter / Terminal'],['order_type','Sale / Order Type'],['cashier','Cashier'],['payment_method','Payment'],['items','Items'],['subtotal','Gross'],['discount','Discount'],['tax','Tax'],['total','Net Sales'],['cogs','COGS'],['gross_profit','Gross Profit'],['balance_due','Balance Due']],rows,summary:{grossSales:rows.reduce((a,x)=>a+x.subtotal,0),discounts:rows.reduce((a,x)=>a+x.discount,0),netSales:rows.reduce((a,x)=>a+x.total,0),cogs:rows.reduce((a,x)=>a+x.cogs,0),grossProfit:rows.reduce((a,x)=>a+x.gross_profit,0),transactions:rows.length}};
     }
     if(type==='counters'){
       const q=await pool.query(`SELECT coalesce(b.name,'-') branch,coalesce(t.name,cs.shift_no,'Unassigned counter') counter,coalesce(p.received_by,cs.opened_by,'-') cashier,p.payment_method,count(*)::int transactions,coalesce(sum(p.amount),0)::numeric total
-        FROM payments p LEFT JOIN cash_sessions cs ON cs.id=p.cash_session_id LEFT JOIN terminals t ON t.id=cs.terminal_id LEFT JOIN branches b ON b.id=coalesce(p.branch_id,cs.branch_id)
+        FROM payments p LEFT JOIN cash_sessions cs ON cs.id=p.cash_session_id LEFT JOIN terminals t ON t.id=coalesce(p.terminal_id,cs.terminal_id) LEFT JOIN branches b ON b.id=coalesce(p.branch_id,cs.branch_id)
         WHERE p.business_id=$1 AND p.status='posted' AND ${dateSql('p.received_at::date')} AND ${branchSql('coalesce(p.branch_id,cs.branch_id)')}
         GROUP BY b.name,t.name,cs.shift_no,p.received_by,cs.opened_by,p.payment_method ORDER BY total DESC`,p);
       const rows=q.rows.map(x=>({...x,transactions:n(x.transactions),total:n(x.total)}));
@@ -363,7 +402,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       const q=await pool.query(`SELECT je.entry_date,je.entry_no,coalesce(b.name,'-') branch,coalesce(a.name,a.account_code) payment_account,je.source_module,coalesce(je.source_reference,je.reference_type,'-') source,je.description,jl.debit,jl.credit
         FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id JOIN accounts a ON a.id=jl.account_id LEFT JOIN branches b ON b.id=coalesce(jl.branch_id,je.branch_id)
         WHERE je.business_id=$1 AND je.status='posted' AND a.account_type='asset' AND (a.account_code LIKE '111%' OR lower(a.name) ~ '(cash|bank|mobile|card|wallet)') AND ${dateSql('je.entry_date')} AND ${branchSql('coalesce(jl.branch_id,je.branch_id)')}
-        ORDER BY je.entry_date DESC,je.id DESC,jl.id DESC LIMIT 1500`,p);
+        ORDER BY je.entry_date DESC,je.id DESC,jl.id DESC`,p);
       const rows=q.rows.map(x=>({...x,cash_in:n(x.debit),cash_out:n(x.credit),net:n(x.debit)-n(x.credit)}));
       return {title:'Cash Flow',columns:[['entry_date','Date'],['entry_no','Journal'],['branch','Branch'],['payment_account','Cash / Bank / Mobile Account'],['source_module','Source Module'],['source','Source Transaction'],['description','Description'],['cash_in','Cash In'],['cash_out','Cash Out'],['net','Net']],rows,summary:{cashIn:rows.reduce((a,x)=>a+x.cash_in,0),cashOut:rows.reduce((a,x)=>a+x.cash_out,0),net:rows.reduce((a,x)=>a+x.net,0)}};
     }
@@ -372,21 +411,21 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
         FROM expenses e LEFT JOIN users emp ON emp.id=e.employee_id LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN terminals t ON t.id=e.terminal_id LEFT JOIN accounts pa ON pa.id=e.payment_account_id
         LEFT JOIN LATERAL (SELECT a.name FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id JOIN accounts a ON a.id=jl.account_id WHERE je.business_id=e.business_id AND je.reference_id=e.id AND je.status='posted' AND a.account_type='asset' AND jl.credit>0 ORDER BY jl.credit DESC LIMIT 1) src ON true
         WHERE e.business_id=$1 AND e.status='posted' AND ${dateSql('e.expense_date')} AND ${branchSql('e.branch_id')}
-        ORDER BY e.expense_date DESC,e.id DESC LIMIT 1000`,p);
+        ORDER BY e.expense_date DESC,e.id DESC`,p);
       const rows=q.rows.map(x=>({...x,amount:n(x.amount)}));
       return {title:'Expense & Cash-Out Detail',columns:[['expense_date','Date'],['reference_no','Reference'],['category','Category'],['description','Description'],['amount','Amount'],['recipient','Recipient / Payee'],['branch','Branch'],['counter','Counter'],['department','Department'],['payment_method','Payment Method'],['source_account','Paid From'],['recorded_by','Recorded By'],['approved_by','Approved By'],['paid_by','Paid By'],['source_type','Source']],rows,summary:{expenses:rows.reduce((a,x)=>a+x.amount,0),count:rows.length}};
     }
     if(type==='allowances'){
       const q=await pool.query(`SELECT ea.id,ea.allowance_date,ea.reference_no,u.name employee,ea.allowance_type,ea.reason,ea.amount,coalesce(b.name,'-') branch,coalesce(t.name,'-') counter,ea.department,ea.payment_method,coalesce(a.name,'-') source_account,coalesce(ea.approved_by_name,'-') approved_by,coalesce(ea.paid_by_name,'-') paid_by,ea.notes
         FROM employee_allowances ea JOIN users u ON u.id=ea.employee_id LEFT JOIN branches b ON b.id=ea.branch_id LEFT JOIN terminals t ON t.id=ea.terminal_id LEFT JOIN accounts a ON a.id=ea.payment_account_id
-        WHERE ea.business_id=$1 AND ea.status='posted' AND ${dateSql('ea.allowance_date')} AND ${branchSql('ea.branch_id')} ORDER BY ea.allowance_date DESC,ea.id DESC LIMIT 1000`,p);
+        WHERE ea.business_id=$1 AND ea.status='posted' AND ${dateSql('ea.allowance_date')} AND ${branchSql('ea.branch_id')} ORDER BY ea.allowance_date DESC,ea.id DESC`,p);
       const rows=q.rows.map(x=>({...x,amount:n(x.amount)}));
       return {title:'Employee Allowances',columns:[['allowance_date','Date'],['reference_no','Reference'],['employee','Employee'],['allowance_type','Allowance Type'],['reason','Reason'],['amount','Amount'],['branch','Branch'],['counter','Counter'],['department','Department'],['payment_method','Payment Method'],['source_account','Paid From'],['approved_by','Approved By'],['paid_by','Paid By'],['notes','Notes']],rows,summary:{allowances:rows.reduce((a,x)=>a+x.amount,0),count:rows.length}};
     }
     if(type==='stock'){
       const q=await pool.query(`SELECT sm.created_at,sm.reference_no,p.name product,p.sku,coalesce(b.name,'-') branch,coalesce(lf.name,lt.name,'-') location,sm.movement_type,sm.quantity,sm.stock_before,sm.stock_after,sm.unit_cost,(sm.quantity*sm.unit_cost)::numeric value,sm.reason,sm.created_by
         FROM stock_movements sm JOIN products p ON p.id=sm.product_id LEFT JOIN branches b ON b.id=sm.branch_id LEFT JOIN inventory_locations lf ON lf.id=sm.from_location_id LEFT JOIN inventory_locations lt ON lt.id=sm.to_location_id
-        WHERE sm.business_id=$1 AND ${dateSql('sm.created_at::date')} AND ${branchSql('sm.branch_id')} ORDER BY sm.created_at DESC,sm.id DESC LIMIT 1500`,p);
+        WHERE sm.business_id=$1 AND ${dateSql('sm.created_at::date')} AND ${branchSql('sm.branch_id')} ORDER BY sm.created_at DESC,sm.id DESC`,p);
       const rows=q.rows.map(x=>({...x,quantity:n(x.quantity),stock_before:n(x.stock_before),stock_after:n(x.stock_after),unit_cost:n(x.unit_cost),value:n(x.value)}));
       return {title:'Stock Movement',columns:[['created_at','Date / Time'],['reference_no','Reference'],['product','Product'],['sku','SKU'],['branch','Branch'],['location','Location'],['movement_type','Movement'],['quantity','Qty Change'],['stock_before','Before'],['stock_after','After'],['unit_cost','Unit Cost'],['value','Value'],['reason','Reason'],['created_by','User']],rows,summary:{movementValue:rows.reduce((a,x)=>a+Math.abs(x.value),0),movements:rows.length}};
     }
@@ -395,8 +434,8 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       const q=await pool.query(`SELECT il.id,p.name product,p.sku,il.lot_no,il.expiry_date,il.qty,il.unit_cost,(il.qty*il.unit_cost)::numeric stock_value,coalesce(s.name,'-') supplier,il.received_at,coalesce(b.name,'-') branch,l.name location,(il.expiry_date-current_date)::int days_to_expiry,
         CASE WHEN il.expiry_date<current_date THEN 'expired' WHEN il.expiry_date<=current_date+$2::int THEN 'expiring_soon' ELSE 'ok' END status
         FROM inventory_lots il JOIN products p ON p.id=il.product_id JOIN inventory_locations l ON l.id=il.location_id LEFT JOIN branches b ON b.id=l.branch_id LEFT JOIN suppliers s ON s.id=il.supplier_id
-        WHERE il.business_id=$1 AND il.active=true AND il.qty>0 AND il.expiry_date IS NOT NULL AND (il.expiry_date<=current_date+$2::int OR $2::int=0) AND ($3::bigint IS NULL OR l.branch_id=$3)
-        ORDER BY il.expiry_date,p.name`,[bid,days,branchId]);
+        WHERE il.business_id=$1 AND il.active=true AND il.qty>0 AND il.expiry_date IS NOT NULL AND (il.expiry_date<=current_date+$2::int OR $2::int=0) AND ($3::bigint[] IS NULL OR l.branch_id=ANY($3::bigint[]))
+        ORDER BY il.expiry_date,p.name`,[bid,days,branchIds]);
       const rows=q.rows.map(x=>({...x,qty:n(x.qty),unit_cost:n(x.unit_cost),stock_value:n(x.stock_value),days_to_expiry:n(x.days_to_expiry)}));
       return {title:'Stock Expiry',columns:[['status','Status'],['expiry_date','Expiry Date'],['days_to_expiry','Days'],['product','Product'],['sku','SKU'],['lot_no','Batch / Lot'],['qty','Qty'],['unit_cost','Unit Cost'],['stock_value','Stock Value'],['supplier','Supplier'],['received_at','Received'],['branch','Branch'],['location','Location']],rows,summary:{expiredValue:rows.filter(x=>x.status==='expired').reduce((a,x)=>a+x.stock_value,0),expiringValue:rows.filter(x=>x.status==='expiring_soon').reduce((a,x)=>a+x.stock_value,0),batches:rows.length}};
     }
@@ -409,28 +448,65 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
         SELECT sa.created_at,sa.reference_no,CASE WHEN sa.adjustment_type='spoilage' THEN 'Food Spoilage' ELSE 'Food Wastage' END,p.name,abs(sai.qty_change),sai.unit_cost,l.name,sa.created_by
         FROM stock_adjustments sa JOIN stock_adjustment_items sai ON sai.adjustment_id=sa.id JOIN products p ON p.id=sai.product_id JOIN inventory_locations l ON l.id=sa.location_id
         WHERE sa.business_id=$1 AND sa.status='posted' AND sa.adjustment_type IN ('wastage','spoilage') AND ${dateSql('sa.created_at::date')} AND (\$4::bigint IS NULL OR l.branch_id=\$4)
-      ) x ORDER BY x.created_at DESC LIMIT 1200`,p);
+      ) x ORDER BY x.created_at DESC`,p);
       const rows=q.rows.map(x=>({...x,qty:n(x.qty),unit_cost:n(x.unit_cost),value:n(x.value)}));
       return {title:'Food Consumption & Wastage',columns:[['created_at','Date / Time'],['reference_no','Reference'],['activity','Activity'],['product','Product'],['qty','Qty'],['unit_cost','Unit Cost'],['value','Value'],['location','Location'],['user_name','Recorded By']],rows,summary:{internalConsumption:rows.filter(x=>/Consumed Internally|Complimentary/.test(x.activity)).reduce((a,x)=>a+x.value,0),wastage:rows.filter(x=>/Wastage|Spoilage/.test(x.activity)).reduce((a,x)=>a+x.value,0)}};
     }
+    if(type==='financial'){
+      const [sales,exp,pay]=await Promise.all([
+        pool.query("SELECT coalesce(sum(total),0)::numeric gross,coalesce(sum(discount),0)::numeric discounts,coalesce(sum(tax),0)::numeric tax,coalesce(sum(service_charge),0)::numeric service FROM sales WHERE business_id=$1 AND voided=false AND "+dateSql('created_at::date')+" AND "+branchSql('branch_id'),p),
+        pool.query("SELECT coalesce(sum(amount),0)::numeric expenses FROM expenses WHERE business_id=$1 AND status='posted' AND "+dateSql('expense_date')+" AND "+branchSql('branch_id'),p),
+        pool.query("SELECT payment_method,count(*)::int transactions,coalesce(sum(amount),0)::numeric total FROM payments WHERE business_id=$1 AND status='posted' AND "+dateSql('received_at::date')+" AND "+branchSql('branch_id')+" GROUP BY payment_method ORDER BY total DESC",p)
+      ]);
+      const x=sales.rows[0],gross=n(x.gross),expenses=n(exp.rows[0].expenses),rows=[
+        {metric:'Gross Sales',amount:gross},{metric:'Discounts',amount:n(x.discounts)},{metric:'Tax',amount:n(x.tax)},{metric:'Service Charge',amount:n(x.service)},{metric:'Expenses',amount:expenses},{metric:'Net After Expenses',amount:gross-expenses},
+        ...pay.rows.map(r=>({metric:'Payments · '+r.payment_method,amount:n(r.total),transactions:n(r.transactions)}))
+      ];
+      return {title:'Financial Summary',columns:[['metric','Metric'],['amount','Amount'],['transactions','Transactions']],rows,summary:{grossSales:gross,expenses,net:gross-expenses}};
+    }
+    if(type==='restaurant'){
+      const q=await pool.query("SELECT ro.opened_at,ro.order_no,ro.order_type,coalesce(rt.name,'-') table_name,ro.guest_count,ro.subtotal,ro.discount,ro.tax,ro.service_charge,ro.tip,ro.total,ro.amount_paid,ro.balance_due,ro.status,coalesce(ro.waiter_name,'-') waiter,coalesce(b.name,'-') branch FROM restaurant_orders ro LEFT JOIN restaurant_tables rt ON rt.id=ro.table_id LEFT JOIN branches b ON b.id=ro.branch_id WHERE ro.business_id=$1 AND ro.status<>'cancelled' AND "+dateSql('ro.opened_at::date')+" AND "+branchSql('ro.branch_id')+" ORDER BY ro.opened_at DESC",p);
+      const rows=q.rows.map(x=>({...x,guest_count:n(x.guest_count),subtotal:n(x.subtotal),discount:n(x.discount),tax:n(x.tax),service_charge:n(x.service_charge),tip:n(x.tip),total:n(x.total),amount_paid:n(x.amount_paid),balance_due:n(x.balance_due)}));
+      return {title:'Restaurant Operations',columns:[['opened_at','Opened'],['order_no','Order'],['branch','Branch'],['order_type','Type'],['table_name','Table'],['waiter','Waiter'],['guest_count','Covers'],['subtotal','Subtotal'],['discount','Discount'],['tax','Tax'],['service_charge','Service'],['tip','Tip'],['total','Total'],['amount_paid','Paid'],['balance_due','Balance'],['status','Status']],rows,summary:{orders:rows.length,covers:rows.reduce((a,x)=>a+x.guest_count,0),sales:rows.reduce((a,x)=>a+x.total,0),outstanding:rows.reduce((a,x)=>a+x.balance_due,0)}};
+    }
+    if(type==='payments'){
+      const q=await pool.query("SELECT p.received_at,p.payment_no,coalesce(b.name,'-') branch,coalesce(t.name,cs.shift_no,'Unassigned') counter,coalesce(p.received_by,'-') received_by,p.payment_method,p.amount,p.tendered_amount,p.change_amount,p.reference,p.status FROM payments p LEFT JOIN cash_sessions cs ON cs.id=p.cash_session_id LEFT JOIN terminals t ON t.id=coalesce(p.terminal_id,cs.terminal_id) LEFT JOIN branches b ON b.id=coalesce(p.branch_id,cs.branch_id) WHERE p.business_id=$1 AND p.status='posted' AND "+dateSql('p.received_at::date')+" AND "+branchSql('coalesce(p.branch_id,cs.branch_id)')+" ORDER BY p.received_at DESC",p);
+      const rows=q.rows.map(x=>({...x,amount:n(x.amount),tendered_amount:n(x.tendered_amount),change_amount:n(x.change_amount)}));
+      return {title:'Payment Reconciliation',columns:[['received_at','Date / Time'],['payment_no','Payment'],['branch','Branch'],['counter','Counter / Terminal'],['received_by','Received By'],['payment_method','Method'],['amount','Amount'],['tendered_amount','Tendered'],['change_amount','Change'],['reference','Reference']],rows,summary:{payments:rows.length,total:rows.reduce((a,x)=>a+x.amount,0),change:rows.reduce((a,x)=>a+x.change_amount,0)}};
+    }
+    if(type==='refunds'){
+      const q=await pool.query("SELECT r.created_at,r.refund_no,s.receipt_no,coalesce(b.name,'-') branch,r.request_kind,r.reason,r.total,r.status,r.requested_by_name,r.approved_by_name,r.approved_at FROM refunds r JOIN sales s ON s.id=r.sale_id LEFT JOIN branches b ON b.id=s.branch_id WHERE r.business_id=$1 AND "+dateSql('r.created_at::date')+" AND "+branchSql('s.branch_id')+" ORDER BY r.created_at DESC",p);
+      const rows=q.rows.map(x=>({...x,total:n(x.total)}));
+      return {title:'Refunds & Voids',columns:[['created_at','Date / Time'],['refund_no','Refund'],['receipt_no','Receipt'],['branch','Branch'],['request_kind','Type'],['reason','Reason'],['total','Amount'],['status','Status'],['requested_by_name','Requested By'],['approved_by_name','Approved By'],['approved_at','Approved At']],rows,summary:{requests:rows.length,approvedAmount:rows.filter(x=>x.status==='approved').reduce((a,x)=>a+x.total,0)}};
+    }
+    if(type==='inventory'){
+      const q=await pool.query("SELECT p.sku,p.name product,p.category,coalesce(b.name,'-') branch,l.name location,ib.qty,ib.avg_cost,(ib.qty*ib.avg_cost)::numeric valuation,p.reorder_level,CASE WHEN ib.qty<=p.reorder_level THEN 'low' ELSE 'ok' END status FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id LEFT JOIN branches b ON b.id=l.branch_id WHERE ib.business_id=$1 AND p.active=true AND "+branchSql('l.branch_id')+" ORDER BY p.name,l.name",[bid,from,to,branchIds]);
+      const rows=q.rows.map(x=>({...x,qty:n(x.qty),avg_cost:n(x.avg_cost),valuation:n(x.valuation),reorder_level:n(x.reorder_level)}));
+      return {title:'Stock On Hand & Valuation',columns:[['status','Status'],['sku','SKU'],['product','Product'],['category','Category'],['branch','Branch'],['location','Location'],['qty','On Hand'],['reorder_level','Reorder Level'],['avg_cost','Average Cost'],['valuation','Valuation']],rows,summary:{products:new Set(rows.map(x=>x.sku||x.product)).size,quantity:rows.reduce((a,x)=>a+x.qty,0),valuation:rows.reduce((a,x)=>a+x.valuation,0),lowStock:rows.filter(x=>x.status==='low').length}};
+    }
+    if(type==='kitchen'){
+      const q=await pool.query("SELECT kt.created_at,kt.ticket_no,coalesce(b.name,'-') branch,coalesce(ks.name,'Kitchen') station,ro.order_no,kt.status,kt.priority,round(extract(epoch from (coalesce(kt.ready_at,now())-kt.created_at))/60.0,1)::numeric prep_minutes,kt.printed_count FROM kitchen_tickets kt LEFT JOIN kitchen_stations ks ON ks.id=kt.station_id JOIN restaurant_orders ro ON ro.id=kt.order_id LEFT JOIN branches b ON b.id=kt.branch_id WHERE kt.business_id=$1 AND "+dateSql('kt.created_at::date')+" AND "+branchSql('kt.branch_id')+" ORDER BY kt.created_at DESC",p);
+      const rows=q.rows.map(x=>({...x,prep_minutes:n(x.prep_minutes),printed_count:n(x.printed_count)}));
+      return {title:'Kitchen Performance',columns:[['created_at','Created'],['ticket_no','Ticket'],['branch','Branch'],['station','Station'],['order_no','Order'],['status','Status'],['priority','Priority'],['prep_minutes','Prep Minutes'],['printed_count','Print Count']],rows,summary:{tickets:rows.length,avgMinutes:rows.length?rows.reduce((a,x)=>a+x.prep_minutes,0)/rows.length:0,ready:rows.filter(x=>x.status==='ready').length}};
+    }
     if(type==='purchases'){
-      const q=await pool.query(`SELECT po.created_at,po.po_no,coalesce(b.name,'-') branch,s.name supplier,po.status,po.subtotal,po.tax,po.total,po.created_by,po.approved_by,po.ordered_at
+      const q=await pool.query(`SELECT po.created_at,po.po_no,coalesce(b.name,'-') branch,s.name supplier,po.status,po.subtotal,po.total,po.created_by,po.approved_by,po.ordered_at
         FROM purchase_orders po JOIN suppliers s ON s.id=po.supplier_id LEFT JOIN branches b ON b.id=po.branch_id
-        WHERE po.business_id=$1 AND po.status NOT IN ('cancelled','rejected') AND ${dateSql('po.created_at::date')} AND ${branchSql('po.branch_id')} ORDER BY po.created_at DESC,po.id DESC LIMIT 1000`,p);
-      const rows=q.rows.map(x=>({...x,subtotal:n(x.subtotal),tax:n(x.tax),total:n(x.total)}));
-      return {title:'Purchases',columns:[['created_at','Date'],['po_no','PO'],['branch','Branch'],['supplier','Supplier'],['status','Status'],['subtotal','Subtotal'],['tax','Tax'],['total','Total'],['created_by','Created By'],['approved_by','Approved By'],['ordered_at','Ordered At']],rows,summary:{purchases:rows.reduce((a,x)=>a+x.total,0),count:rows.length}};
+        WHERE po.business_id=$1 AND po.status NOT IN ('cancelled','rejected') AND ${dateSql('po.created_at::date')} AND ${branchSql('po.branch_id')} ORDER BY po.created_at DESC,po.id DESC`,p);
+      const rows=q.rows.map(x=>({...x,subtotal:n(x.subtotal),total:n(x.total)}));
+      return {title:'Purchases',columns:[['created_at','Date'],['po_no','PO'],['branch','Branch'],['supplier','Supplier'],['status','Status'],['subtotal','Subtotal'],['total','Total'],['created_by','Created By'],['approved_by','Approved By'],['ordered_at','Ordered At']],rows,summary:{purchases:rows.reduce((a,x)=>a+x.total,0),count:rows.length}};
     }
     if(type==='shifts'){
       const q=await pool.query(`SELECT cs.opened_at,cs.closed_at,cs.shift_no,coalesce(b.name,'-') branch,coalesce(t.name,'-') counter,cs.opened_by cashier,cs.opening_cash,cs.expected_cash,cs.closing_cash,cs.variance,cs.status,cs.reconciliation_status,cs.manager_confirmed_by,cs.variance_reason
         FROM cash_sessions cs LEFT JOIN branches b ON b.id=cs.branch_id LEFT JOIN terminals t ON t.id=cs.terminal_id
-        WHERE cs.business_id=$1 AND ${dateSql('cs.opened_at::date')} AND ${branchSql('cs.branch_id')} ORDER BY cs.opened_at DESC,cs.id DESC LIMIT 500`,p);
+        WHERE cs.business_id=$1 AND ${dateSql('cs.opened_at::date')} AND ${branchSql('cs.branch_id')} ORDER BY cs.opened_at DESC,cs.id DESC`,p);
       const rows=q.rows.map(x=>({...x,opening_cash:n(x.opening_cash),expected_cash:n(x.expected_cash),closing_cash:n(x.closing_cash),variance:n(x.variance)}));
       return {title:'End-of-Day / Shift Reconciliation',columns:[['opened_at','Opened'],['closed_at','Closed'],['shift_no','Shift'],['branch','Branch'],['counter','Counter'],['cashier','Cashier'],['opening_cash','Opening Cash'],['expected_cash','Expected Cash'],['closing_cash','Actual Cash'],['variance','Over / Short'],['status','Status'],['reconciliation_status','Reconciliation'],['manager_confirmed_by','Manager'],['variance_reason','Variance Reason']],rows,summary:{expected:rows.reduce((a,x)=>a+x.expected_cash,0),actual:rows.reduce((a,x)=>a+x.closing_cash,0),variance:rows.reduce((a,x)=>a+x.variance,0)}};
     }
     if(type==='ledger'){
       const q=await pool.query(`SELECT je.entry_date,je.entry_no,a.account_code,a.name account,je.description,jl.debit,jl.credit,coalesce(b.name,'-') branch,je.source_module,coalesce(je.source_reference,je.reference_type,'-') source_transaction
         FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id JOIN accounts a ON a.id=jl.account_id LEFT JOIN branches b ON b.id=coalesce(jl.branch_id,je.branch_id)
-        WHERE je.business_id=$1 AND je.status='posted' AND ${dateSql('je.entry_date')} AND ${branchSql('coalesce(jl.branch_id,je.branch_id)')} ORDER BY je.entry_date DESC,je.id DESC,jl.id DESC LIMIT 2000`,p);
+        WHERE je.business_id=$1 AND je.status='posted' AND ${dateSql('je.entry_date')} AND ${branchSql('coalesce(jl.branch_id,je.branch_id)')} ORDER BY je.entry_date DESC,je.id DESC,jl.id DESC`,p);
       const rows=q.rows.map(x=>({...x,debit:n(x.debit),credit:n(x.credit)}));
       return {title:'General Ledger Detail',columns:[['entry_date','Date'],['entry_no','Journal'],['account_code','Account Code'],['account','Account'],['description','Description'],['debit','Debit'],['credit','Credit'],['branch','Branch'],['source_module','Source Module'],['source_transaction','Source Transaction']],rows,summary:{debit:rows.reduce((a,x)=>a+x.debit,0),credit:rows.reduce((a,x)=>a+x.credit,0)}};
     }
@@ -438,7 +514,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
   }
 
   app.get('/api/accounting/reporting/export',auth,tenant,permit('accounting.export'),async(req,res)=>{try{
-    const bid=await getBiz(req),type=String(req.query.type||'sales'),format=String(req.query.format||'xlsx'),report=await detailedReport(bid,type,{from:parseDate(req.query.from),to:parseDate(req.query.to),branchId:Number(req.query.branchId||0)||null,expiryDays:Number(req.query.expiryDays||30)});
+    const bid=await getBiz(req),type=String(req.query.type||'sales'),format=String(req.query.format||'xlsx'),branchIds=await reportBranchIds(req,bid,Number(req.query.branchId||0)||null),report=await detailedReport(bid,type,{from:parseDate(req.query.from),to:parseDate(req.query.to),branchIds,expiryDays:Number(req.query.expiryDays||30)});
     const cols=report.columns||[],rows=report.rows||[],safeName='MauzoPOS-'+type+'-'+new Date().toISOString().slice(0,10);
     if(format==='csv'){
       const esc=v=>'"'+String(v??'').replaceAll('"','""')+'"';
@@ -453,7 +529,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');res.setHeader('Content-Disposition','attachment; filename="'+safeName+'.xlsx"');await wb.xlsx.write(res);res.end();
   }catch(e){if(!res.headersSent)res.status(400).json({error:e.message})}});
 
-  app.get('/api/accounting/reporting',auth,tenant,permit('accounting.view'),async(req,res)=>{try{const bid=await getBiz(req);res.json(await detailedReport(bid,String(req.query.type||'sales'),{from:parseDate(req.query.from),to:parseDate(req.query.to),branchId:Number(req.query.branchId||0)||null,expiryDays:Number(req.query.expiryDays||30)}))}catch(e){res.status(400).json({error:e.message})}});
+  app.get('/api/accounting/reporting',auth,tenant,permit('accounting.view'),async(req,res)=>{try{const bid=await getBiz(req),branchIds=await reportBranchIds(req,bid,Number(req.query.branchId||0)||null);res.json(await detailedReport(bid,String(req.query.type||'sales'),{from:parseDate(req.query.from),to:parseDate(req.query.to),branchIds,expiryDays:Number(req.query.expiryDays||30)}))}catch(e){res.status(400).json({error:e.message})}});
 
   app.post('/api/accounting/expenses/detailed',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','accountant'),async(req,res)=>{
     const bid=await getBiz(req),x=req.body||{},amount=positive(x.amount),method=String(x.paymentMethod||'cash').trim().toLowerCase().replaceAll('_',' '),client=await pool.connect();
@@ -462,15 +538,27 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       await client.query('BEGIN');
       const shift=await client.query("SELECT cs.id,cs.branch_id,cs.terminal_id FROM cash_sessions cs WHERE cs.business_id=$1 AND cs.opened_by_user_id=$2 AND cs.status='open' ORDER BY cs.id DESC LIMIT 1",[bid,req.user.id]);
       if(method==='cash'&&!shift.rowCount)throw new Error('Open your cashier shift before recording a cash expense');
-      const branchId=Number(x.branchId||shift.rows[0]?.branch_id||0)||null,terminalId=Number(x.terminalId||shift.rows[0]?.terminal_id||0)||null;
+      let branchId=Number(x.branchId||shift.rows[0]?.branch_id||0)||null;
+      if(method==='cash'&&x.branchId&&Number(x.branchId)!==Number(shift.rows[0].branch_id))throw new Error('Cash expense branch must match the open cashier shift');
+      if(method==='cash')branchId=Number(shift.rows[0].branch_id);
+      if(branchId){const b=await client.query('SELECT id FROM branches WHERE id=$1 AND business_id=$2 AND active=true',[branchId,bid]);if(!b.rowCount)throw new Error('Branch is not available')}
+      const terminalId=method==='cash'?Number(shift.rows[0]?.terminal_id||0)||null:Number(x.terminalId||shift.rows[0]?.terminal_id||0)||null;
       let paymentAccountId=Number(x.paymentAccountId||0)||null;
-      if(paymentAccountId){const aq=await client.query("SELECT id FROM accounts WHERE id=$1 AND business_id=$2 AND account_type='asset' AND is_active=true",[paymentAccountId,bid]);if(!aq.rowCount)throw new Error('Payment/source account is invalid')}
+      if(paymentAccountId)await validatePaymentSourceAccount(client,bid,method,paymentAccountId);
       else paymentAccountId=Number((await mappedAccount(client,bid,paymentAccountKey(method),paymentAccountKey(method)==='cash'?'1111':'1112')).id);
+      let approvedByUserId=null,approvedByName=null;
+      if(method==='cash'){
+        const settings=await client.query('SELECT payout_approval_threshold FROM cash_control_settings WHERE business_id=$1',[bid]),threshold=Number(settings.rows[0]?.payout_approval_threshold||0);
+        if(threshold>0&&amount>threshold){
+          if(!(await hasPermission(req,bid,'shift.payout.approve'))&&!(await hasPermission(req,bid,'shift.close')))throw new Error('Manager approval is required for a cash expense above '+threshold);
+          approvedByUserId=req.user.id;approvedByName=req.user.name;
+        }
+      }
       const expenseAccountId=Number(x.expenseAccountId||0)||null;
       if(expenseAccountId){const eq=await client.query("SELECT id FROM accounts WHERE id=$1 AND business_id=$2 AND account_type IN ('expense','cost_of_sales') AND is_active=true",[expenseAccountId,bid]);if(!eq.rowCount)throw new Error('Expense account is invalid')}
       const ref='EXP-'+Date.now().toString(36).toUpperCase();
-      const q=await client.query("INSERT INTO expenses(business_id,branch_id,terminal_id,cash_session_id,category,description,amount,expense_date,reference_no,source_type,auto_generated,accounting_treatment,status,payment_method,expense_account_id,payment_account_id,payee,employee_id,department,created_by_user_id,created_by_name,paid_by_user_id,paid_by_name,approved_by_user_id,approved_by_name,notes) VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($8,current_date),$9,'manual',false,'operating_expense','posted',$10,$11,$12,$13,$14,$15,$16,$17,$16,$17,$16,$17,$18) RETURNING *",[bid,branchId,terminalId,shift.rows[0]?.id||null,String(x.category||'General'),String(x.description).trim(),amount,x.expenseDate||null,ref,method,expenseAccountId,paymentAccountId,x.payee||null,Number(x.employeeId||0)||null,x.department||null,req.user.id,req.user.name,x.notes||null]);
-      if(method==='cash'&&shift.rows[0]?.id)await client.query("INSERT INTO cash_movements(business_id,session_id,movement_type,movement_category,amount,reason,reference,expense_category,recipient,created_by_user_id,created_by,approved_by_user_id,approved_by) VALUES($1,$2,'cash_out','expense',$3,$4,$5,$6,$7,$8,$9,$8,$9)",[bid,shift.rows[0].id,amount,String(x.description).trim(),ref,String(x.category||'General'),x.payee||null,req.user.id,req.user.name]);
+      const q=await client.query("INSERT INTO expenses(business_id,branch_id,terminal_id,cash_session_id,category,description,amount,expense_date,reference_no,source_type,auto_generated,accounting_treatment,status,payment_method,expense_account_id,payment_account_id,payee,employee_id,department,created_by_user_id,created_by_name,paid_by_user_id,paid_by_name,approved_by_user_id,approved_by_name,notes) VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($8,current_date),$9,'manual',false,'operating_expense','posted',$10,$11,$12,$13,$14,$15,$16,$17,$16,$17,$18,$19,$20) RETURNING *",[bid,branchId,terminalId,shift.rows[0]?.id||null,String(x.category||'General'),String(x.description).trim(),amount,x.expenseDate||null,ref,method,expenseAccountId,paymentAccountId,x.payee||null,Number(x.employeeId||0)||null,x.department||null,req.user.id,req.user.name,approvedByUserId,approvedByName,x.notes||null]);
+      if(method==='cash'&&shift.rows[0]?.id)await client.query("INSERT INTO cash_movements(business_id,session_id,movement_type,movement_category,amount,reason,reference,expense_category,recipient,created_by_user_id,created_by,approved_by_user_id,approved_by) VALUES($1,$2,'cash_out','expense',$3,$4,$5,$6,$7,$8,$9,$10,$11)",[bid,shift.rows[0].id,amount,String(x.description).trim(),ref,String(x.category||'General'),x.payee||null,req.user.id,req.user.name,approvedByUserId,approvedByName]);
       await postExpenseAccounting(client,{bid,expenseId:Number(q.rows[0].id),userId:req.user.id});
       await client.query('COMMIT');await audit(req.user,bid,'create','expense',q.rows[0].id,{referenceNo:ref,amount,payee:x.payee||null,paymentAccountId});res.json(q.rows[0]);
     }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
@@ -478,7 +566,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
 
   app.get('/api/accounting/staff-options',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req);const q=await pool.query("SELECT u.id,u.name,u.email,coalesce(string_agg(DISTINCT ubr.role,', '),ub.role) role FROM user_businesses ub JOIN users u ON u.id=ub.user_id LEFT JOIN user_business_roles ubr ON ubr.user_id=u.id AND ubr.business_id=ub.business_id WHERE ub.business_id=$1 AND ub.active=true AND coalesce(ub.staff_status,'active')='active' AND u.active=true GROUP BY u.id,ub.role ORDER BY u.name,u.email",[bid]);res.json(q.rows)});
 
-  app.get('/api/accounting/allowances',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req),q=await pool.query("SELECT ea.*,u.name employee_name,b.name branch_name,t.name terminal_name,a.name payment_account_name FROM employee_allowances ea JOIN users u ON u.id=ea.employee_id LEFT JOIN branches b ON b.id=ea.branch_id LEFT JOIN terminals t ON t.id=ea.terminal_id LEFT JOIN accounts a ON a.id=ea.payment_account_id WHERE ea.business_id=$1 ORDER BY ea.allowance_date DESC,ea.id DESC LIMIT 500",[bid]);res.json(q.rows)});
+  app.get('/api/accounting/allowances',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req),q=await pool.query("SELECT ea.*,u.name employee_name,b.name branch_name,t.name terminal_name,a.name payment_account_name FROM employee_allowances ea JOIN users u ON u.id=ea.employee_id LEFT JOIN branches b ON b.id=ea.branch_id LEFT JOIN terminals t ON t.id=ea.terminal_id LEFT JOIN accounts a ON a.id=ea.payment_account_id WHERE ea.business_id=$1 ORDER BY ea.allowance_date DESC,ea.id DESC",[bid]);res.json(q.rows)});
 
   app.post('/api/accounting/allowances',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','accountant'),async(req,res)=>{
     const bid=await getBiz(req),x=req.body||{},employeeId=Number(x.employeeId||0),amount=positive(x.amount),method=String(x.paymentMethod||'cash').trim().toLowerCase().replaceAll('_',' '),client=await pool.connect();
@@ -488,13 +576,25 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       const emp=await client.query("SELECT u.id,u.name FROM users u JOIN user_businesses ub ON ub.user_id=u.id WHERE ub.business_id=$1 AND u.id=$2 AND ub.active=true",[bid,employeeId]);if(!emp.rowCount)throw new Error('Employee not found');
       const shift=await client.query("SELECT cs.id,cs.branch_id,cs.terminal_id FROM cash_sessions cs WHERE cs.business_id=$1 AND cs.opened_by_user_id=$2 AND cs.status='open' ORDER BY cs.id DESC LIMIT 1",[bid,req.user.id]);
       if(method==='cash'&&!shift.rowCount)throw new Error('Open your cashier shift before paying a cash allowance');
-      const branchId=Number(x.branchId||shift.rows[0]?.branch_id||0)||null,terminalId=Number(x.terminalId||shift.rows[0]?.terminal_id||0)||null,ref='ALL-'+Date.now().toString(36).toUpperCase();
+      let branchId=Number(x.branchId||shift.rows[0]?.branch_id||0)||null;
+      if(method==='cash'&&x.branchId&&Number(x.branchId)!==Number(shift.rows[0].branch_id))throw new Error('Cash allowance branch must match the open cashier shift');
+      if(method==='cash')branchId=Number(shift.rows[0].branch_id);
+      if(branchId){const b=await client.query('SELECT id FROM branches WHERE id=$1 AND business_id=$2 AND active=true',[branchId,bid]);if(!b.rowCount)throw new Error('Branch is not available')}
+      const terminalId=method==='cash'?Number(shift.rows[0]?.terminal_id||0)||null:Number(x.terminalId||shift.rows[0]?.terminal_id||0)||null,ref='ALL-'+Date.now().toString(36).toUpperCase();
       let paymentAccountId=Number(x.paymentAccountId||0)||null;
-      if(paymentAccountId){const a=await client.query("SELECT id FROM accounts WHERE id=$1 AND business_id=$2 AND account_type='asset' AND is_active=true",[paymentAccountId,bid]);if(!a.rowCount)throw new Error('Payment/source account is invalid')}
+      if(paymentAccountId)await validatePaymentSourceAccount(client,bid,method,paymentAccountId);
       else paymentAccountId=Number((await mappedAccount(client,bid,paymentAccountKey(method),paymentAccountKey(method)==='cash'?'1111':'1112')).id);
-      const q=await client.query("INSERT INTO employee_allowances(business_id,employee_id,branch_id,terminal_id,cash_session_id,allowance_type,amount,allowance_date,reason,department,payment_method,payment_account_id,reference_no,approved_by_user_id,approved_by_name,paid_by_user_id,paid_by_name,notes,status,created_by_user_id,created_by_name) VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($8,current_date),$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'posted',$16,$17) RETURNING *",[bid,employeeId,branchId,terminalId,shift.rows[0]?.id||null,String(x.allowanceType).trim(),amount,x.allowanceDate||null,String(x.reason).trim(),x.department||null,method,paymentAccountId,ref,req.user.id,req.user.name,req.user.id,req.user.name,x.notes||null]);
-      if(method==='cash'&&shift.rows[0]?.id)await client.query("INSERT INTO cash_movements(business_id,session_id,movement_type,movement_category,amount,reason,reference,expense_category,recipient,created_by_user_id,created_by,approved_by_user_id,approved_by) VALUES($1,$2,'cash_out','expense',$3,$4,$5,'Employee Allowance',$6,$7,$8,$7,$8)",[bid,shift.rows[0].id,amount,String(x.allowanceType).trim()+' · '+String(x.reason).trim(),ref,emp.rows[0].name,req.user.id,req.user.name]);
-      const expenseAccount=await mappedAccount(client,bid,'default_expense','6800');
+      let approvedByUserId=null,approvedByName=null;
+      if(method==='cash'){
+        const settings=await client.query('SELECT payout_approval_threshold FROM cash_control_settings WHERE business_id=$1',[bid]),threshold=Number(settings.rows[0]?.payout_approval_threshold||0);
+        if(threshold>0&&amount>threshold){
+          if(!(await hasPermission(req,bid,'shift.payout.approve'))&&!(await hasPermission(req,bid,'shift.close')))throw new Error('Manager approval is required for a cash allowance above '+threshold);
+          approvedByUserId=req.user.id;approvedByName=req.user.name;
+        }
+      }
+      const q=await client.query("INSERT INTO employee_allowances(business_id,employee_id,branch_id,terminal_id,cash_session_id,allowance_type,amount,allowance_date,reason,department,payment_method,payment_account_id,reference_no,approved_by_user_id,approved_by_name,paid_by_user_id,paid_by_name,notes,status,created_by_user_id,created_by_name) VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($8,current_date),$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'posted',$16,$17) RETURNING *",[bid,employeeId,branchId,terminalId,shift.rows[0]?.id||null,String(x.allowanceType).trim(),amount,x.allowanceDate||null,String(x.reason).trim(),x.department||null,method,paymentAccountId,ref,approvedByUserId,approvedByName,req.user.id,req.user.name,x.notes||null]);
+      if(method==='cash'&&shift.rows[0]?.id)await client.query("INSERT INTO cash_movements(business_id,session_id,movement_type,movement_category,amount,reason,reference,expense_category,recipient,created_by_user_id,created_by,approved_by_user_id,approved_by) VALUES($1,$2,'cash_out','expense',$3,$4,$5,'Employee Allowance',$6,$7,$8,$9,$10)",[bid,shift.rows[0].id,amount,String(x.allowanceType).trim()+' · '+String(x.reason).trim(),ref,emp.rows[0].name,req.user.id,req.user.name,approvedByUserId,approvedByName]);
+      const expenseAccount=await allowanceDebitAccount(client,bid,x.allowanceType);
       await postJournal(client,{bid,branchId,cashSessionId:shift.rows[0]?.id||null,entryDate:x.allowanceDate||null,postingKey:'employee_allowance:'+q.rows[0].id,sourceModule:'workforce',sourceReference:ref,referenceType:'employee_allowance',referenceId:q.rows[0].id,description:String(x.allowanceType)+' allowance · '+emp.rows[0].name,notes:String(x.reason),userId:req.user.id,lines:[{accountId:expenseAccount.id,debit:amount,memo:String(x.allowanceType)+' · '+emp.rows[0].name},{accountId:paymentAccountId,credit:amount,memo:'Paid from '+method}]});
       await client.query('COMMIT');await audit(req.user,bid,'post','employee_allowance',q.rows[0].id,{employeeId,amount,referenceNo:ref,paymentMethod:method});res.json(q.rows[0]);
     }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}

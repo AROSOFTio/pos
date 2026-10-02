@@ -8,7 +8,7 @@ export default function Expenses({currency}:{currency:string}){
  const [open,setOpen]=useState(false),[preview,setPreview]=useState(false),[saving,setSaving]=useState(false),[attachTo,setAttachTo]=useState<any|null>(null),[attaching,setAttaching]=useState(false)
  const [category,setCategory]=useState('General'),[description,setDescription]=useState(''),[amount,setAmount]=useState(0),[date,setDate]=useState(''),[paymentMethod,setPaymentMethod]=useState('cash'),[accountId,setAccountId]=useState(''),[paymentAccountId,setPaymentAccountId]=useState(''),[branchId,setBranchId]=useState(''),[payee,setPayee]=useState(''),[employeeId,setEmployeeId]=useState(''),[department,setDepartment]=useState(''),[notes,setNotes]=useState(''),[receipt,setReceipt]=useState<File|null>(null)
  const load=()=>api('/expenses').then(setRows)
- useEffect(()=>{load();api('/accounting/accounts').then((x:any[])=>{setAccounts(x.filter(a=>a.is_active&&['expense','cost_of_sales'].includes(a.account_type)));setPaymentAccounts(x.filter(a=>a.is_active&&a.account_type==='asset'&&(String(a.account_code).startsWith('111')||/(cash|bank|mobile|card|wallet)/i.test(a.name))));}).catch(()=>{setAccounts([]);setPaymentAccounts([])});api('/branches').then(setBranches).catch(()=>setBranches([]));api('/accounting/staff-options').then(setStaff).catch(()=>setStaff([]))},[])
+ useEffect(()=>{load();api('/accounting/accounts').then((x:any[])=>{setAccounts(x.filter(a=>a.is_active&&['expense','cost_of_sales'].includes(a.account_type)));setPaymentAccounts(x.filter(a=>a.is_active&&a.allow_manual_entries&&a.account_type==='asset'&&(String(a.account_code).startsWith('111')||/(cash|bank|mobile|card|wallet)/i.test(a.name))));}).catch(()=>{setAccounts([]);setPaymentAccounts([])});api('/branches').then(setBranches).catch(()=>setBranches([]));api('/accounting/staff-options').then(setStaff).catch(()=>setStaff([]))},[])
  const selectedAccount=useMemo(()=>accounts.find(a=>String(a.id)===accountId),[accounts,accountId])
  async function save(){
   if(!description.trim()||!(amount>0))return
@@ -26,12 +26,12 @@ export default function Expenses({currency}:{currency:string}){
   <PageHeading eyebrow="Financial control" title="Expenses & Cost Register" sub="Shift-linked operating expenses with ledger posting and receipt evidence." action={<button onClick={()=>setOpen(true)} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"><Plus size={16} className="mr-1 inline"/>Record Expense</button>}/>
   <div className="mb-4 grid gap-3 sm:grid-cols-3"><Stat label="Recorded Costs" value={money(total,currency)} sub={rows.length+' entries'} icon={WalletCards}/><Stat label="Automatic" value={autoRows.length} sub="Captured from controlled system activity" icon={Bot} tone="blue"/><Stat label="Manual" value={manualRows.length} sub="Entered by authorised management" icon={PencilLine} tone="violet"/></div>
   <Panel title="Expense register" sub="Every posted manual expense creates a balanced journal entry and can carry receipt evidence.">
-   <DataTable head={['Reference','Date','Branch / Shift','Category','Description / Payee','Account','Payment','Amount','Evidence','Voucher']} rows={rows.map(x=>[
+   <DataTable head={['Reference','Date','Branch / Counter','Category','Description / Payee','Expense Account','Paid Via / From','Amount','Evidence','Voucher']} rows={rows.map(x=>[
     <b>{x.reference_no||'EXP-'+x.id}</b>,String(x.expense_date).slice(0,10),
-    <div>{x.branch_name||'-'}<div className="text-[9px] text-slate-400">{x.shift_no||'No shift'}</div></div>,
+    <div>{x.branch_name||'-'}<div className="text-[9px] text-slate-400">{x.terminal_name||x.shift_no||'No counter'}</div></div>,
     x.category,<div><span>{x.description}</span>{(x.payee||x.supplier_name)&&<div className="text-[10px] text-slate-400">Paid to: {x.payee||x.supplier_name}</div>}{x.department&&<div className="text-[9px] text-slate-400">{x.department}</div>}</div>,
     x.expense_account_code?<div><b>{x.expense_account_code}</b><div className="text-[9px] text-slate-400">{x.expense_account_name}</div></div>:nice(x.accounting_treatment),
-    <Badge tone={x.payment_method==='cash'?'green':'blue'}>{nice(x.payment_method||x.source_type||'system')}</Badge>,
+    <div><Badge tone={x.payment_method==='cash'?'green':'blue'}>{nice(x.payment_method||x.source_type||'system')}</Badge>{x.payment_account_name&&<div className="mt-1 text-[9px] text-slate-400">{x.payment_account_name}</div>}</div>,
     <b>{money(x.amount,currency)}</b>,
     <button onClick={()=>setAttachTo(x)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] text-slate-600"><Paperclip size={13}/>{Number(x.attachment_count||0)?x.attachment_count:'Add'}</button>,
     <button onClick={()=>openPdf('/documents/expense/'+x.id+'/pdf')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-600" title="Open voucher"><FileText size={15}/></button>
