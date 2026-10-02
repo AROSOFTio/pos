@@ -4,10 +4,10 @@ import { api, money } from '../api'
 import { PageHeading, Panel, DataTable, Loading, Modal, Badge } from '../components'
 import BarcodeScanner from '../components/BarcodeScanner'
 
-const blank={name:'',sku:'',barcode:'',category:'',cost:'',price:'',stock:'',reorderLevel:'',supplierIds:[] as number[]}
+const blank={name:'',sku:'',barcode:'',category:'',cost:'',price:'',stock:'',reorderLevel:'',supplierIds:[] as number[],openingLocationId:'',lotTrackingRequired:false}
 
 export default function Products({currency,allowScanning=false}:{currency:string;allowScanning?:boolean}){
- const [rows,setRows]=useState<any[]|null>(null),[suppliers,setSuppliers]=useState<any[]>([]),[open,setOpen]=useState(false),[form,setForm]=useState(blank)
+ const [rows,setRows]=useState<any[]|null>(null),[suppliers,setSuppliers]=useState<any[]>([]),[locations,setLocations]=useState<any[]>([]),[open,setOpen]=useState(false),[form,setForm]=useState(blank)
  const [image,setImage]=useState<File|null>(null),[preview,setPreview]=useState(''),[saving,setSaving]=useState(false),[query,setQuery]=useState('')
  const [error,setError]=useState(''),[success,setSuccess]=useState(''),[createdId,setCreatedId]=useState<number|null>(null),[editing,setEditing]=useState<any>(null)
  const [categories,setCategories]=useState<any[]>([]),[scannerOpen,setScannerOpen]=useState(false),[categoryOpen,setCategoryOpen]=useState(false),[newCategory,setNewCategory]=useState('')
@@ -19,9 +19,9 @@ export default function Products({currency,allowScanning=false}:{currency:string
 
  async function show(product?:any){
    setError('');setSuccess('');setCreatedId(null);setEditing(product||null);setSourceRequestId(null)
-   try{const [s,c]=await Promise.all([api('/suppliers'),api('/product-categories')]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(c)?c:[])}catch{setSuppliers([])}
+   try{const [s,c,l]=await Promise.all([api('/suppliers'),api('/product-categories'),api('/inventory/locations').catch(()=>[])]);setSuppliers(Array.isArray(s)?s:[]);setCategories(Array.isArray(c)?c:[]);setLocations(Array.isArray(l)?l:[])}catch{setSuppliers([]);setLocations([])}
    if(product){
-     setForm({name:product.name||'',sku:product.sku||'',barcode:product.barcode||'',category:product.category||'',cost:product.cost!=null?String(product.cost):'',price:product.price!=null?String(product.price):'',stock:product.stock!=null?String(product.stock):'',reorderLevel:product.reorder_level!=null?String(product.reorder_level):'',supplierIds:(product.suppliers||[]).map((x:any)=>Number(x.id))})
+     setForm({name:product.name||'',sku:product.sku||'',barcode:product.barcode||'',category:product.category||'',cost:product.cost!=null?String(product.cost):'',price:product.price!=null?String(product.price):'',stock:product.stock!=null?String(product.stock):'',reorderLevel:product.reorder_level!=null?String(product.reorder_level):'',supplierIds:(product.suppliers||[]).map((x:any)=>Number(x.id)),openingLocationId:'',lotTrackingRequired:!!product.lot_tracking_required})
      setPreview(product.image_url||'')
    }else{setForm({...blank,category:String(categories[0]?.name||'General')});setPreview('')}
    setImage(null);setOpen(true)
@@ -51,9 +51,9 @@ export default function Products({currency,allowScanning=false}:{currency:string
    try{
      let id=editing?.id?Number(editing.id):createdId
      if(editing?.id){
-       await api('/products/'+editing.id,{method:'PUT',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds})})
+       await api('/products/'+editing.id,{method:'PUT',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds,lotTrackingRequired:form.lotTrackingRequired})})
      }else if(!id){
-       const p=await api('/products',{method:'POST',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds,requestId:sourceRequestId})})
+       const p=await api('/products',{method:'POST',body:JSON.stringify({name:form.name.trim(),barcode:form.barcode.trim(),category:form.category.trim()||'General',cost:Number(form.cost||0),price:Number(form.price||0),stock:Number(form.stock||0),reorderLevel:Number(form.reorderLevel||0),supplierIds:form.supplierIds,requestId:sourceRequestId,openingLocationId:Number(form.openingLocationId)||null,lotTrackingRequired:form.lotTrackingRequired})})
        id=Number(p.id);setCreatedId(id)
      }
      if(image&&id)await uploadProductImage(id,image)
@@ -115,8 +115,10 @@ export default function Products({currency,allowScanning=false}:{currency:string
         {allowScanning&&<Field label="Barcode"><div className="flex gap-2"><input className="control mt-0 flex-1" value={form.barcode} onChange={e=>setForm({...form,barcode:e.target.value})} placeholder="Scan or enter barcode"/><button type="button" onClick={()=>setScannerOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-[11px] font-medium text-slate-600"><ScanLine size={14}/>Scan</button></div></Field>}
         <Field label={'Cost ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.cost} onChange={e=>setForm({...form,cost:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter cost"/></Field>
         <Field label={'Selling price ('+currency+')'}><input className="control" inputMode="decimal" type="text" value={form.price} onChange={e=>setForm({...form,price:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter selling price"/></Field>
-        <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter opening quantity"/>{editing&&<span className="mt-1 block text-[9.5px] font-normal text-slate-400">Adjust stock from Inventory to keep the movement ledger correct.</span>}</Field>
+        <Field label={editing?'Current stock':'Opening stock'}><input className="control" inputMode="decimal" type="text" disabled={!!editing} value={form.stock} onChange={e=>setForm({...form,stock:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Enter opening quantity"/>{editing&&<span className="mt-1 block text-[9.5px] font-normal text-slate-400">Use Inventory → Correct Stock so every change is recorded.</span>}</Field>
+        {!editing&&Number(form.stock||0)>0&&<Field label="Put opening stock in"><select className="control" value={form.openingLocationId} onChange={e=>setForm({...form,openingLocationId:e.target.value})}><option value="">Default stock location</option>{locations.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>}
         <Field label="Reorder level"><input className="control" inputMode="decimal" type="text" value={form.reorderLevel} onChange={e=>setForm({...form,reorderLevel:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="Optional"/></Field>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]" checked={form.lotTrackingRequired} onChange={e=>setForm({...form,lotTrackingRequired:e.target.checked})}/><span><b>Require batch / expiry when receiving</b><span className="mt-0.5 block text-[10px] leading-4 text-slate-500">Use for food, drinks, medicine or anything where expiry must be tracked.</span></span></label>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-3.5">

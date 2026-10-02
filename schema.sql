@@ -2159,3 +2159,74 @@ ON CONFLICT(business_id,role,permission_code) DO UPDATE SET allowed=true;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS terminal_id BIGINT REFERENCES terminals(id) ON DELETE SET NULL;
 UPDATE payments p SET terminal_id=cs.terminal_id FROM cash_sessions cs WHERE p.cash_session_id=cs.id AND p.terminal_id IS NULL AND cs.terminal_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payments_terminal_date ON payments(business_id,terminal_id,received_at,status);
+
+
+-- Inventory control hardening v2
+ALTER TABLE products ADD COLUMN IF NOT EXISTS lot_tracking_required BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE stock_count_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(14,4) NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS inventory_reorder_levels (
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  product_id BIGINT REFERENCES products(id) ON DELETE CASCADE,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE CASCADE,
+  reorder_level NUMERIC(14,3) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY(product_id,location_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_reorder_business_location ON inventory_reorder_levels(business_id,location_id);
+
+CREATE TABLE IF NOT EXISTS inventory_lot_movements (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  lot_id BIGINT REFERENCES inventory_lots(id) ON DELETE SET NULL,
+  product_id BIGINT REFERENCES products(id) ON DELETE RESTRICT,
+  location_id BIGINT REFERENCES inventory_locations(id) ON DELETE RESTRICT,
+  movement_type TEXT NOT NULL,
+  quantity NUMERIC(14,3) NOT NULL DEFAULT 0,
+  balance_effect BOOLEAN NOT NULL DEFAULT true,
+  reference_type TEXT,
+  reference_id BIGINT,
+  reference_no TEXT,
+  notes TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_lot_movements_lookup ON inventory_lot_movements(business_id,product_id,location_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_lot_movements_lot ON inventory_lot_movements(lot_id,created_at);
+
+INSERT INTO inventory_lot_movements(business_id,lot_id,product_id,location_id,movement_type,quantity,balance_effect,reference_type,reference_id,reference_no,notes,created_by,created_at)
+SELECT il.business_id,il.id,il.product_id,il.location_id,'legacy_lot_balance',il.qty,false,'LEGACY_LOT',il.id,il.lot_no,'Batch balance carried forward when lot audit tracking was enabled','System',now()
+FROM inventory_lots il
+WHERE il.active=true AND il.qty>0
+  AND NOT EXISTS(SELECT 1 FROM inventory_lot_movements lm WHERE lm.lot_id=il.id)
+;
+
+INSERT INTO permission_catalog(code,name,section) VALUES
+('inventory.view','View stock and inventory','Inventory'),
+('inventory.receive','Receive and classify stock','Inventory'),
+('inventory.transfer','Move stock between locations','Inventory'),
+('inventory.count','Perform and post stock counts','Inventory'),
+('inventory.manage_locations','Manage stock locations','Inventory'),
+('inventory.lot','Manage batch and expiry information','Inventory')
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,section=EXCLUDED.section;
+
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'administrator',p.code,true FROM businesses b JOIN permission_catalog p ON p.section='Inventory'
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'branch_manager',p.code,true FROM businesses b JOIN permission_catalog p
+ON p.code IN ('inventory.view','inventory.receive','inventory.transfer','inventory.count','inventory.manage_locations','inventory.lot','inventory.adjust','inventory.cost')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'restaurant_manager',p.code,true FROM businesses b JOIN permission_catalog p
+ON p.code IN ('inventory.view','inventory.receive','inventory.transfer','inventory.count','inventory.lot','inventory.adjust')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'storekeeper',p.code,true FROM businesses b JOIN permission_catalog p ON p.section='Inventory'
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'accountant',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.view','inventory.cost')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;
+INSERT INTO role_permissions(business_id,role,permission_code,allowed)
+SELECT b.id,'auditor',p.code,true FROM businesses b JOIN permission_catalog p ON p.code IN ('inventory.view','inventory.cost')
+ON CONFLICT(business_id,role,permission_code) DO NOTHING;

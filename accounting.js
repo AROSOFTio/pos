@@ -109,6 +109,42 @@ export async function ensureSaleAccounting(client,{bid,saleId,userId=null}){
   const shiftId=paymentRows.find(x=>x.cash_session_id)?.cash_session_id||null;
   return postJournal(client,{bid,branchId:sale.branch_id,cashSessionId:shiftId,entryDate:isoDateValue(sale.created_at),postingKey:'sale:'+saleId,sourceModule:'sales',sourceReference:sale.receipt_no,referenceType:'sale',referenceId:saleId,description:'Sale '+sale.receipt_no,userId,lines});
 }
+
+export async function postOpeningStockAccounting(client,{bid,productId,locationId,qty,unitCost,userId=null,referenceNo=null}){
+  const amount=positive(Number(qty||0)*Number(unitCost||0)); if(amount<=0)return null;
+  const q=await client.query("SELECT p.name,p.item_type,p.category,l.branch_id,EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=$1 AND r.product_id=p.id AND r.active=true) finished FROM products p JOIN inventory_locations l ON l.id=$3 WHERE p.id=$2 AND p.business_id=$1",[bid,productId,locationId]);
+  if(!q.rowCount)throw new Error('Opening stock item not found for accounting');
+  const x=q.rows[0],invKey=x.finished||(!String(x.item_type||'').includes('ingredient')&&String(x.category||'').toLowerCase()!=='ingredient')?'finished_goods_inventory':'raw_material_inventory';
+  const capital=await accountByCode(client,bid,'3100');
+  return postJournal(client,{bid,branchId:x.branch_id,entryDate:isoDateValue(new Date()),postingKey:'opening_stock:'+productId,sourceModule:'inventory',sourceReference:referenceNo||('OPENING-'+productId),referenceType:'opening_stock',referenceId:productId,description:'Opening stock · '+x.name,userId,lines:[
+    {accountKey:invKey,debit:amount,memo:'Opening inventory'},
+    {accountId:capital.id,credit:amount,memo:'Opening balance / owner capital'}
+  ]});
+}
+
+export async function postStockCountAccounting(client,{bid,countId,userId=null}){
+  const hq=await client.query("SELECT c.*,l.branch_id FROM stock_counts c JOIN inventory_locations l ON l.id=c.location_id WHERE c.id=$1 AND c.business_id=$2",[countId,bid]);
+  if(!hq.rowCount)throw new Error('Stock count not found for accounting');
+  const h=hq.rows[0];
+  const rows=(await client.query("SELECT i.*,p.name,p.item_type,p.category,EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=$2 AND r.product_id=p.id AND r.active=true) finished FROM stock_count_items i JOIN products p ON p.id=i.product_id WHERE i.stock_count_id=$1",[countId,bid])).rows;
+  const lines=[];
+  for(const x of rows){
+    if(x.counted_qty==null)continue;
+    const diff=Number(x.counted_qty)-Number(x.expected_qty),amount=positive(Math.abs(diff)*Number(x.unit_cost||0));
+    if(Math.abs(diff)<=0.000001||amount<=0)continue;
+    const invKey=x.finished||(!String(x.item_type||'').includes('ingredient')&&String(x.category||'').toLowerCase()!=='ingredient')?'finished_goods_inventory':'raw_material_inventory';
+    if(diff<0){
+      lines.push({accountKey:'production_variance',debit:amount,memo:'Count shortage · '+x.name});
+      lines.push({accountKey:invKey,credit:amount,memo:'Inventory count reduction · '+x.name});
+    }else{
+      lines.push({accountKey:invKey,debit:amount,memo:'Inventory count increase · '+x.name});
+      lines.push({accountKey:'production_variance',credit:amount,memo:'Count gain · '+x.name});
+    }
+  }
+  if(!lines.length)return null;
+  return postJournal(client,{bid,branchId:h.branch_id,entryDate:isoDateValue(h.posted_at||new Date()),postingKey:'stock_count:'+countId,sourceModule:'inventory',sourceReference:h.reference_no,referenceType:'stock_count',referenceId:countId,description:'Physical stock count '+h.reference_no,userId,lines});
+}
+
 export async function postReceivablePaymentAccounting(client,{bid,payment,userId=null,referenceType='sale_payment'}){
   if(!payment||!(Number(payment.amount)>0))return null;
   return postJournal(client,{bid,branchId:payment.branch_id,cashSessionId:payment.cash_session_id,entryDate:isoDateValue(payment.received_at),postingKey:'payment:'+payment.id,sourceModule:'payments',sourceReference:payment.payment_no,referenceType,referenceId:Number(payment.id),description:'Receivable payment '+payment.payment_no,userId,lines:[
@@ -117,13 +153,15 @@ export async function postReceivablePaymentAccounting(client,{bid,payment,userId
   ]});
 }
 export async function postGrnAccounting(client,{bid,grnId,userId=null}){
-  const q=await client.query("SELECT g.*,coalesce(sum(i.qty_received*i.unit_cost),0)::numeric total FROM goods_receipts g JOIN goods_receipt_items i ON i.goods_receipt_id=g.id WHERE g.id=$1 AND g.business_id=$2 GROUP BY g.id",[grnId,bid]);
+  const q=await client.query("SELECT * FROM goods_receipts WHERE id=$1 AND business_id=$2",[grnId,bid]);
   if(!q.rowCount)throw new Error('Goods receipt not found for accounting');
-  const x=q.rows[0],amount=positive(x.total); if(amount<=0)return null;
-  return postJournal(client,{bid,branchId:x.branch_id,cashSessionId:x.cash_session_id,entryDate:isoDateValue(x.received_at),postingKey:'grn:'+grnId,sourceModule:'purchasing',sourceReference:x.grn_no,referenceType:'goods_receipt',referenceId:grnId,description:'Inventory received '+x.grn_no,userId,lines:[
-    {accountKey:'raw_material_inventory',debit:amount,memo:'Inventory received'},
-    {accountKey:'accounts_payable',credit:amount,memo:'Supplier payable'}
-  ]});
+  const x=q.rows[0];
+  const buckets=await client.query("SELECT CASE WHEN p.item_type='ingredient' OR lower(coalesce(p.category,''))='ingredient' THEN 'raw_material_inventory' ELSE 'finished_goods_inventory' END account_key,coalesce(sum(i.qty_received*i.unit_cost),0)::numeric amount FROM goods_receipt_items i JOIN products p ON p.id=i.product_id WHERE i.goods_receipt_id=$1 GROUP BY 1",[grnId]);
+  const lines=[];let amount=0;
+  for(const row of buckets.rows){const v=positive(row.amount);if(v>0){amount=money(amount+v);lines.push({accountKey:row.account_key,debit:v,memo:'Inventory received'})}}
+  if(amount<=0)return null;
+  lines.push({accountKey:'accounts_payable',credit:amount,memo:'Supplier payable'});
+  return postJournal(client,{bid,branchId:x.branch_id,cashSessionId:x.cash_session_id,entryDate:isoDateValue(x.received_at),postingKey:'grn:'+grnId,sourceModule:'purchasing',sourceReference:x.grn_no,referenceType:'goods_receipt',referenceId:grnId,description:'Inventory received '+x.grn_no,userId,lines});
 }
 export async function postProductionAccounting(client,{bid,batchId,userId=null}){
   const q=await client.query("SELECT rb.*,p.name product_name FROM recipe_batches rb JOIN recipes r ON r.id=rb.recipe_id JOIN products p ON p.id=r.product_id WHERE rb.id=$1 AND rb.business_id=$2",[batchId,bid]);
@@ -184,7 +222,7 @@ export async function postStockAdjustmentAccounting(client,{bid,adjustmentId,use
   const lines=[];let loss=0;
   for(const x of rows){
     const amount=positive(Math.abs(Number(x.qty_change||0))*Number(x.unit_cost||x.product_cost||0));if(amount<=0)continue;
-    const invKey=x.finished?'finished_goods_inventory':'raw_material_inventory';
+    const invKey=x.finished||(!String(x.item_type||'').includes('ingredient')&&String(x.category||'').toLowerCase()!=='ingredient')?'finished_goods_inventory':'raw_material_inventory';
     if(Number(x.qty_change)<0){
       lines.push({accountKey:h.adjustment_type==='wastage'||h.adjustment_type==='spoilage'?'waste_expense':'production_variance',debit:amount,memo:niceMemo(h.adjustment_type)+' · '+x.product_name});
       lines.push({accountKey:invKey,credit:amount,memo:'Inventory reduction · '+x.product_name});
@@ -200,13 +238,14 @@ export async function postStockAdjustmentAccounting(client,{bid,adjustmentId,use
 function niceMemo(v){return String(v||'adjustment').replaceAll('_',' ').replace(/\b\w/g,m=>m.toUpperCase())}
 
 export async function postPurchaseReturnAccounting(client,{bid,purchaseReturnId,userId=null}){
-  const q=await client.query("SELECT pr.*,coalesce(sum(pri.line_total),0)::numeric amount FROM purchase_returns pr JOIN purchase_return_items pri ON pri.purchase_return_id=pr.id WHERE pr.id=$1 AND pr.business_id=$2 GROUP BY pr.id",[purchaseReturnId,bid]);
+  const q=await client.query("SELECT * FROM purchase_returns WHERE id=$1 AND business_id=$2",[purchaseReturnId,bid]);
   if(!q.rowCount)throw new Error('Purchase return not found for accounting');
-  const x=q.rows[0],amount=positive(x.amount);if(amount<=0)return null;
-  return postJournal(client,{bid,branchId:x.branch_id,entryDate:isoDateValue(x.created_at),postingKey:'purchase_return:'+purchaseReturnId,sourceModule:'purchasing',sourceReference:x.return_no,referenceType:'purchase_return',referenceId:purchaseReturnId,description:'Purchase return '+x.return_no,userId,lines:[
-    {accountKey:'accounts_payable',debit:amount,memo:'Supplier payable reduced'},
-    {accountKey:'raw_material_inventory',credit:amount,memo:'Inventory returned to supplier'}
-  ]});
+  const x=q.rows[0],buckets=await client.query("SELECT CASE WHEN p.item_type='ingredient' OR lower(coalesce(p.category,''))='ingredient' THEN 'raw_material_inventory' ELSE 'finished_goods_inventory' END account_key,coalesce(sum(pri.line_total),0)::numeric amount FROM purchase_return_items pri JOIN products p ON p.id=pri.product_id WHERE pri.purchase_return_id=$1 GROUP BY 1",[purchaseReturnId]);
+  const lines=[];let amount=0;
+  for(const row of buckets.rows){const v=positive(row.amount);if(v>0){amount=money(amount+v);lines.push({accountKey:row.account_key,credit:v,memo:'Inventory returned to supplier'})}}
+  if(amount<=0)return null;
+  lines.unshift({accountKey:'accounts_payable',debit:amount,memo:'Supplier payable reduced'});
+  return postJournal(client,{bid,branchId:x.branch_id,entryDate:isoDateValue(x.created_at),postingKey:'purchase_return:'+purchaseReturnId,sourceModule:'purchasing',sourceReference:x.return_no,referenceType:'purchase_return',referenceId:purchaseReturnId,description:'Purchase return '+x.return_no,userId,lines});
 }
 
 export async function postSupplierInvoiceAccounting(client,{bid,supplierInvoiceId,userId=null}){
@@ -337,7 +376,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       pool.query("SELECT count(*)::int count,coalesce(sum(r.total),0)::numeric total FROM refunds r JOIN sales s ON s.id=r.sale_id WHERE r.business_id=$1 AND r.status='approved' AND ($2::date IS NULL OR r.approved_at::date >= $2::date) AND ($3::date IS NULL OR r.approved_at::date <= $3::date) AND ($4::bigint IS NULL OR s.branch_id=$4)",p),
       pool.query("SELECT count(*)::int count,coalesce(sum(amount),0)::numeric total FROM expenses WHERE business_id=$1 AND status='posted' AND ($2::date IS NULL OR expense_date >= $2::date) AND ($3::date IS NULL OR expense_date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4)",p),
       pool.query("SELECT count(*)::int count,coalesce(sum(total),0)::numeric total FROM purchase_orders WHERE business_id=$1 AND status NOT IN ('rejected','cancelled') AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date) AND ($4::bigint IS NULL OR branch_id=$4)",p),
-      pool.query("SELECT count(DISTINCT p.id)::int products,coalesce(sum(ib.qty*ib.avg_cost),0)::numeric valuation,count(DISTINCT p.id) FILTER (WHERE coalesce(t.qty,0)<=p.reorder_level)::int low_stock FROM products p LEFT JOIN inventory_balances ib ON ib.product_id=p.id AND ib.business_id=p.business_id LEFT JOIN LATERAL (SELECT sum(qty) qty FROM inventory_balances z WHERE z.business_id=p.business_id AND z.product_id=p.id) t ON true WHERE p.business_id=$1 AND p.active=true",[bid]),
+      pool.query("SELECT count(DISTINCT p.id)::int products,coalesce(sum(ib.qty*ib.avg_cost),0)::numeric valuation,count(DISTINCT p.id) FILTER (WHERE ib.qty<=coalesce(rl.reorder_level,p.reorder_level))::int low_stock FROM products p LEFT JOIN inventory_balances ib ON ib.product_id=p.id AND ib.business_id=p.business_id LEFT JOIN inventory_reorder_levels rl ON rl.business_id=ib.business_id AND rl.product_id=ib.product_id AND rl.location_id=ib.location_id WHERE p.business_id=$1 AND p.active=true",[bid]),
       pool.query("SELECT count(*)::int count,coalesce(sum(actual_yield),0)::numeric yield,coalesce(sum(total_cost),0)::numeric cost FROM recipe_batches WHERE business_id=$1 AND status='completed' AND ($2::date IS NULL OR prepared_at::date >= $2::date) AND ($3::date IS NULL OR prepared_at::date <= $3::date)",[bid,from,to]),
       pool.query("SELECT count(*)::int tickets,coalesce(avg(extract(epoch from (coalesce(ready_at,now())-created_at))/60.0),0)::numeric avg_minutes,count(*) FILTER (WHERE status='ready')::int ready,count(*) FILTER (WHERE status IN ('new','preparing'))::int active FROM kitchen_tickets WHERE business_id=$1 AND ($2::date IS NULL OR created_at::date >= $2::date) AND ($3::date IS NULL OR created_at::date <= $3::date)",[bid,from,to]),
       pool.query("SELECT count(*)::int total,count(*) FILTER (WHERE status='occupied')::int occupied,count(*) FILTER (WHERE status='waiting_for_bill')::int waiting,count(*) FILTER (WHERE status='available')::int available,count(*) FILTER (WHERE cleanliness_status='dirty')::int dirty FROM restaurant_tables WHERE business_id=$1 AND active=true",[bid]),
@@ -480,9 +519,54 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
       return {title:'Refunds & Voids',columns:[['created_at','Date / Time'],['refund_no','Refund'],['receipt_no','Receipt'],['branch','Branch'],['request_kind','Type'],['reason','Reason'],['total','Amount'],['status','Status'],['requested_by_name','Requested By'],['approved_by_name','Approved By'],['approved_at','Approved At']],rows,summary:{requests:rows.length,approvedAmount:rows.filter(x=>x.status==='approved').reduce((a,x)=>a+x.total,0)}};
     }
     if(type==='inventory'){
-      const q=await pool.query("SELECT p.sku,p.name product,p.category,coalesce(b.name,'-') branch,l.name location,ib.qty,ib.avg_cost,(ib.qty*ib.avg_cost)::numeric valuation,p.reorder_level,CASE WHEN ib.qty<=p.reorder_level THEN 'low' ELSE 'ok' END status FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id LEFT JOIN branches b ON b.id=l.branch_id WHERE ib.business_id=$1 AND p.active=true AND ($2::bigint[] IS NULL OR l.branch_id=ANY($2::bigint[])) ORDER BY p.name,l.name",[bid,branchIds]);
+      const q=await pool.query("SELECT p.sku,p.name product,p.category,coalesce(b.name,'-') branch,l.name location,ib.qty,ib.avg_cost,(ib.qty*ib.avg_cost)::numeric valuation,coalesce(rl.reorder_level,p.reorder_level)::numeric reorder_level,p.lot_tracking_required,greatest(0,ib.qty-coalesce(ls.assigned_qty,0))::numeric unassigned_batch_qty,CASE WHEN ib.qty<=coalesce(rl.reorder_level,p.reorder_level) THEN 'low' WHEN p.lot_tracking_required AND greatest(0,ib.qty-coalesce(ls.assigned_qty,0))>0 THEN 'batch_missing' ELSE 'ok' END status FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id LEFT JOIN branches b ON b.id=l.branch_id LEFT JOIN inventory_reorder_levels rl ON rl.business_id=ib.business_id AND rl.product_id=ib.product_id AND rl.location_id=ib.location_id LEFT JOIN LATERAL (SELECT sum(il.qty) assigned_qty FROM inventory_lots il WHERE il.business_id=ib.business_id AND il.product_id=ib.product_id AND il.location_id=ib.location_id AND il.active=true AND il.qty>0) ls ON true WHERE ib.business_id=$1 AND p.active=true AND ($2::bigint[] IS NULL OR l.branch_id=ANY($2::bigint[])) ORDER BY p.name,l.name",[bid,branchIds]);
       const rows=q.rows.map(x=>({...x,qty:n(x.qty),avg_cost:n(x.avg_cost),valuation:n(x.valuation),reorder_level:n(x.reorder_level)}));
-      return {title:'Stock On Hand & Valuation',columns:[['status','Status'],['sku','SKU'],['product','Product'],['category','Category'],['branch','Branch'],['location','Location'],['qty','On Hand'],['reorder_level','Reorder Level'],['avg_cost','Average Cost'],['valuation','Valuation']],rows,summary:{products:new Set(rows.map(x=>x.sku||x.product)).size,quantity:rows.reduce((a,x)=>a+x.qty,0),valuation:rows.reduce((a,x)=>a+x.valuation,0),lowStock:rows.filter(x=>x.status==='low').length}};
+      return {title:'Stock On Hand & Valuation',columns:[['status','Status'],['sku','SKU'],['product','Product'],['category','Category'],['branch','Branch'],['location','Location'],['qty','On Hand'],['reorder_level','Reorder Level'],['unassigned_batch_qty','Batch Qty Missing'],['avg_cost','Average Cost'],['valuation','Valuation']],rows,summary:{products:new Set(rows.map(x=>x.sku||x.product)).size,quantity:rows.reduce((a,x)=>a+x.qty,0),valuation:rows.reduce((a,x)=>a+x.valuation,0),lowStock:rows.filter(x=>x.status==='low').length}};
+    }
+    if(type==='stock_counts'){
+      const q=await pool.query(`SELECT c.posted_at,c.reference_no,coalesce(b.name,'-') branch,l.name location,p.name product,p.sku,i.expected_qty,i.counted_qty,(i.counted_qty-i.expected_qty)::numeric difference,i.unit_cost,((i.counted_qty-i.expected_qty)*i.unit_cost)::numeric value_difference,c.created_by
+        FROM stock_counts c JOIN stock_count_items i ON i.stock_count_id=c.id JOIN products p ON p.id=i.product_id JOIN inventory_locations l ON l.id=c.location_id LEFT JOIN branches b ON b.id=l.branch_id
+        WHERE c.business_id=$1 AND c.status='posted' AND ${dateSql('c.posted_at::date')} AND ${branchSql('l.branch_id')} ORDER BY c.posted_at DESC,c.id DESC,p.name`,p);
+      const rows=q.rows.map(x=>({...x,expected_qty:n(x.expected_qty),counted_qty:n(x.counted_qty),difference:n(x.difference),unit_cost:n(x.unit_cost),value_difference:n(x.value_difference)}));
+      return {title:'Stock Count Variance',columns:[['posted_at','Posted'],['reference_no','Count'],['branch','Branch'],['location','Location'],['product','Product'],['sku','SKU'],['expected_qty','Mauzo Qty'],['counted_qty','Counted Qty'],['difference','Difference'],['unit_cost','Unit Cost'],['value_difference','Value Difference'],['created_by','Counted By']],rows,summary:{counts:new Set(rows.map(x=>x.reference_no)).size,shortageValue:Math.abs(rows.filter(x=>x.value_difference<0).reduce((a,x)=>a+x.value_difference,0)),gainValue:rows.filter(x=>x.value_difference>0).reduce((a,x)=>a+x.value_difference,0)}};
+    }
+    if(type==='stock_transfers'){
+      const q=await pool.query(`SELECT t.created_at,t.reference_no,coalesce(bf.name,'-') from_branch,f.name from_location,coalesce(bt.name,'-') to_branch,tol.name to_location,p.name product,p.sku,i.qty,t.status,t.notes,t.created_by
+        FROM stock_transfers t JOIN stock_transfer_items i ON i.transfer_id=t.id JOIN products p ON p.id=i.product_id JOIN inventory_locations f ON f.id=t.from_location_id JOIN branches bf ON bf.id=f.branch_id JOIN inventory_locations tol ON tol.id=t.to_location_id JOIN branches bt ON bt.id=tol.branch_id
+        WHERE t.business_id=$1 AND ${dateSql('t.created_at::date')} AND ($4::bigint[] IS NULL OR f.branch_id=ANY($4::bigint[]) OR tol.branch_id=ANY($4::bigint[])) ORDER BY t.created_at DESC,t.id DESC,p.name`,p);
+      const rows=q.rows.map(x=>({...x,qty:n(x.qty)}));
+      return {title:'Stock Transfers',columns:[['created_at','Date'],['reference_no','Transfer'],['from_branch','From Branch'],['from_location','From'],['to_branch','To Branch'],['to_location','To'],['product','Product'],['sku','SKU'],['qty','Qty'],['status','Status'],['notes','Notes'],['created_by','Moved By']],rows,summary:{transfers:new Set(rows.map(x=>x.reference_no)).size,quantity:rows.reduce((a,x)=>a+x.qty,0)}};
+    }
+    if(type==='reorder'){
+      const q=await pool.query(`SELECT CASE WHEN ib.qty<=coalesce(rl.reorder_level,p.reorder_level) THEN 'reorder' ELSE 'ok' END status,p.sku,p.name product,coalesce(b.name,'-') branch,l.name location,ib.qty,coalesce(rl.reorder_level,p.reorder_level)::numeric reorder_level,greatest(0,coalesce(rl.reorder_level,p.reorder_level)-ib.qty)::numeric shortage,ib.avg_cost,(ib.qty*ib.avg_cost)::numeric stock_value
+        FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id LEFT JOIN branches b ON b.id=l.branch_id LEFT JOIN inventory_reorder_levels rl ON rl.business_id=ib.business_id AND rl.product_id=ib.product_id AND rl.location_id=ib.location_id
+        WHERE ib.business_id=$1 AND p.active=true AND ($4::bigint[] IS NULL OR l.branch_id=ANY($4::bigint[])) ORDER BY status DESC,p.name,l.name`,p);
+      const rows=q.rows.map(x=>({...x,qty:n(x.qty),reorder_level:n(x.reorder_level),shortage:n(x.shortage),avg_cost:n(x.avg_cost),stock_value:n(x.stock_value)}));
+      return {title:'Reorder Report',columns:[['status','Status'],['sku','SKU'],['product','Product'],['branch','Branch'],['location','Location'],['qty','On Hand'],['reorder_level','Reorder At'],['shortage','Qty Needed'],['avg_cost','Avg Cost'],['stock_value','Stock Value']],rows,summary:{needsReorder:rows.filter(x=>x.status==='reorder').length,estimatedQtyNeeded:rows.reduce((a,x)=>a+x.shortage,0)}};
+    }
+    if(type==='lot_movement'){
+      const q=await pool.query(`SELECT lm.created_at,coalesce(b.name,'-') branch,l.name location,p.name product,p.sku,coalesce(il.lot_no,'-') lot_no,il.expiry_date,lm.movement_type,lm.quantity,lm.balance_effect,lm.reference_no,lm.notes,lm.created_by
+        FROM inventory_lot_movements lm JOIN products p ON p.id=lm.product_id JOIN inventory_locations l ON l.id=lm.location_id LEFT JOIN branches b ON b.id=l.branch_id LEFT JOIN inventory_lots il ON il.id=lm.lot_id
+        WHERE lm.business_id=$1 AND ${dateSql('lm.created_at::date')} AND ${branchSql('l.branch_id')} ORDER BY lm.created_at DESC,lm.id DESC`,p);
+      const rows=q.rows.map(x=>({...x,quantity:n(x.quantity)}));
+      return {title:'Batch / Lot Movement',columns:[['created_at','Date / Time'],['branch','Branch'],['location','Location'],['product','Product'],['sku','SKU'],['lot_no','Batch / Lot'],['expiry_date','Expiry'],['movement_type','Activity'],['quantity','Qty'],['balance_effect','Changes Stock'],['reference_no','Reference'],['notes','Notes'],['created_by','User']],rows,summary:{movements:rows.length,trackedQuantity:rows.reduce((a,x)=>a+Math.abs(x.quantity),0)}};
+    }
+    if(type==='inventory_reconciliation'){
+      const q=await pool.query(`WITH inv AS (
+          SELECT l.branch_id,coalesce(sum(ib.qty*ib.avg_cost),0)::numeric inventory_value
+          FROM inventory_balances ib JOIN inventory_locations l ON l.id=ib.location_id
+          WHERE ib.business_id=$1 AND ($2::bigint[] IS NULL OR l.branch_id=ANY($2::bigint[]))
+          GROUP BY l.branch_id
+        ), gl AS (
+          SELECT coalesce(jl.branch_id,je.branch_id) branch_id,coalesce(sum(jl.debit-jl.credit),0)::numeric ledger_value
+          FROM journal_entries je JOIN journal_lines jl ON jl.journal_entry_id=je.id JOIN accounts a ON a.id=jl.account_id
+          WHERE je.business_id=$1 AND je.status='posted' AND a.account_code IN ('1131','1132','1133','1134') AND ($2::bigint[] IS NULL OR coalesce(jl.branch_id,je.branch_id)=ANY($2::bigint[]))
+          GROUP BY coalesce(jl.branch_id,je.branch_id)
+        )
+        SELECT coalesce(b.name,'Unassigned') branch,coalesce(inv.inventory_value,0)::numeric inventory_value,coalesce(gl.ledger_value,0)::numeric ledger_value,(coalesce(inv.inventory_value,0)-coalesce(gl.ledger_value,0))::numeric difference
+        FROM inv FULL JOIN gl ON gl.branch_id=inv.branch_id LEFT JOIN branches b ON b.id=coalesce(inv.branch_id,gl.branch_id) ORDER BY b.name`,[bid,branchIds]);
+      const rows=q.rows.map(x=>({...x,inventory_value:n(x.inventory_value),ledger_value:n(x.ledger_value),difference:n(x.difference),status:Math.abs(n(x.difference))<=.01?'balanced':'review'}));
+      return {title:'Inventory vs Accounts Reconciliation',columns:[['status','Status'],['branch','Branch'],['inventory_value','Stock Valuation'],['ledger_value','Inventory in Accounts'],['difference','Difference']],rows,summary:{stockValue:rows.reduce((a,x)=>a+x.inventory_value,0),ledgerValue:rows.reduce((a,x)=>a+x.ledger_value,0),difference:rows.reduce((a,x)=>a+x.difference,0)}};
     }
     if(type==='kitchen'){
       const q=await pool.query("SELECT kt.created_at,kt.ticket_no,coalesce(b.name,'-') branch,coalesce(ks.name,'Kitchen') station,ro.order_no,kt.status,kt.priority,round(extract(epoch from (coalesce(kt.ready_at,now())-kt.created_at))/60.0,1)::numeric prep_minutes,kt.printed_count FROM kitchen_tickets kt LEFT JOIN kitchen_stations ks ON ks.id=kt.station_id JOIN restaurant_orders ro ON ro.id=kt.order_id LEFT JOIN branches b ON b.id=kt.branch_id WHERE kt.business_id=$1 AND "+dateSql('kt.created_at::date')+" AND "+branchSql('kt.branch_id')+" ORDER BY kt.created_at DESC",p);
