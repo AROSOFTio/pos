@@ -189,8 +189,8 @@ export default function App(){
   return <div className="ops-ui ops-workspace min-h-screen text-[var(--app-text)]">
       <header className="ops-chrome sticky top-0 z-40 border-b">
         <div className="mx-auto flex h-[62px] max-w-[1600px] items-center gap-3 px-3 sm:px-5">
-          <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-200 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
-          <BusinessBrand name={business} logo={businessLogo} dark/>
+          <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden" aria-label="Open menu"><MenuIcon size={18}/></button>
+          <BusinessBrand name={business} logo={businessLogo}/>
           <nav className="ml-5 hidden flex-1 items-center justify-center gap-1 lg:flex">
             {primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition '+(operationView===name?'active':'')}><Icon size={15}/>{operationLabel(name)}</button>)}
             {secondaryOps.length>0&&<details className="relative">
@@ -201,7 +201,7 @@ export default function App(){
             </details>}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 hover:bg-white/10 sm:block">Management</button>}
+            {hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard')}} className="hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 sm:block">Management</button>}
             <NotificationBell/>
             <StaffQuickMenu user={user} roles={businessRoles.length?businessRoles:[businessRole||user.role]}/>
             <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
@@ -220,13 +220,13 @@ export default function App(){
 
       {sidebar&&<div className="fixed inset-0 z-50 bg-slate-950/35 lg:hidden" onClick={()=>setSidebar(false)}>
         <aside className="ops-chrome absolute inset-y-0 left-0 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[236px] shadow-2xl" onClick={e=>e.stopPropagation()}>
-          <div className="flex h-[64px] items-center border-b border-white/10 px-4"><BusinessBrand name={business} logo={businessLogo} dark/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
+          <div className="flex h-[64px] items-center border-b border-slate-200 px-4"><BusinessBrand name={business} logo={businessLogo}/><button onClick={()=>setSidebar(false)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18}/></button></div>
           <div className="flex-1 overflow-y-auto p-3">
             <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Operate</div>
             <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div>
             {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-2 text-[11px] font-semibold uppercase tracking-[.08em] text-slate-500">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-nav-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[13px] '+(operationView===name?'active':'')}><Icon size={18}/><span>{operationLabel(name)}</span></button>)}</div></>}
           </div>
-          <div className="border-t border-white/10 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-white/10 bg-white/5 py-3 text-[12px] font-semibold text-white">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
+          <div className="border-t border-slate-200 p-3">{hasManagementAccess&&<button onClick={()=>{setWorkspace('management');setView('Dashboard');setSidebar(false)}} className="mb-2 w-full rounded-xl border border-slate-200 bg-white py-3 text-[12px] font-semibold text-slate-700">Open Management</button>}<button onClick={logout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 py-3 text-[12px] font-semibold text-white"><LogOut size={15}/>Sign out</button></div>
         </aside>
       </div>}
     </div>
@@ -236,8 +236,8 @@ export default function App(){
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
     <aside className={'management-sidebar fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[244px] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
-      <div className="flex h-[66px] items-center border-b border-white/10 px-4">
-        <BusinessBrand name={business} logo={businessLogo} dark/>
+      <div className="flex h-[66px] items-center border-b border-slate-200 px-4">
+        <BusinessBrand name={business} logo={businessLogo}/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
       </div>
       <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
@@ -253,7 +253,7 @@ export default function App(){
       <div className="border-t border-slate-100 p-3">
         <button onClick={()=>{setWorkspace('operations');setView(hasRetail?'Supermarket':'POS')}} className="mb-2 w-full rounded-lg bg-[var(--brand-primary)] px-3 py-2.5 text-[11px] font-bold text-white">Open Operations</button>
         <div className="flex items-center gap-2 rounded-xl px-2 py-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-white/10 text-slate-300"><UserRound size={15}/></div>
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><UserRound size={15}/></div>
           <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-medium">{user.name}</div><div className="truncate text-[9px] text-slate-400">{nice(businessRole||user.role)}</div></div>
           <button onClick={logout} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"><LogOut size={15}/></button>
         </div>
