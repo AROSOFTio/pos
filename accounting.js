@@ -459,6 +459,8 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
   });
 
+  app.get('/api/accounting/staff-options',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req);const q=await pool.query("SELECT u.id,u.name,u.email,coalesce(string_agg(DISTINCT ubr.role,', '),ub.role) role FROM user_businesses ub JOIN users u ON u.id=ub.user_id LEFT JOIN user_business_roles ubr ON ubr.user_id=u.id AND ubr.business_id=ub.business_id WHERE ub.business_id=$1 AND ub.active=true AND coalesce(ub.staff_status,'active')='active' AND u.active=true GROUP BY u.id,ub.role ORDER BY u.name,u.email",[bid]);res.json(q.rows)});
+
   app.get('/api/accounting/allowances',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req),q=await pool.query("SELECT ea.*,u.name employee_name,b.name branch_name,t.name terminal_name,a.name payment_account_name FROM employee_allowances ea JOIN users u ON u.id=ea.employee_id LEFT JOIN branches b ON b.id=ea.branch_id LEFT JOIN terminals t ON t.id=ea.terminal_id LEFT JOIN accounts a ON a.id=ea.payment_account_id WHERE ea.business_id=$1 ORDER BY ea.allowance_date DESC,ea.id DESC LIMIT 500",[bid]);res.json(q.rows)});
 
   app.post('/api/accounting/allowances',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','accountant'),async(req,res)=>{
