@@ -31,7 +31,7 @@ const lessons:Lesson[]=[
   'Choose the payment method exactly as the customer paid: Cash, MTN MoMo, Airtel Money, Card, Bank or another enabled method.',
   'Use split payment only when the customer truly paid using more than one method.',
   'Complete the sale and use the generated receipt for printing or sharing.'
- ],mistakes:['Selecting Cash when the customer paid Mobile Money.','Creating a duplicate sale because the screen looked slow.','Changing stock manually instead of correcting the source transaction.'],practice:'Create a sample sale with two items, review the total, choose the correct payment method and locate the receipt.',ready:'The transaction appears in Sales History, stock is reduced where applicable, and the receipt matches the payment.',screenshot:{src:'/training/receipt.webp',caption:'Real MauzoPOS generated receipt example. Use the generated document rather than printing the application screen.'}},
+ ],mistakes:['Selecting Cash when the customer paid Mobile Money.','Creating a duplicate sale because the screen looked slow.','Changing stock manually instead of correcting the source transaction.'],practice:'Create a sample sale with two items, review the total, choose the correct payment method and locate the receipt.',ready:'The transaction appears in Sales History, stock is reduced where applicable, and the receipt matches the payment.',screenshot:{src:'/training-assets/receipt.webp',caption:'Real MauzoPOS generated receipt example. Use the generated document rather than printing the application screen.'}},
 
  {id:'customer',title:'Customers and Open Balances',role:'Cashier / Manager',icon:UsersRound,goal:'Create clean customer records and correctly manage outstanding balances.',why:'Duplicate customer records and unrecorded repayments make balances unreliable.',steps:[
   'Search by customer name or phone before creating a new record.',
@@ -62,7 +62,7 @@ const lessons:Lesson[]=[
   'Mark Served when applicable to your workflow.',
   'Use Rush only for genuinely urgent orders.',
   'Use the generated KOT reprint action if a kitchen ticket must be printed again.'
- ],mistakes:['Marking Ready before food is actually ready.','Using Rush for every ticket.','Creating a new order just to get another KOT.'],practice:'Identify where ticket number, timer, station and status appear on the Kitchen screen.',ready:'You can process a ticket from New to Ready/Served without asking another user what button to press.',screenshot:{src:'/training/kitchen.webp',caption:'MauzoPOS Kitchen / Live Tickets screen. New kitchen tickets appear here automatically.'}},
+ ],mistakes:['Marking Ready before food is actually ready.','Using Rush for every ticket.','Creating a new order just to get another KOT.'],practice:'Identify where ticket number, timer, station and status appear on the Kitchen screen.',ready:'You can process a ticket from New to Ready/Served without asking another user what button to press.',screenshot:{src:'/training-assets/kitchen.webp',caption:'MauzoPOS Kitchen / Live Tickets screen. New kitchen tickets appear here automatically.'}},
 
  {id:'products',title:'Products, Menu Items and Opening Stock',role:'Manager / Storekeeper',icon:Boxes,goal:'Create products correctly so sales and inventory work together.',why:'Poor product setup causes pricing, stock, reorder and reporting errors later.',steps:[
   'Create a clear product name and choose the correct category.',
@@ -133,7 +133,7 @@ const lessons:Lesson[]=[
   'Review KPI totals and detailed rows.',
   'Use Excel, CSV or Download PDF to export the same filtered report.',
   'Use Inventory vs Accounts, Stock Count Variance and other reconciliation reports when investigating differences.'
- ],mistakes:['Downloading before setting the correct date/branch.','Using browser Print instead of Download PDF.','Reading a KPI without checking source-level rows when investigating a problem.'],practice:'Generate a Sales Detail report for one branch and confirm that the exported PDF uses the same filter.',ready:'Your on-screen rows and exported report represent the same date range and branch.',screenshot:{src:'/training/sales-report.webp',caption:'Real MauzoPOS generated Sales Detail PDF. Reports are generated as branded business documents, not screenshots of the web page.'}},
+ ],mistakes:['Downloading before setting the correct date/branch.','Using browser Print instead of Download PDF.','Reading a KPI without checking source-level rows when investigating a problem.'],practice:'Generate a Sales Detail report for one branch and confirm that the exported PDF uses the same filter.',ready:'Your on-screen rows and exported report represent the same date range and branch.',screenshot:{src:'/training-assets/sales-report.webp',caption:'Real MauzoPOS generated Sales Detail PDF. Reports are generated as branded business documents, not screenshots of the web page.'}},
 
  {id:'accounting',title:'Accounting for Non-Accountants',role:'Manager / Accountant',icon:Landmark,goal:'Understand what Mauzo posts automatically and when manual journals are appropriate.',why:'Most operational activity already creates accounting entries. Duplicate manual posting creates errors.',steps:[
   'Use Accounting to review journals, balances and financial statements.',
@@ -170,7 +170,7 @@ const lessons:Lesson[]=[
   'Use Download PDF from Report Centre for reports.',
   'Use reprint/document history where available instead of recreating transactions.',
   'If a PDF does not download, confirm the browser allows downloads and that your session is still active.'
- ],mistakes:['Printing the web application screen.','Creating another sale/order just to print again.'],practice:'Open a generated receipt or report PDF and identify business name, reference number and totals.',ready:'You know which generated document to use for receipts, KOTs and reports.',screenshot:{src:'/training/receipt.webp',caption:'Generated receipt example. The business document is separate from the application screen.'}},
+ ],mistakes:['Printing the web application screen.','Creating another sale/order just to print again.'],practice:'Open a generated receipt or report PDF and identify business name, reference number and totals.',ready:'You know which generated document to use for receipts, KOTs and reports.',screenshot:{src:'/training-assets/receipt.webp',caption:'Generated receipt example. The business document is separate from the application screen.'}},
 
  {id:'endday',title:'End-of-Day Routine',role:'Cashier / Manager',icon:ClipboardCheck,goal:'Finish the day with open orders, cash, approvals and reports under control.',why:'Closing properly prevents unexplained cash, forgotten tickets and unfinished transactions.',steps:[
   'Finish genuine open orders or clearly leave legitimate outstanding orders.',

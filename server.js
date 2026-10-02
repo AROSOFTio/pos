@@ -227,9 +227,9 @@ app.get('/api/training/pdf',auth,async(req,res)=>{
     doc.addPage();
 
     const shots=[
-      {lesson:'Kitchen / Bar Display',path:'/app/apps/web/public/training/kitchen.webp',caption:'Live Kitchen / KDS screen'},
-      {lesson:'Reports and Analytics',path:'/app/apps/web/public/training/sales-report.webp',caption:'Generated Sales Detail report'},
-      {lesson:'Printing and Business Documents',path:'/app/apps/web/public/training/receipt.webp',caption:'Generated receipt'}
+      {lesson:'Kitchen / Bar Display',path:'/app/apps/web/public/training-assets/kitchen.webp',caption:'Live Kitchen / KDS screen'},
+      {lesson:'Reports and Analytics',path:'/app/apps/web/public/training-assets/sales-report.webp',caption:'Generated Sales Detail report'},
+      {lesson:'Printing and Business Documents',path:'/app/apps/web/public/training-assets/receipt.webp',caption:'Generated receipt'}
     ];
     const bottom=()=>doc.page.height-72;
     const addHeader=()=>{drawMauzoSopBrand(doc,{compact:true});doc.y=62;doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748B').text('COMPLETE TRAINING MANUAL',{align:'right'});doc.moveTo(42,76).lineTo(doc.page.width-42,76).lineWidth(.7).strokeColor('#CBD5E1').stroke();doc.y=90};
