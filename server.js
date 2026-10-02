@@ -798,7 +798,7 @@ async function markRestaurantServed(client,bid,orderId,userName,{closeIfPaid=tru
   const oq=await client.query('SELECT * FROM restaurant_orders WHERE id=$1 AND business_id=$2 FOR UPDATE',[orderId,bid]);
   if(!oq.rowCount)throw new Error('Order not found');
   const order=oq.rows[0];
-  if(['closed','cancelled'].includes(order.status))return order;
+  if(order.status==='cancelled')return order;
   await client.query("UPDATE kitchen_ticket_items SET status='served',served_at=coalesce(served_at,now()) WHERE ticket_id IN (SELECT id FROM kitchen_tickets WHERE business_id=$1 AND order_id=$2) AND status<>'served'",[bid,orderId]);
   await client.query("UPDATE kitchen_tickets SET status='served',completed_at=coalesce(completed_at,now()) WHERE business_id=$1 AND order_id=$2 AND status IN ('new','preparing','ready')",[bid,orderId]);
   await client.query("UPDATE restaurant_order_items SET status='served' WHERE order_id=$1 AND status NOT IN ('cancelled','served')",[orderId]);
