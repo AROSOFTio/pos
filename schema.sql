@@ -2093,3 +2093,46 @@ BEGIN
     ALTER TABLE restaurant_tables ADD CONSTRAINT ck_restaurant_table_available_clean CHECK(status<>'available' OR cleanliness_status='clean');
   END IF;
 END $$;
+
+
+-- Mauzo reporting/accounting traceability v2
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payee TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS employee_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS terminal_id BIGINT REFERENCES terminals(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approved_by_name TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_by_name TEXT;
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS notes TEXT;
+
+CREATE TABLE IF NOT EXISTS employee_allowances (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
+  employee_id BIGINT REFERENCES users(id) ON DELETE RESTRICT,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  terminal_id BIGINT REFERENCES terminals(id) ON DELETE SET NULL,
+  cash_session_id BIGINT REFERENCES cash_sessions(id) ON DELETE SET NULL,
+  allowance_type TEXT NOT NULL,
+  amount NUMERIC(14,2) NOT NULL CHECK(amount>0),
+  allowance_date DATE NOT NULL DEFAULT current_date,
+  reason TEXT NOT NULL,
+  department TEXT,
+  payment_method TEXT NOT NULL DEFAULT 'cash',
+  payment_account_id BIGINT REFERENCES accounts(id) ON DELETE SET NULL,
+  reference_no TEXT NOT NULL,
+  approved_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  approved_by_name TEXT,
+  paid_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  paid_by_name TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'posted',
+  created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_by_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,reference_no)
+);
+CREATE INDEX IF NOT EXISTS idx_employee_allowances_business_date ON employee_allowances(business_id,allowance_date,status);
+CREATE INDEX IF NOT EXISTS idx_employee_allowances_employee ON employee_allowances(business_id,employee_id,allowance_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_trace ON expenses(business_id,expense_date,branch_id,terminal_id,payment_method);
