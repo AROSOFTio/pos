@@ -137,7 +137,7 @@ export async function postExpenseAccounting(client,{bid,expenseId,userId=null}){
   const q=await client.query('SELECT * FROM expenses WHERE id=$1 AND business_id=$2',[expenseId,bid]);if(!q.rowCount)throw new Error('Expense not found for accounting');
   const x=q.rows[0],amount=positive(x.amount);if(amount<=0)return null;
   const debit=x.expense_account_id?{accountId:Number(x.expense_account_id),debit:amount,memo:x.description}:{accountKey:'default_expense',debit:amount,memo:x.description};
-  return postJournal(client,{bid,branchId:x.branch_id,cashSessionId:x.cash_session_id,entryDate:isoDateValue(x.expense_date),postingKey:'expense:'+expenseId,sourceModule:'expenses',sourceReference:x.reference_no,referenceType:'expense',referenceId:expenseId,description:x.description,userId,lines:[debit,{accountKey:paymentAccountKey(x.payment_method||'cash'),credit:amount,memo:'Expense payment'}]});
+  return postJournal(client,{bid,branchId:x.branch_id,cashSessionId:x.cash_session_id,entryDate:isoDateValue(x.expense_date),postingKey:'expense:'+expenseId,sourceModule:'expenses',sourceReference:x.reference_no,referenceType:'expense',referenceId:expenseId,description:x.description,userId,lines:[debit,{...(x.payment_account_id?{accountId:Number(x.payment_account_id)}:{accountKey:paymentAccountKey(x.payment_method||'cash')}),credit:amount,memo:'Expense payment'}]});
 }
 export async function postSupplierPaymentAccounting(client,{bid,supplierPaymentId,userId=null}){
   const q=await client.query('SELECT * FROM supplier_payments WHERE id=$1 AND business_id=$2',[supplierPaymentId,bid]);if(!q.rowCount)throw new Error('Supplier payment not found for accounting');
@@ -437,6 +437,26 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
   }
 
   app.get('/api/accounting/reporting',auth,tenant,permit('accounting.view'),async(req,res)=>{try{const bid=await getBiz(req);res.json(await detailedReport(bid,String(req.query.type||'sales'),{from:parseDate(req.query.from),to:parseDate(req.query.to),branchId:Number(req.query.branchId||0)||null,expiryDays:Number(req.query.expiryDays||30)}))}catch(e){res.status(400).json({error:e.message})}});
+
+  app.post('/api/accounting/expenses/detailed',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','accountant'),async(req,res)=>{
+    const bid=await getBiz(req),x=req.body||{},amount=positive(x.amount),method=String(x.paymentMethod||'cash').trim().toLowerCase().replaceAll('_',' '),client=await pool.connect();
+    if(!String(x.description||'').trim()||!(amount>0))return res.status(400).json({error:'Description and positive amount are required'});
+    try{
+      await client.query('BEGIN');
+      const shift=await client.query("SELECT cs.id,cs.branch_id,cs.terminal_id FROM cash_sessions cs WHERE cs.business_id=$1 AND cs.opened_by_user_id=$2 AND cs.status='open' ORDER BY cs.id DESC LIMIT 1",[bid,req.user.id]);
+      if(method==='cash'&&!shift.rowCount)throw new Error('Open your cashier shift before recording a cash expense');
+      const branchId=Number(x.branchId||shift.rows[0]?.branch_id||0)||null,terminalId=Number(x.terminalId||shift.rows[0]?.terminal_id||0)||null;
+      let paymentAccountId=Number(x.paymentAccountId||0)||null;
+      if(paymentAccountId){const aq=await client.query("SELECT id FROM accounts WHERE id=$1 AND business_id=$2 AND account_type='asset' AND is_active=true",[paymentAccountId,bid]);if(!aq.rowCount)throw new Error('Payment/source account is invalid')}
+      else paymentAccountId=Number((await mappedAccount(client,bid,paymentAccountKey(method),paymentAccountKey(method)==='cash'?'1111':'1112')).id);
+      const expenseAccountId=Number(x.expenseAccountId||0)||null;
+      if(expenseAccountId){const eq=await client.query("SELECT id FROM accounts WHERE id=$1 AND business_id=$2 AND account_type IN ('expense','cost_of_sales') AND is_active=true",[expenseAccountId,bid]);if(!eq.rowCount)throw new Error('Expense account is invalid')}
+      const ref='EXP-'+Date.now().toString(36).toUpperCase();
+      const q=await client.query("INSERT INTO expenses(business_id,branch_id,terminal_id,cash_session_id,category,description,amount,expense_date,reference_no,source_type,auto_generated,accounting_treatment,status,payment_method,expense_account_id,payment_account_id,payee,employee_id,department,created_by_user_id,created_by_name,paid_by_user_id,paid_by_name,approved_by_user_id,approved_by_name,notes) VALUES($1,$2,$3,$4,$5,$6,$7,coalesce($8,current_date),$9,'manual',false,'operating_expense','posted',$10,$11,$12,$13,$14,$15,$16,$17,$16,$17,$16,$17,$18) RETURNING *",[bid,branchId,terminalId,shift.rows[0]?.id||null,String(x.category||'General'),String(x.description).trim(),amount,x.expenseDate||null,ref,method,expenseAccountId,paymentAccountId,x.payee||null,Number(x.employeeId||0)||null,x.department||null,req.user.id,req.user.name,x.notes||null]);
+      await postExpenseAccounting(client,{bid,expenseId:Number(q.rows[0].id),userId:req.user.id});
+      await client.query('COMMIT');await audit(req.user,bid,'create','expense',q.rows[0].id,{referenceNo:ref,amount,payee:x.payee||null,paymentAccountId});res.json(q.rows[0]);
+    }catch(e){await client.query('ROLLBACK');res.status(400).json({error:e.message})}finally{client.release()}
+  });
 
   app.get('/api/accounting/allowances',auth,tenant,permit('accounting.view'),async(req,res)=>{const bid=await getBiz(req),q=await pool.query("SELECT ea.*,u.name employee_name,b.name branch_name,t.name terminal_name,a.name payment_account_name FROM employee_allowances ea JOIN users u ON u.id=ea.employee_id LEFT JOIN branches b ON b.id=ea.branch_id LEFT JOIN terminals t ON t.id=ea.terminal_id LEFT JOIN accounts a ON a.id=ea.payment_account_id WHERE ea.business_id=$1 ORDER BY ea.allowance_date DESC,ea.id DESC LIMIT 500",[bid]);res.json(q.rows)});
 
