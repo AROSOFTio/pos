@@ -598,6 +598,47 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     throw new Error('Unknown report type');
   }
 
+
+  app.get('/api/accounting/statements/export',auth,tenant,permit('accounting.export'),async(req,res)=>{try{
+    const bid=await getBiz(req),from=parseDate(req.query.from),to=parseDate(req.query.to)||new Date().toISOString().slice(0,10),format=String(req.query.format||'xlsx');
+    const [bizQ,tbRows,pnlRows,bsRows]=await Promise.all([
+      pool.query('SELECT * FROM businesses WHERE id=$1',[bid]),
+      accountBalanceRows(pool,bid,{asOf:to}),
+      accountBalanceRows(pool,bid,{from,to,types:['revenue','cost_of_sales','expense']}),
+      accountBalanceRows(pool,bid,{asOf:to,types:['asset','liability','equity']})
+    ]);
+    const biz=bizQ.rows[0]||{},tb=tbRows.filter(x=>Math.abs(x.debit)>0.005||Math.abs(x.credit)>0.005);
+    const revenue=pnlRows.filter(x=>x.account_type==='revenue').map(x=>({...x,amount:money(x.credit-x.debit)}));
+    const cogs=pnlRows.filter(x=>x.account_type==='cost_of_sales').map(x=>({...x,amount:money(x.debit-x.credit)}));
+    const expenses=pnlRows.filter(x=>x.account_type==='expense').map(x=>({...x,amount:money(x.debit-x.credit)}));
+    const totalRevenue=money(revenue.reduce((n,x)=>n+x.amount,0)),totalCogs=money(cogs.reduce((n,x)=>n+x.amount,0)),totalExpenses=money(expenses.reduce((n,x)=>n+x.amount,0)),grossProfit=money(totalRevenue-totalCogs),netProfit=money(grossProfit-totalExpenses);
+    const assets=bsRows.filter(x=>x.account_type==='asset'),liabilities=bsRows.filter(x=>x.account_type==='liability'),equity=bsRows.filter(x=>x.account_type==='equity');
+    const totalAssets=money(assets.reduce((n,x)=>n+x.balance,0)),totalLiabilities=money(liabilities.reduce((n,x)=>n+x.balance,0)),postedEquity=money(equity.reduce((n,x)=>n+x.balance,0)),totalEquity=money(postedEquity+netProfit);
+    const safe='MauzoPOS-Financial-Statements-'+to;
+    if(format==='pdf'){
+      res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','inline; filename="'+safe+'.pdf"');
+      const doc=new PDFDocument({size:'A4',margin:36,bufferPages:true,info:{Title:'Financial Statements',Author:biz.name||'MauzoPOS'}});doc.pipe(res);
+      pdfHeader(doc,biz,'FINANCIAL STATEMENTS',to.replaceAll('-',''));
+      pdfMetaGrid(doc,[['Period',(from||'Beginning')+' — '+to],['Currency',biz.currency||'-'],['Generated',new Date().toLocaleString()],['Prepared by',req.user.name||req.user.email||'User']]);
+      pdfSectionTitle(doc,'Trial Balance');
+      pdfTable(doc,biz,['Code','Account','Debit','Credit'],tb.map(x=>[x.account_code,x.name,x.debit,x.credit]),{title:'TRIAL BALANCE',number:to,fontSize:7});
+      pdfSectionTitle(doc,'Profit & Loss');
+      const pnl=[...revenue.map(x=>[x.account_code,x.name,x.amount]),['','Total Revenue',totalRevenue],...cogs.map(x=>[x.account_code,x.name,-x.amount]),['','Gross Profit',grossProfit],...expenses.map(x=>[x.account_code,x.name,-x.amount]),['','Net Profit',netProfit]];
+      pdfTable(doc,biz,['Code','Account','Amount'],pnl,{title:'PROFIT & LOSS',number:to,fontSize:7});
+      pdfSectionTitle(doc,'Balance Sheet');
+      const bs=[...assets.map(x=>[x.account_code,x.name,x.balance]),['','Total Assets',totalAssets],...liabilities.map(x=>[x.account_code,x.name,x.balance]),['','Total Liabilities',totalLiabilities],...equity.map(x=>[x.account_code,x.name,x.balance]),['','Current Earnings',netProfit],['','Total Equity',totalEquity],['','Liabilities + Equity',money(totalLiabilities+totalEquity)]];
+      pdfTable(doc,biz,['Code','Account','Balance'],bs,{title:'BALANCE SHEET',number:to,fontSize:7});
+      pdfFooter(doc,biz);pdfPageNumbers(doc,biz);doc.end();return;
+    }
+    const wb=new ExcelJS.Workbook();wb.creator='MauzoPOS';wb.created=new Date();
+    const addSheet=(name,headers,rows)=>{
+      const ws=wb.addWorksheet(name);ws.addRow([biz.name||'Business']);ws.addRow([name]);ws.addRow(['Period',from||'Beginning',to]);ws.addRow([]);ws.addRow(headers);rows.forEach(r=>ws.addRow(r));ws.getRow(1).font={bold:true,size:15};ws.getRow(2).font={bold:true,size:12};ws.getRow(5).font={bold:true};ws.getRow(5).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F0FF'}};ws.views=[{state:'frozen',ySplit:5}];ws.columns=headers.map((h,i)=>({width:Math.min(34,Math.max(14,String(h).length+2,...rows.slice(0,100).map(r=>String(r[i]??'').length+2)))}));return ws;
+    };
+    const tw=addSheet('Trial Balance',['Code','Account','Debit','Credit'],tb.map(x=>[x.account_code,x.name,x.debit,x.credit]));tw.getColumn(3).numFmt='#,##0.00';tw.getColumn(4).numFmt='#,##0.00';
+    const pw=addSheet('Profit & Loss',['Code','Account','Amount'],[...revenue.map(x=>[x.account_code,x.name,x.amount]),['','Total Revenue',totalRevenue],...cogs.map(x=>[x.account_code,x.name,-x.amount]),['','Gross Profit',grossProfit],...expenses.map(x=>[x.account_code,x.name,-x.amount]),['','Net Profit',netProfit]]);pw.getColumn(3).numFmt='#,##0.00';
+    const bw=addSheet('Balance Sheet',['Code','Account','Balance'],[...assets.map(x=>[x.account_code,x.name,x.balance]),['','Total Assets',totalAssets],...liabilities.map(x=>[x.account_code,x.name,x.balance]),['','Total Liabilities',totalLiabilities],...equity.map(x=>[x.account_code,x.name,x.balance]),['','Current Earnings',netProfit],['','Total Equity',totalEquity],['','Liabilities + Equity',money(totalLiabilities+totalEquity)]]);bw.getColumn(3).numFmt='#,##0.00';
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');res.setHeader('Content-Disposition','attachment; filename="'+safe+'.xlsx"');await wb.xlsx.write(res);res.end();
+  }catch(e){if(!res.headersSent)res.status(400).json({error:e.message})}});
   app.get('/api/accounting/reporting/export',auth,tenant,permit('accounting.export'),async(req,res)=>{try{
     const bid=await getBiz(req),type=String(req.query.type||'sales'),format=String(req.query.format||'xlsx'),requestedBranchId=Number(req.query.branchId||0)||null,branchIds=await reportBranchIds(req,bid,requestedBranchId),report=await detailedReport(bid,type,{from:parseDate(req.query.from),to:parseDate(req.query.to),branchIds,expiryDays:Number(req.query.expiryDays||30)});
     const cols=report.columns||[],rows=report.rows||[],safeName='MauzoPOS-'+type+'-'+new Date().toISOString().slice(0,10);

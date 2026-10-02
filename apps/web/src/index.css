@@ -495,3 +495,84 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .data-table{font-size:12.5px!important}
 .data-table th{font-size:9.5px!important;letter-spacing:.06em!important}
 .data-table td,.data-table th{padding-top:.62rem!important;padding-bottom:.62rem!important}
+
+
+/* compact sidebar proportions + curated sidebar themes */
+.management-sidebar .mgmt-nav-item,
+.ops-side-nav .ops-side-item{
+  min-height:38px!important;
+  font-size:13.5px!important;
+  line-height:1.2!important;
+  font-weight:500!important;
+  gap:10px!important;
+}
+.management-sidebar .mgmt-nav-item svg,
+.ops-side-nav .ops-side-item svg{width:16px!important;height:16px!important;stroke-width:1.8}
+.management-sidebar .mgmt-nav-title,
+.ops-side-nav>div:first-child{font-size:9px!important;letter-spacing:.08em!important}
+.management-sidebar .brand-lockup{gap:9px}
+.management-sidebar .brand-lockup-name{font-size:13px!important}
+.management-sidebar .brand-lockup-sub{font-size:8.5px!important}
+.management-sidebar .brand-lockup-mark{width:31px!important;height:31px!important}
+.management-sidebar nav>div{margin-top:.7rem!important}
+.management-sidebar nav>div:first-child{margin-top:.6rem!important}
+.ops-side-nav>div.space-y-1{row-gap:2px!important}
+
+/* default reference-like light sidebar */
+.management-sidebar.sidebar-theme-brand,
+.ops-side-nav.sidebar-theme-brand{
+  background:#F8F9FD!important;
+  color:#252936!important;
+  border-color:#E8E9F0!important;
+}
+.management-sidebar.sidebar-theme-brand .mgmt-nav-item,
+.ops-side-nav.sidebar-theme-brand .ops-side-item{color:#252936!important}
+.management-sidebar.sidebar-theme-brand .mgmt-nav-item:hover,
+.ops-side-nav.sidebar-theme-brand .ops-side-item:hover{background:#F1EFFF!important;color:#4E28F9!important}
+.management-sidebar.sidebar-theme-brand .mgmt-nav-item.active,
+.ops-side-nav.sidebar-theme-brand .ops-side-item.active{
+  background:#FFFFFF!important;color:#4E28F9!important;
+  box-shadow:0 0 0 1px #E5DEFF,0 3px 9px rgba(78,40,249,.05)!important;
+}
+
+/* optional curated colored themes */
+.management-sidebar.sidebar-theme-purple,
+.ops-side-nav.sidebar-theme-purple{background:#4E28F9!important;border-color:#4E28F9!important;color:#F7F5FF!important}
+.management-sidebar.sidebar-theme-midnight,
+.ops-side-nav.sidebar-theme-midnight{background:#171A2B!important;border-color:#25293D!important;color:#F5F7FA!important}
+.management-sidebar.sidebar-theme-slate,
+.ops-side-nav.sidebar-theme-slate{background:#334155!important;border-color:#475569!important;color:#F8FAFC!important}
+
+.management-sidebar.sidebar-theme-purple .brand-lockup-name,
+.management-sidebar.sidebar-theme-midnight .brand-lockup-name,
+.management-sidebar.sidebar-theme-slate .brand-lockup-name{color:#FFFFFF!important}
+.management-sidebar.sidebar-theme-purple .brand-lockup-sub,
+.management-sidebar.sidebar-theme-midnight .brand-lockup-sub,
+.management-sidebar.sidebar-theme-slate .brand-lockup-sub{color:rgba(255,255,255,.58)!important}
+.management-sidebar.sidebar-theme-purple .mgmt-nav-title,
+.management-sidebar.sidebar-theme-midnight .mgmt-nav-title,
+.management-sidebar.sidebar-theme-slate .mgmt-nav-title,
+.ops-side-nav.sidebar-theme-purple>div:first-child,
+.ops-side-nav.sidebar-theme-midnight>div:first-child,
+.ops-side-nav.sidebar-theme-slate>div:first-child{color:rgba(255,255,255,.58)!important}
+.management-sidebar.sidebar-theme-purple .mgmt-nav-item,
+.management-sidebar.sidebar-theme-midnight .mgmt-nav-item,
+.management-sidebar.sidebar-theme-slate .mgmt-nav-item,
+.ops-side-nav.sidebar-theme-purple .ops-side-item,
+.ops-side-nav.sidebar-theme-midnight .ops-side-item,
+.ops-side-nav.sidebar-theme-slate .ops-side-item{color:rgba(255,255,255,.88)!important}
+.management-sidebar.sidebar-theme-purple .mgmt-nav-item:hover,
+.management-sidebar.sidebar-theme-midnight .mgmt-nav-item:hover,
+.management-sidebar.sidebar-theme-slate .mgmt-nav-item:hover,
+.ops-side-nav.sidebar-theme-purple .ops-side-item:hover,
+.ops-side-nav.sidebar-theme-midnight .ops-side-item:hover,
+.ops-side-nav.sidebar-theme-slate .ops-side-item:hover{background:rgba(255,255,255,.10)!important;color:#FFFFFF!important}
+.management-sidebar.sidebar-theme-purple .mgmt-nav-item.active,
+.management-sidebar.sidebar-theme-midnight .mgmt-nav-item.active,
+.management-sidebar.sidebar-theme-slate .mgmt-nav-item.active,
+.ops-side-nav.sidebar-theme-purple .ops-side-item.active,
+.ops-side-nav.sidebar-theme-midnight .ops-side-item.active,
+.ops-side-nav.sidebar-theme-slate .ops-side-item.active{
+  background:#FFFFFF!important;color:#4E28F9!important;
+  box-shadow:0 3px 10px rgba(15,23,42,.13)!important;
+}

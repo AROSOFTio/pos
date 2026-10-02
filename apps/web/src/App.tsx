@@ -58,7 +58,7 @@ export default function App(){
   const [path,setPath]=useState(window.location.pathname)
   const [workspace,setWorkspace]=useState<'management'|'operations'>('management')
   const [operationsNavPosition,setOperationsNavPosition]=useState<'left'|'top'|'bottom'>('left')
-  const [sidebarStyle,setSidebarStyle]=useState<'brand'|'plain'|'custom'>('brand')
+  const [sidebarStyle,setSidebarStyle]=useState<'brand'|'plain'|'custom'|'purple'|'midnight'|'slate'>('brand')
   const [sidebarColor,setSidebarColor]=useState('')
 
   useEffect(()=>{const onPop=()=>setPath(window.location.pathname);window.addEventListener('popstate',onPop);return()=>window.removeEventListener('popstate',onPop)},[])
@@ -71,7 +71,7 @@ export default function App(){
       setBusinessRole(a.businessRole||user.role);setBusinessRoles(Array.isArray(a.businessRoles)&&a.businessRoles.length?a.businessRoles:[a.businessRole||user.role]);setPermissions(new Set(a.permissions||[]))
       setBusinessLogo(String(theme?.logo_url||''))
       setOperationsNavPosition(['left','top','bottom'].includes(String(theme?.operations_nav_position))?theme.operations_nav_position:'left')
-      setSidebarStyle(['brand','plain','custom'].includes(String(theme?.sidebar_style))?theme.sidebar_style:'brand')
+      setSidebarStyle(['brand','plain','custom','purple','midnight','slate'].includes(String(theme?.sidebar_style))?theme.sidebar_style:'brand')
       setSidebarColor(String(theme?.sidebar_color||''))
       applyTheme(String(theme?.theme_key||'green'),String(theme?.theme_mode||'light'),String(theme?.document_accent||''),String(theme?.theme_background||'clean'),String(theme?.theme_background_scope||'operations'),String(theme?.theme_background_image||''),String(theme?.theme_background_image_fit||'cover'))
     }).catch(()=>{})
@@ -185,7 +185,7 @@ export default function App(){
     {view==='Products'&&canAccessView('Products')&&<Products currency={currency} allowScanning={hasRetail}/>}
     {view==='Suppliers'&&canAccessView('Suppliers')&&<Suppliers currency={currency}/>}
     {view==='Shifts'&&<CashDrawer currency={currency} onOpened={()=>{setWorkspace('operations');setView(hasRestaurant?'Restaurant':'POS')}}/>}
-    {view==='Reports'&&canAccessView('Reports')&&<Reports currency={currency}/>}
+    {view==='Reports'&&canAccessView('Reports')&&<Reports currency={currency} go={safeGo}/>}
     {view==='Staff'&&canAccessView('Staff')&&<Staff/>}
     {view==='Branches'&&canAccessView('Branches')&&<Branches/>}
     {view==='Settings'&&canAccessView('Settings')&&<Settings/>}
@@ -228,13 +228,13 @@ export default function App(){
         </div>
       </header>
 
-      {operationsNavPosition==='left'&&<aside className={'ops-side-nav fixed bottom-0 left-0 top-[62px] z-30 hidden w-[220px] border-r p-3 lg:flex lg:flex-col '+(sidebarStyle==='plain'?'plain':'colored')} style={sidebarStyle==='plain'?undefined:{background:sidebarStyle==='custom'&&sidebarColor?sidebarColor:'var(--brand-primary)'}}>
+      {operationsNavPosition==='left'&&<aside className={'ops-side-nav sidebar-theme-'+sidebarStyle+' fixed bottom-0 left-0 top-[62px] z-30 hidden w-[210px] border-r p-2.5 lg:flex lg:flex-col'} style={sidebarStyle==='custom'&&sidebarColor?{background:sidebarColor}:undefined}>
         <div className="mb-2 px-3 pt-2 text-[9px] font-bold uppercase tracking-[.14em] opacity-70">Operations</div>
-        <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] font-semibold '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div>
-        {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-3 text-[9px] font-bold uppercase tracking-[.14em] opacity-60">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[12px] font-semibold '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div></>}
+        <div className="space-y-1">{primaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div>
+        {secondaryOps.length>0&&<><div className="mb-2 mt-5 px-3 text-[9px] font-bold uppercase tracking-[.14em] opacity-60">Records</div><div className="space-y-1">{secondaryOps.map(([name,Icon]:any)=><button key={name} onClick={()=>safeGo(name as ViewKey)} className={'ops-side-item flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium '+(operationView===name?'active':'')}><Icon size={17}/>{operationLabel(name)}</button>)}</div></>}
       </aside>}
 
-      <main className={'max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6 '+(operationsNavPosition==='left'?'lg:ml-[220px]':'mx-auto')+(operationsNavPosition==='bottom'?' lg:pb-24':'')}>
+      <main className={'max-w-[1600px] px-3 pb-20 pt-4 sm:px-5 lg:pb-6 '+(operationsNavPosition==='left'?'lg:ml-[210px]':'mx-auto')+(operationsNavPosition==='bottom'?' lg:pb-24':'')}>
         <div className="page-enter"><ViewErrorBoundary key={operationView} onBack={()=>setView((allowedOps[0]?.[0]||'POS') as ViewKey)}>{renderOperationView()}</ViewErrorBoundary></div>
       </main>
 
@@ -264,13 +264,13 @@ export default function App(){
   return <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
     {sidebar&&<button aria-label="Close menu" onClick={()=>setSidebar(false)} className="fixed inset-0 z-40 bg-slate-950/20 lg:hidden"/>}
 
-    <aside className={'management-sidebar fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[244px] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')}>
+    <aside className={'management-sidebar sidebar-theme-'+sidebarStyle+' fixed inset-y-0 left-0 z-50 flex w-[86vw] max-w-[320px] flex-col border-r lg:w-[232px] transition-transform duration-200 lg:translate-x-0 '+(sidebar?'translate-x-0':'-translate-x-full')} style={sidebarStyle==='custom'&&sidebarColor?{background:sidebarColor}:undefined}>
       <div className="flex h-[66px] items-center border-b border-slate-200 px-4">
         <BusinessBrand name={business} logo={businessLogo}/>
         <button onClick={()=>setSidebar(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 lg:hidden"><X size={17}/></button>
       </div>
-      <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-4">
-        <div className="mt-4"><button onClick={()=>safeGo('Dashboard')} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12px] '+(view==='Dashboard'?'active font-semibold':'font-medium')}><LayoutDashboard size={16}/>Overview</button></div>
+      <nav className="sidebar-scroll flex-1 overflow-y-auto px-2 pb-3">
+        <div className="mt-3"><button onClick={()=>safeGo('Dashboard')} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] '+(view==='Dashboard'?'active font-semibold':'font-medium')}><LayoutDashboard size={16}/>Overview</button></div>
         {managementRows.length>0&&<>
           <NavGroup title="Control" rows={managementRows.filter(([name]:any)=>['Approvals','Shifts'].includes(name))} view={view} go={safeGo}/>
           <NavGroup title="Stock & Purchasing" rows={managementRows.filter(([name]:any)=>['Products','Inventory','Purchasing','Suppliers'].includes(name))} view={view} go={safeGo}/>
@@ -290,7 +290,7 @@ export default function App(){
       </div>
     </aside>
 
-    <main className="management-main min-w-0 lg:ml-[244px]">
+    <main className="management-main min-w-0 lg:ml-[232px]">
       <header className="management-header sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b px-3 sm:px-5 lg:px-6">
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
@@ -317,7 +317,7 @@ class ViewErrorBoundary extends Component<{children:ReactNode;onBack:()=>void},{
   }
 }
 
-function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){if(!rows.length)return null;return <div className="mt-4"><div className="mgmt-nav-title mb-1.5 px-3 text-[9px] font-bold uppercase tracking-[.14em]">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12px] transition-colors '+(view===name?'active font-semibold':'font-medium')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
+function NavGroup({title,rows,view,go}:{title:string;rows:readonly (readonly [string,any])[];view:ViewKey;go:(v:ViewKey)=>void}){if(!rows.length)return null;return <div className="mt-3"><div className="mgmt-nav-title mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[.14em]">{title}</div><div className="space-y-0.5">{rows.map(([name,Icon])=><button key={name} onClick={()=>go(name as ViewKey)} className={'mgmt-nav-item flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors '+(view===name?'active font-semibold':'font-medium')}><Icon size={16}/><span>{name==='Staff'?'Users & Roles':name}</span></button>)}</div></div>}
 function MobileNav({icon:Icon,label,active,onClick}:{icon:any;label:string;active:boolean;onClick:()=>void}){return <button onClick={onClick} className={'flex flex-col items-center justify-center gap-1 text-[9px] '+(active?'font-medium text-[var(--brand-primary)]':'text-slate-400')}><Icon size={18}/><span>{label}</span></button>}
 
 function BusinessBrand({name,logo,dark=false}:{name:string;logo:string;dark?:boolean}){

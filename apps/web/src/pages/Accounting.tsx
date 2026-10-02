@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Building2, CircleDollarSign, Landmark, Plus, RefreshCw, Scale, WalletCards } from 'lucide-react'
+import { BookOpen, Building2, CircleDollarSign, Download, FileSpreadsheet, Landmark, Plus, RefreshCw, Scale, WalletCards } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { api, money, nice } from '../api'
+import { api, downloadFile, money, nice } from '../api'
 import { Badge, DataTable, Loading, Modal, PageHeading, Panel, Stat } from '../components'
 
 type Tab='overview'|'coa'|'journals'|'ledger'|'statements'|'cashbook'|'allowances'|'setup'
@@ -21,6 +21,8 @@ export default function Accounting({currency}:{currency:string}){
  const [journalOpen,setJournalOpen]=useState(false),[journal,setJournal]=useState<any>({entryDate:today(),description:'',notes:'',lines:[{accountId:'',debit:'',credit:'',memo:''},{accountId:'',debit:'',credit:'',memo:''}]}),[saving,setSaving]=useState(false)
  const qs=useMemo(()=>new URLSearchParams({from,to}).toString(),[from,to])
  const title=tools.find(([v])=>v===tab)?.[1]||'Accounting'
+ const [exporting,setExporting]=useState('')
+ async function exportStatements(format:'xlsx'|'pdf'){setExporting(format);try{await downloadFile('/accounting/statements/export?from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+'&format='+format)}finally{setExporting('')}}
  const loadBase=()=>{setLoadError('');return Promise.all([api('/accounting/accounts'),api('/accounting/dashboard?'+qs)]).then(([a,o])=>{setAccounts(a);setOverview(o)}).catch((e:any)=>{setAccounts([]);setOverview(null);setLoadError(e?.message||'Accounting data could not be loaded')})}
  useEffect(()=>{loadBase()},[qs])
  useEffect(()=>{
@@ -58,7 +60,9 @@ export default function Accounting({currency}:{currency:string}){
  }
 
  return <div>
-  <PageHeading eyebrow="Management · Finance" title={title} sub={tab==='overview'?'A live financial picture of revenue, margin, cash, obligations and ledger health.':'Accounting records and controls connected to POS, inventory, purchasing and shifts.'} action={<div className="flex items-center gap-2">
+  <PageHeading eyebrow="Management · Finance" title={title} sub={tab==='overview'?'A live financial picture of revenue, margin, cash, obligations and ledger health.':'Accounting records and controls connected to POS, inventory, purchasing and shifts.'} action={<div className="flex flex-wrap items-center justify-end gap-2">
+   <button onClick={()=>exportStatements('xlsx')} disabled={!!exporting} className="ui-btn"><FileSpreadsheet size={14}/>{exporting==='xlsx'?'Preparing…':'Financial Excel'}</button>
+   <button onClick={()=>exportStatements('pdf')} disabled={!!exporting} className="ui-btn"><Download size={14}/>{exporting==='pdf'?'Preparing…':'Financial PDF'}</button>
    <select aria-label="Open accounting section" value={tab} onChange={e=>setTab(e.target.value as Tab)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-medium text-slate-700 outline-none">{tools.map(([v,label])=><option key={v} value={v}>{label}</option>)}</select>
    {tab==='allowances'?<button onClick={()=>setAllowanceOpen(true)} className="rounded-xl bg-slate-950 px-3.5 py-2.5 text-[11px] font-semibold text-white"><Plus size={14} className="mr-1 inline"/>Allowance</button>:<button onClick={()=>setJournalOpen(true)} className="rounded-xl bg-slate-950 px-3.5 py-2.5 text-[11px] font-semibold text-white"><Plus size={14} className="mr-1 inline"/>Journal</button>}
   </div>}/>
