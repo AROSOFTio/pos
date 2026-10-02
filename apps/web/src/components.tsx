@@ -5,8 +5,8 @@ import { ArrowUpRight, X } from 'lucide-react'
 export function PageHeading({eyebrow,title,sub,action}:{eyebrow:string;title:string;sub:string;action?:ReactNode}) {
   return <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div className="min-w-0">
-      {eyebrow&&<div className="text-[10px] font-bold uppercase tracking-[.14em] text-[var(--brand-primary)]">{eyebrow}</div>}
-      <h2 className={(eyebrow?'mt-1 ':'')+"text-[22px] font-bold tracking-[-.035em] text-slate-950 sm:text-[27px]"}>{title}</h2>
+      {eyebrow&&<div className="ui-eyebrow">{eyebrow}</div>}
+      <h2 className={(eyebrow?'mt-1 ':'')+"ui-page-title"}>{title}</h2>
       {sub&&<p className="mt-1 max-w-3xl text-[12px] leading-5 text-slate-500">{sub}</p>}
     </div>
     {action&&<div className="shrink-0">{action}</div>}
