@@ -842,13 +842,14 @@ INSERT INTO module_catalog(code,name,description,monthly_price,core) VALUES
 ('customers','Customers','Customer accounts and loyalty',0,true),
 ('expenses','Expenses','Expense tracking',0,true),
 ('reports','Advanced Reports','Advanced reporting and analytics',30000,false),
-('purchasing','Purchasing','Suppliers, purchase orders and receiving',25000,false),
+('purchasing','Purchasing & Receiving','Supplier orders, receiving and payables',0,true),
 ('restaurant','Restaurant','Tables, reservations and kitchen workflows',50000,false),
 ('pharmacy','Pharmacy','Batch, expiry and pharmacy controls',50000,false),
 ('payroll','Payroll & HR','Staff, attendance and payroll',40000,false),
 ('production','Production','Recipes, BOM and manufacturing',45000,false),
 ('route_sales','Route Sales','Field sales agents and route stock',35000,false)
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,monthly_price=EXCLUDED.monthly_price,core=EXCLUDED.core;
+UPDATE module_catalog SET name='Purchasing & Receiving',description='Supplier orders, receiving and payables',monthly_price=0,core=true,active=true WHERE code='purchasing';
 
 INSERT INTO businesses(name,country,currency,trial_ends_at)
 SELECT 'Demo Business','Uganda','UGX',now()+interval '14 days'
@@ -897,6 +898,7 @@ SELECT b.id,m.code,
   CASE WHEN m.core THEN NULL ELSE b.trial_ends_at END
 FROM businesses b CROSS JOIN module_catalog m
 ON CONFLICT(business_id,module_code) DO NOTHING;
+UPDATE tenant_modules SET enabled=true,trial=false,expires_at=NULL WHERE module_code='purchasing';
 
 
 ALTER TABLE businesses ADD COLUMN IF NOT EXISTS default_tax_rate NUMERIC(8,4) NOT NULL DEFAULT 0;

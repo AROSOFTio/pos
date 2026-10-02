@@ -113,7 +113,7 @@ export default function App(){
     if(name==='Products')return elevated||hasRole('branch_manager','restaurant_manager','storekeeper')
     if(name==='Inventory')return elevated||hasRole('branch_manager','restaurant_manager','storekeeper','auditor')
     if(name==='Suppliers')return elevated||hasRole('branch_manager','storekeeper')
-    if(name==='Purchasing')return enabled.has('purchasing')&&(elevated||hasRole('branch_manager','storekeeper','accountant'))
+    if(name==='Purchasing')return elevated||hasRole('branch_manager','storekeeper','accountant')
     if(name==='Expenses')return elevated||hasRole('branch_manager','accountant','auditor')
     if(name==='Accounting')return can('accounting.view')||hasRole('accountant','auditor')
     if(name==='Shifts')return elevated||hasRole('branch_manager','accountant','auditor')
@@ -166,7 +166,7 @@ export default function App(){
     {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={safeGo}/>}
     {view==='Customers'&&<Customers currency={currency}/>}
     {view==='Approvals'&&canAccessView('Approvals')&&<Approvals currency={currency}/>}
-    {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency} onOpenPurchasing={()=>setView('Purchasing')}/>}
+    {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency} onOpenPurchasing={()=>safeGo('Purchasing')}/>}
     {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
     {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
     {view==='Accounting'&&canAccessView('Accounting')&&<Accounting currency={currency}/>}

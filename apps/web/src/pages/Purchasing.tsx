@@ -8,7 +8,7 @@ type DraftItem={productId:number;name:string;qty:number;unitCost:number}
 export default function Purchasing({currency}:{currency:string}){
  const [o,setO]=useState<any>({openOrders:0,purchaseValueMonth:0,receiptsToday:0,lowStock:0}),[pos,setPos]=useState<any[]>([]),[grns,setGrns]=useState<any[]>([]),[invoices,setInvoices]=useState<any[]>([]),[returns,setReturns]=useState<any[]>([]),[section,setSection]=useState<'orders'|'invoices'|'returns'>('orders')
  const [loadError,setLoadError]=useState('')
- const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false)
+ const [createOpen,setCreateOpen]=useState(false),[preview,setPreview]=useState(false),[receiveChooser,setReceiveChooser]=useState(false)
  const [suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([]),[supplierProducts,setSupplierProducts]=useState<any[]>([])
  const [supplierId,setSupplierId]=useState<number>(0),[branchId,setBranchId]=useState<number>(0),[selectedProduct,setSelectedProduct]=useState<number>(0),[notes,setNotes]=useState('')
  const [items,setItems]=useState<DraftItem[]>([]),[saving,setSaving]=useState(false)
@@ -72,8 +72,10 @@ export default function Purchasing({currency}:{currency:string}){
  }
  async function openReceive(po:any){
    const d=await api('/purchase-orders/'+po.id)
+   setReceiveChooser(false)
    setReceivePo(d.order);setReceiveItems((d.items||[]).filter((x:any)=>Number(x.qty_received)<Number(x.qty_ordered)).map((x:any)=>({itemId:Number(x.id),name:x.product_name,qty:Math.max(0,Number(x.qty_ordered)-Number(x.qty_received)),unitCost:Number(x.unit_cost||0),lotNo:'',expiryDate:'',lotTrackingRequired:!!x.lot_tracking_required})));setReceiveRef('');setReceiveNotes('')
  }
+ const receivablePos=pos.filter(x=>['ordered','partial'].includes(String(x.status)))
  async function postReceive(){
    if(!receivePo||!receiveItems.some(x=>Number(x.qty)>0))return
    const missing=receiveItems.filter(x=>Number(x.qty)>0&&x.lotTrackingRequired&&(!x.lotNo.trim()||!x.expiryDate))
@@ -90,7 +92,7 @@ export default function Purchasing({currency}:{currency:string}){
  }
 
  return <div>
-  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receipts, invoices and returns." action={<div className="flex flex-wrap gap-2"><button onClick={openCreate} className="ui-btn ui-btn-primary"><Plus size={14}/>New PO</button><button onClick={()=>{setSection('orders');document.getElementById('open-purchase-orders')?.scrollIntoView({behavior:'smooth',block:'start'})}} className="ui-btn"><Truck size={14}/>Receive Delivery</button><button onClick={openInvoice} className="ui-btn"><ReceiptText size={14}/>Supplier Invoice</button><button onClick={openReturn} className="ui-btn"><ClipboardList size={14}/>Purchase Return</button></div>}/>
+  <PageHeading eyebrow="Procurement" title="Purchasing & Payables" sub="Orders, receipts, invoices and returns." action={<div className="flex flex-wrap gap-2"><button onClick={openCreate} className="ui-btn ui-btn-primary"><Plus size={14}/>New PO</button><button onClick={()=>setReceiveChooser(true)} className="ui-btn"><Truck size={14}/>Receive Delivery</button><button onClick={openInvoice} className="ui-btn"><ReceiptText size={14}/>Supplier Invoice</button><button onClick={openReturn} className="ui-btn"><ClipboardList size={14}/>Purchase Return</button></div>}/>
   {loadError&&<div className="mb-3 flex items-center justify-between rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[12px] text-red-700"><span>{loadError}</span><button onClick={load} className="font-semibold">Retry</button></div>}
   <div className="mb-4 flex gap-1 rounded-xl border border-slate-200 bg-white p-1"><button onClick={()=>setSection('orders')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='orders'?'bg-slate-950 text-white':'text-slate-500')}>Purchase Orders</button><button onClick={()=>setSection('invoices')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='invoices'?'bg-slate-950 text-white':'text-slate-500')}>Supplier Invoices</button><button onClick={()=>setSection('returns')} className={'rounded-lg px-3.5 py-2 text-[11px] font-medium '+(section==='returns'?'bg-slate-950 text-white':'text-slate-500')}>Returns</button></div>
   {section==='orders'&&<>
@@ -101,7 +103,7 @@ export default function Purchasing({currency}:{currency:string}){
     <Stat label="Low Stock" value={o.lowStock} sub="Needs attention" icon={AlertTriangle} tone={o.lowStock?'amber':'emerald'}/>
   </div>
   <div className="grid xl:grid-cols-[1.3fr_.7fr] gap-4 mt-4">
-    <div id="open-purchase-orders"><Panel title="Purchase Orders"><DataTable head={['PO','Supplier','Status','Received','Total','Actions']} rows={pos.map(x=>[
+    <div id="open-purchase-orders"><Panel title="Purchase Orders">{pos.length?<DataTable head={['PO','Supplier','Status','Received','Total','Actions']} rows={pos.map(x=>[
       <div><b>{x.po_no}</b><div className="text-[11px] text-slate-400">{x.branch_name}</div></div>,
       x.supplier_name,
       <Badge tone={x.status==='rejected'?'red':x.status==='ordered'||x.status==='received'?'green':x.status==='pending_approval'?'amber':'slate'}>{nice(x.status)}</Badge>,
@@ -111,8 +113,8 @@ export default function Purchasing({currency}:{currency:string}){
         {(x.status==='draft'||x.status==='rejected')&&<button onClick={()=>setSubmitPo(x)} className="rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-medium">{x.status==='rejected'?'Resubmit':'Submit'}</button>}{(x.status==='ordered'||x.status==='partial')&&<button onClick={()=>openReceive(x)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-white">Receive</button>}
         <button onClick={()=>openPdf('/documents/purchase-order/'+x.id+'/pdf')} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-600" title="Open PDF"><FileText size={15}/></button>
       </div>
-    ])}/></Panel></div>
-    <Panel title="Recent GRNs"><DataTable head={['GRN','Supplier','Total']} rows={grns.slice(0,12).map(x=>[<b>{x.grn_no}</b>,x.supplier_name,money(x.total,currency)])}/></Panel>
+    ])}/>:<div className="py-10 text-center text-[12px] text-slate-400">No purchase orders yet.</div>}</Panel></div>
+    <Panel title="Recent GRNs">{grns.length?<DataTable head={['GRN','Supplier','Total']} rows={grns.slice(0,12).map(x=>[<b>{x.grn_no}</b>,x.supplier_name,money(x.total,currency)])}/>:<div className="py-10 text-center text-[12px] text-slate-400">No goods received yet.</div>}</Panel>
   </div>  </>}
 
   {section==='invoices'&&<>
@@ -130,7 +132,7 @@ export default function Purchasing({currency}:{currency:string}){
 
 
 
-  {section==='returns'&&<Panel title="Purchase Returns" sub="Stock returned to suppliers is removed from inventory and credited to the supplier ledger.">
+  {section==='returns'&&<Panel title="Purchase Returns" sub="Supplier stock returns.">
     {returns.length?<DataTable head={['Return','Supplier','PO / GRN','Reason','Total','Date']} rows={returns.map(x=>[<b>{x.return_no}</b>,x.supplier_name,<div className="text-[10px]">{x.po_no||'-'}<div className="text-slate-400">{x.grn_no||''}</div></div>,x.reason,money(x.total,currency),new Date(x.created_at).toLocaleString()])}/>:<div className="py-10 text-center text-[11px] text-slate-400">No purchase returns yet.</div>}
   </Panel>}
 
@@ -156,6 +158,10 @@ export default function Purchasing({currency}:{currency:string}){
       </div>
       <div className="mt-4 flex justify-end gap-2"><button onClick={()=>setPreview(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium">Back</button><button onClick={savePO} disabled={saving} className="rounded-xl bg-slate-900 text-white px-4 py-2.5 text-sm font-medium">{saving?'Saving…':'Save Draft PO'}</button></div>
     </div>}
+  </Modal>}
+
+  {receiveChooser&&<Modal title="Receive Delivery" onClose={()=>setReceiveChooser(false)} size="md">
+    {receivablePos.length?<div className="space-y-2">{receivablePos.map(po=><button key={po.id} onClick={()=>openReceive(po)} className="flex w-full items-center justify-between rounded-xl border border-slate-200 p-3 text-left hover:border-[var(--brand-primary)] hover:bg-slate-50"><div><div className="text-[13px] font-semibold text-slate-900">{po.po_no}</div><div className="mt-0.5 text-[11px] text-slate-500">{po.supplier_name} · {po.branch_name||'Main branch'}</div></div><div className="text-right"><div className="text-[11px] font-semibold text-slate-700">{Number(po.received_qty||0)} / {Number(po.total_qty||0)}</div><div className="text-[10px] text-slate-400">{nice(po.status)}</div></div></button>)}</div>:<div className="py-8 text-center"><Truck size={28} className="mx-auto text-slate-300"/><div className="mt-3 text-[14px] font-semibold text-slate-800">No deliveries ready</div><div className="mt-1 text-[12px] text-slate-500">Create and approve a purchase order first.</div><button onClick={()=>{setReceiveChooser(false);openCreate()}} className="ui-btn ui-btn-primary mt-4"><Plus size={14}/>New Purchase Order</button></div>}
   </Modal>}
 
   {receivePo&&<Modal title={'Receive '+receivePo.po_no} onClose={()=>!saving&&setReceivePo(null)} size="xl">
@@ -195,7 +201,7 @@ export default function Purchasing({currency}:{currency:string}){
   </Modal>}
 
   {submitPo&&<Modal title={(submitPo.status==='rejected'?'Resubmit ':'Submit ')+submitPo.po_no+' for Approval'} onClose={()=>setSubmitPo(null)}>
-    <p className="text-sm text-slate-500">Add a note for the responsible supervisor. Urgent requests are placed first in the approval queue.</p>
+
     <textarea value={submitNote} onChange={e=>setSubmitNote(e.target.value)} className="mt-4 w-full min-h-28 rounded-xl border border-slate-200 p-3" placeholder="Approval note"/>
     <label className="mt-3 flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-[13px] font-medium text-amber-800"><input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)}/>Mark as urgent</label>
     <button onClick={sendApproval} className="mt-4 w-full rounded-xl bg-slate-900 text-white py-3 font-medium">Submit for Approval</button>
