@@ -116,19 +116,6 @@ export default function Settings(){
    patch('logo_url',b.logoUrl);setMessage('Logo uploaded.')
  }
 
- async function uploadBackground(file?:File){
-   if(!file)return
-   setMessage('');setError('')
-   if(file.size>5*1024*1024){setError('Background image must be 5MB or smaller.');return}
-   const fd=new FormData();fd.append('image',file)
-   const token=localStorage.getItem('pos_token')
-   const r=await fetch('/api/document-settings/background',{method:'POST',headers:{Authorization:'Bearer '+token},body:fd})
-   const b=await r.json().catch(()=>({}))
-   if(!r.ok){setError(b.error||'Background upload failed.');return}
-   const next={...s,theme_background:'image',theme_background_image:b.backgroundImage}
-   setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background,next.theme_background_scope||'operations',next.theme_background_image||'',next.theme_background_image_fit||'cover')
-   setMessage('Background image uploaded.')
- }
 
  async function addArea(){setError('');try{await api('/restaurant/areas',{method:'POST',body:JSON.stringify(area)});setAreaOpen(false);setArea({branchId:0,name:''});await load()}catch(e:any){setError(e.message)}}
  async function saveTable(){setError('');try{
@@ -218,34 +205,11 @@ export default function Settings(){
               <div className="mt-2 text-[11px] font-semibold text-slate-700">{t.name}</div>
             </button>)}
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="text-[11.5px] font-medium text-slate-600">Workspace background</div>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {[['clean','Clean'],['soft','Soft'],['rich','Rich'],['solid','Solid'],['image','Image']].map(([key,label])=><button key={key} type="button" onClick={()=>{const next={...s,theme_background:key};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',key,next.theme_background_scope||'operations',next.theme_background_image||'',next.theme_background_image_fit||'cover')}} className={'rounded-lg border p-2 text-left '+((s.theme_background||'clean')===key?'border-[var(--brand-primary)]':'border-slate-200')}>
-                  <div className="h-8 rounded-md border border-slate-200" style={{background:key==='clean'?'#EEF2F5':key==='solid'?(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#3B8F5A'):key==='image'&&s.theme_background_image?'url('+s.theme_background_image+') center/cover':key==='rich'?'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#3B8F5A')+' 16%, #F5F7F9)':'color-mix(in srgb, '+(s.document_accent||themes.find(t=>t.key===(s.theme_key||'green'))?.primary||'#3B8F5A')+' 7%, #F5F7F9)'}}/>
-                  <div className="mt-1.5 text-[10.5px] font-semibold text-slate-700">{label}</div>
-                </button>)}
-              </div>
-            </div>
-            <div>
-              <div className="text-[11.5px] font-medium text-slate-600">Background image</div>
-              <label className="mt-2 inline-flex cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-semibold text-slate-600">Upload image<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e=>uploadBackground(e.target.files?.[0])}/></label>
-              <div className="mt-1 text-[9.5px] text-slate-400">PNG, JPG or WebP · max 5MB</div>
-              {s.theme_background_image&&<div className="mt-2 flex items-center gap-2">
-                <div className="h-12 w-20 rounded-md border border-slate-200 bg-cover bg-center" style={{backgroundImage:'url('+s.theme_background_image+')'}}/>
-                <select className="control max-w-[130px]" value={s.theme_background_image_fit||'cover'} onChange={e=>{const fit=e.target.value;const next={...s,theme_background:'image',theme_background_image_fit:fit};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background,next.theme_background_scope||'operations',next.theme_background_image||'',fit)}}>
-                  <option value="cover">Cover</option><option value="contain">Contain</option><option value="repeat">Repeat</option>
-                </select>
-              </div>}
-            </div>
-            <Field label="Apply background to"><select className="control" value={s.theme_background_scope||'operations'} onChange={e=>{const scope=e.target.value;const next={...s,theme_background_scope:scope};setS(next);applyLocalTheme(next.theme_key||'green',next.document_accent||'',next.theme_background||'clean',scope,next.theme_background_image||'',next.theme_background_image_fit||'cover')}}><option value="operations">Operations only</option><option value="all">Entire system</option></select></Field>
-          </div>
           <div className="mt-3 max-w-xs"><Field label="Custom primary colour"><input type="color" className="control h-11 p-1" value={s.document_accent||'#3B8F5A'} onChange={e=>{const v=e.target.value;setS((prev:any)=>({...prev,document_accent:v}));applyLocalTheme(s.theme_key||'green',v,s.theme_background||'clean',s.theme_background_scope||'operations',s.theme_background_image||'',s.theme_background_image_fit||'cover')}}/></Field></div>
         </div>
         <div className="mt-5 border-t border-slate-100 pt-4">
           <div className="text-[12px] font-semibold text-slate-700">Navigation & sidebar</div>
-          <div className="mt-1 text-[10.5px] text-slate-400">Choose where day-to-day operations navigation appears and how the sidebar looks. This changes appearance only; role permissions remain unchanged.</div>
+          <div className="mt-1 text-[10.5px] text-slate-400">Choose the operations navigation position and sidebar treatment. Mauzo keeps the workspace background controlled for a consistent premium appearance; these options affect navigation only.</div>
           <div className="mt-3 grid gap-4 md:grid-cols-3">
             <Field label="Operations navigation"><select className="control" value={s.operations_nav_position||'left'} onChange={e=>patch('operations_nav_position',e.target.value)}><option value="left">Left sidebar (default)</option><option value="top">Top navigation</option><option value="bottom">Bottom navigation</option></select></Field>
             <Field label="Sidebar appearance"><select className="control" value={s.sidebar_style||'brand'} onChange={e=>patch('sidebar_style',e.target.value)}><option value="brand">Brand colour</option><option value="plain">Plain / white</option><option value="custom">Custom colour</option></select></Field>

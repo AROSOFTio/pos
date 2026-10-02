@@ -27,7 +27,7 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
     }catch(e:any){setError(e?.message||'Management analytics could not be loaded')}
   }
   useEffect(()=>{load()},[qs])
-  if(error)return <div><PageHeading eyebrow="Management Intelligence" title="Executive Overview" sub="Live operating and financial analysis across the business."/><Panel title="Dashboard could not load"><div className="rounded-xl bg-red-50 p-4 text-[12px] text-red-700">{error}</div><button onClick={load} className="mt-3 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-semibold text-white">Retry</button></Panel></div>
+  if(error)return <div className="management-dashboard"><PageHeading eyebrow="Management Intelligence" title="Executive Overview" sub="Live operating and financial analysis across the business."/><Panel title="Dashboard could not load"><div className="rounded-xl bg-red-50 p-4 text-[12px] text-red-700">{error}</div><button onClick={load} className="mt-3 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-semibold text-white">Retry</button></Panel></div>
   if(!dash)return <Loading/>
 
   const sales=Number(dash.sales?.total||0),refunds=Number(dash.refunds?.total||0),netSales=sales-refunds
@@ -55,10 +55,10 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
   return <div>
     <PageHeading eyebrow="Management" title="Business Overview" sub="The numbers and exceptions that need your attention." action={<button onClick={load} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[11px] font-medium text-slate-600"><RefreshCw size={13} className="mr-1 inline"/>Refresh</button>}/>
 
-    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-      <label className="text-[10.5px] font-medium text-slate-500">From<input type="date" className="control mt-1" value={from} onChange={e=>setFrom(e.target.value)}/></label>
-      <label className="text-[10.5px] font-medium text-slate-500">To<input type="date" className="control mt-1" value={to} onChange={e=>setTo(e.target.value)}/></label>
-      <label className="text-[10.5px] font-medium text-slate-500">Branch<select className="control mt-1" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+    <div className="mb-3 grid gap-3 sm:grid-cols-3">
+      <label className="text-[11.5px] font-medium text-slate-600">From<input type="date" className="control mt-1" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+      <label className="text-[11.5px] font-medium text-slate-600">To<input type="date" className="control mt-1" value={to} onChange={e=>setTo(e.target.value)}/></label>
+      <label className="text-[11.5px] font-medium text-slate-600">Branch<select className="control mt-1" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -77,7 +77,7 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
       </div>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+    <div className="mt-3 grid gap-3 xl:grid-cols-[1.65fr_1fr]">
       <Panel title="Sales & Profit Trend" sub="Revenue movement against expenses and refunds">
         <div className="h-[320px]">{(dash.trend||[]).length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={dash.trend}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="d" tickFormatter={(v:any)=>String(v).slice(5,10)} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:10}}/><Area type="monotone" dataKey="sales" name="Sales" stroke="var(--brand-primary)" fill="var(--brand-primary)" fillOpacity={.08}/><Area type="monotone" dataKey="expenses" name="Expenses" stroke="#d97706" fill="#d97706" fillOpacity={.04}/><Area type="monotone" dataKey="refunds" name="Refunds" stroke="#dc2626" fill="#dc2626" fillOpacity={.03}/></AreaChart></ResponsiveContainer>:<Empty text="No movement in this period."/>}</div>
       </Panel>
@@ -86,36 +86,36 @@ export default function Dashboard({currency,go}:{currency:string;go:(v:ViewKey)=
       </Panel>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-3">
+    <div className="mt-3 grid gap-3 xl:grid-cols-3">
       <Panel title="Order channel mix" sub="Dine-in, takeaway, delivery and other sales channels"><div className="h-[260px]">{(dash.orderTypes||[]).length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dash.orderTypes} dataKey="total" nameKey="order_type" outerRadius={88}>{dash.orderTypes.map((_:any,i:number)=><Cell key={i} fill={pieColors[i%pieColors.length]}/>)}</Pie><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:9}}/></PieChart></ResponsiveContainer>:<Empty text="No order-channel data."/>}</div></Panel>
       <Panel title="Expense composition" sub="Where operating money is going"><div className="h-[260px]">{(dash.expenseCategories||[]).length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dash.expenseCategories} dataKey="total" nameKey="category" innerRadius={50} outerRadius={86}>{dash.expenseCategories.map((_:any,i:number)=><Cell key={i} fill={pieColors[(i+2)%pieColors.length]}/>)}</Pie><Tooltip formatter={(v:any)=>money(v,currency)}/><Legend wrapperStyle={{fontSize:9}}/></PieChart></ResponsiveContainer>:<Empty text="No expense data."/>}</div></Panel>
       <Panel title="Table status" sub="Current restaurant floor state"><div className="h-[260px]">{tableData.length?<ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={tableData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={84}>{tableData.map((_:any,i:number)=><Cell key={i} fill={pieColors[(i+4)%pieColors.length]}/>)}</Pie><Tooltip/><Legend wrapperStyle={{fontSize:9}}/></PieChart></ResponsiveContainer>:<Empty text="No table data configured."/>}</div></Panel>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-2">
+    <div className="mt-3 grid gap-3 xl:grid-cols-2">
       <Panel title="Sales by branch" sub="Compare branch contribution to revenue"><div className="h-[290px]">{(dash.branches||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.branches} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="#0F172A" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No branch sales in this period."/>}</div></Panel>
       <Panel title="Sales by category" sub="Which menu/product categories generate revenue"><div className="h-[290px]">{(dash.categorySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.categorySales} layout="vertical"><CartesianGrid horizontal={false} strokeDasharray="3 3"/><XAxis type="number" tick={{fontSize:9}}/><YAxis type="category" dataKey="category" width={95} tick={{fontSize:9}}/><Tooltip formatter={(v:any)=>money(v,currency)}/><Bar dataKey="revenue" fill="var(--brand-primary)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer>:<Empty text="No category sales in this period."/>}</div></Panel>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+    <div className="mt-3 grid gap-3 xl:grid-cols-[1.35fr_1fr]">
       <Panel title="Hourly sales pattern" sub="Identify the strongest and weakest trading hours"><div className="h-[280px]">{(dash.hourlySales||[]).length?<ResponsiveContainer width="100%" height="100%"><BarChart data={dash.hourlySales}><CartesianGrid vertical={false} strokeDasharray="3 3"/><XAxis dataKey="hour" tickFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} tick={{fontSize:9}}/><YAxis tick={{fontSize:9}}/><Tooltip labelFormatter={(v:any)=>String(v).padStart(2,'0')+':00'} formatter={(v:any)=>money(v,currency)}/><Bar dataKey="sales" fill="var(--brand-primary)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>:<Empty text="No hourly sales data."/>}</div></Panel>
       <Panel title="Management attention" sub="Items that require action now">
         <div className="space-y-2">{attention.length?attention.map((x:any)=><button key={x.label} onClick={()=>go(x.go)} className="flex w-full items-center justify-between rounded-xl border border-slate-100 px-3.5 py-3 text-left hover:bg-slate-50"><span className="flex items-center gap-2 text-[11px] font-medium text-slate-600"><AlertTriangle size={14} className={x.tone==='red'?'text-red-500':'text-amber-500'}/>{x.label}</span><Badge tone={x.tone}>{x.value}</Badge></button>):<div className="rounded-xl bg-emerald-50 p-4 text-[11px] text-emerald-700">No immediate management exceptions detected.</div>}</div>
-        <div className="mt-4 grid grid-cols-2 gap-2"><Metric label="Refund rate" value={refundRate.toFixed(1)+'%'}/><Metric label="Expense / sales" value={expenseRatio.toFixed(1)+'%'}/><Metric label="Kitchen avg." value={Number(dash.kitchen?.avg_minutes||0).toFixed(1)+' min'}/><Metric label="Active staff" value={String(dash.staff?.count||0)}/></div>
+        <div className="mt-3 grid grid-cols-2 gap-2"><Metric label="Refund rate" value={refundRate.toFixed(1)+'%'}/><Metric label="Expense / sales" value={expenseRatio.toFixed(1)+'%'}/><Metric label="Kitchen avg." value={Number(dash.kitchen?.avg_minutes||0).toFixed(1)+' min'}/><Metric label="Active staff" value={String(dash.staff?.count||0)}/></div>
       </Panel>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-2">
+    <div className="mt-3 grid gap-3 xl:grid-cols-2">
       <Panel title="Top products" sub="Revenue, cost and contribution margin"><DataTable head={['Item','Qty','Revenue','COGS','Contribution']} rows={(dash.topItems||[]).slice(0,8).map((x:any)=>[<b>{x.product_name}</b>,x.qty,money(x.revenue,currency),money(x.cogs,currency),<b>{money(x.contribution,currency)}</b>])}/></Panel>
       <Panel title="Cashier performance" sub="Sales volume and average check by cashier"><DataTable head={['Cashier','Transactions','Sales','Avg check']} rows={(dash.cashiers||[]).map((x:any)=>[<b>{x.cashier}</b>,x.transactions,money(x.sales,currency),money(x.avg_check,currency)])}/></Panel>
     </div>
 
-    <div className="mt-4 grid gap-4 xl:grid-cols-[1.25fr_1fr]">
+    <div className="mt-3 grid gap-3 xl:grid-cols-[1.25fr_1fr]">
       <Panel title="Shift performance" sub="Recent collection and cash-variance control"><DataTable head={['Shift','Cashier','Branch','Collected','Variance','Status']} rows={(dash.shifts||[]).slice(0,12).map((x:any)=>[x.shift_no||'—',x.opened_by||'—',x.branch,money(x.collected,currency),<span className={Math.abs(Number(x.variance||0))>.01?'font-semibold text-red-600':'text-slate-500'}>{money(x.variance,currency)}</span>,<Badge tone={x.status==='open'?'green':'slate'}>{nice(x.status)}</Badge>])}/></Panel>
       <Panel title="Management insights" sub="What the current data is telling you"><div className="space-y-2.5"><Insight icon={TrendingUp} title="Profitability" text={sales?`Gross margin is ${grossMargin.toFixed(1)}% and net margin is ${netMargin.toFixed(1)}% for the selected period.`:'No sales recorded in this period.'}/><Insight icon={WalletCards} title="Payment behaviour" text={topPayment?`${nice(topPayment.payment_method)} is the leading payment method at ${money(topPayment.total,currency)}.`:'No payment mix is available.'}/><Insight icon={ShoppingCart} title="Product demand" text={topItem?`${topItem.product_name} is the highest-revenue item at ${money(topItem.revenue,currency)}, contributing ${money(topItem.contribution,currency)}.`:'No item sales recorded.'}/><Insight icon={Package} title="Category performance" text={topCategory?`${topCategory.category} is the strongest category at ${money(topCategory.revenue,currency)}.`:'No category performance data.'}/><Insight icon={Clock3} title="Kitchen & service" text={`${dash.kitchen?.tickets||0} kitchen tickets were recorded with an average preparation time of ${Number(dash.kitchen?.avg_minutes||0).toFixed(1)} minutes.`}/><Insight icon={UtensilsCrossed} title="Restaurant floor" text={`${dash.tables?.occupied||0} tables are occupied, ${dash.tables?.waiting||0} are waiting for bill and ${dash.tables?.available||0} are available.`}/>{bestBranch&&<Insight icon={BarChart3} title="Branch leader" text={`${bestBranch.name} currently leads branch sales at ${money(bestBranch.sales,currency)}.`}/>}</div></Panel>
     </div>
 
-    <div className="mt-4"><Panel title="Recent management activity" sub="Latest audited changes across the system">{activity.length?<DataTable head={['Time','User','Module','Action','Record']} rows={activity.slice(0,10).map((x:any)=>[new Date(x.created_at).toLocaleString(),x.user_email||'System',nice(x.entity||'system'),<Badge tone="blue">{nice(x.action)}</Badge>,x.entity_id||'—'])}/>:<Empty text="No recent audited activity."/>}</Panel></div>
+    <div className="mt-3"><Panel title="Recent management activity" sub="Latest audited changes across the system">{activity.length?<DataTable head={['Time','User','Module','Action','Record']} rows={activity.slice(0,10).map((x:any)=>[new Date(x.created_at).toLocaleString(),x.user_email||'System',nice(x.entity||'system'),<Badge tone="blue">{nice(x.action)}</Badge>,x.entity_id||'—'])}/>:<Empty text="No recent audited activity."/>}</Panel></div>
   </div>
 }
 

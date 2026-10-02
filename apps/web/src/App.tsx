@@ -290,7 +290,7 @@ export default function App(){
       </div>
     </aside>
 
-    <main className="min-w-0 lg:ml-[244px]">
+    <main className="management-main min-w-0 lg:ml-[244px]">
       <header className="management-header sticky top-0 z-30 flex h-[62px] items-center gap-3 border-b px-3 sm:px-5 lg:px-6">
         <button onClick={()=>setSidebar(true)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 lg:hidden"><MenuIcon size={18}/></button>
         <div className="min-w-0"><h1 className="truncate text-[15px] font-semibold">{view==='Dashboard'?'Overview':view}</h1></div>
@@ -337,7 +337,7 @@ const themePalettes:Record<string,{primary:string;soft:string;border:string;bg:s
   gold:{primary:'#B7791F',soft:'#FFF8E7',border:'#EED7A2',bg:'#FAF9F5',surface:'#FFFFFF',text:'#211D15',muted:'#716856',sidebar:'#FEFDF9'},
   dark:{primary:'#A3E635',soft:'#263119',border:'#3F4B2C',bg:'#0F1419',surface:'#171D23',text:'#F8FAFC',muted:'#94A3B8',sidebar:'#11171C'}
 }
-function applyTheme(key:string,mode:string,customAccent='',background='clean',scope='operations',backgroundImage='',backgroundFit='cover'){
+function applyTheme(key:string,mode:string,customAccent='',background='clean',scope='operations',_backgroundImage='',_backgroundFit='cover'){
   const p=themePalettes[key]||themePalettes.green
   const primary=customAccent||p.primary
   const root=document.documentElement
@@ -349,15 +349,12 @@ function applyTheme(key:string,mode:string,customAccent='',background='clean',sc
   root.style.setProperty('--app-text',p.text)
   root.style.setProperty('--app-muted',p.muted)
   root.style.setProperty('--app-sidebar',p.sidebar)
-  const cleanBg=key==='dark'?p.bg:'#EEF2F5'
-  const tinted=key==='dark'
-    ? (background==='solid'?'#202B1B':background==='rich'?'#182018':background==='soft'?'#131A15':cleanBg)
-    : (background==='solid'?primary:background==='rich'?'color-mix(in srgb, '+primary+' 16%, #F5F7F9)':background==='soft'?'color-mix(in srgb, '+primary+' 7%, #F5F7F9)':cleanBg)
-  root.style.setProperty('--theme-workspace-bg',tinted)
-  root.style.setProperty('--theme-workspace-image',background==='image'&&backgroundImage?'url("'+backgroundImage+'")':'none')
-  root.style.setProperty('--theme-workspace-image-size',backgroundFit==='contain'?'contain':backgroundFit==='repeat'?'auto':'cover')
-  root.style.setProperty('--theme-workspace-image-repeat',backgroundFit==='repeat'?'repeat':'no-repeat')
-  root.style.setProperty('--app-bg',scope==='all'&&background!=='image'?tinted:cleanBg)
+  const cleanBg=key==='dark'?p.bg:'color-mix(in srgb, '+primary+' 3%, #F5F7F9)'
+  root.style.setProperty('--theme-workspace-bg',cleanBg)
+  root.style.setProperty('--theme-workspace-image','none')
+  root.style.setProperty('--theme-workspace-image-size','cover')
+  root.style.setProperty('--theme-workspace-image-repeat','no-repeat')
+  root.style.setProperty('--app-bg',cleanBg)
   root.dataset.theme=key
   root.dataset.mode=mode
   root.dataset.background=background

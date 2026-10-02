@@ -307,3 +307,49 @@ button,input,select,textarea{font-family:inherit}
 .ui-panel-title,.pos-panel-head{font-weight:600}
 .data-table th{font-weight:600;letter-spacing:.01em}
 .brand-lockup-name{font-weight:600!important}
+
+/* 2026-10 premium workspace hierarchy */
+:root{
+  --management-sidebar:#18212A;
+  --management-sidebar-hover:#222D38;
+  --management-sidebar-text:#C5CED7;
+  --management-sidebar-muted:#7F8C99;
+  --operations-sidebar:#263E32;
+  --operations-sidebar-hover:#304C3D;
+  --operations-sidebar-text:#E5ECE8;
+  --workspace-premium:color-mix(in srgb,var(--brand-primary) 3%,#F5F7F9);
+}
+body{background:var(--workspace-premium)}
+.management-main,.ops-workspace{background:var(--workspace-premium)}
+.management-sidebar{background:var(--management-sidebar)!important;color:var(--management-sidebar-text)!important;border-color:#25313C!important;box-shadow:8px 0 28px rgba(15,23,42,.065)}
+.management-sidebar .brand-lockup-name{color:#F8FAFC!important}
+.management-sidebar .brand-lockup-sub{color:#7F8C99!important}
+.management-sidebar .brand-lockup-mark{background:#FFFFFF}
+.management-sidebar .mgmt-nav-title{color:var(--management-sidebar-muted)!important;font-size:9px!important;font-weight:600!important;letter-spacing:.115em!important}
+.management-sidebar .mgmt-nav-item{color:var(--management-sidebar-text)!important;font-size:12.5px!important;line-height:1.35!important;font-weight:500!important;min-height:40px}
+.management-sidebar .mgmt-nav-item:hover{background:var(--management-sidebar-hover)!important;color:#FFFFFF!important}
+.management-sidebar .mgmt-nav-item.active{background:#F8FAFC!important;color:#1E293B!important;box-shadow:inset 3px 0 0 var(--brand-primary),0 8px 20px rgba(0,0,0,.12)!important}
+.management-sidebar>div:last-child{border-color:#2B3742!important}
+.management-sidebar>div:last-child .text-slate-400{color:#8E9AA6!important}
+.management-sidebar>div:last-child .text-slate-300{color:#667482!important}
+.ops-side-nav.colored{background:var(--operations-sidebar)!important;color:var(--operations-sidebar-text)!important;border-color:#314B3C!important;box-shadow:7px 0 24px rgba(15,23,42,.05)!important}
+.ops-side-nav.colored>div:first-child{color:#9FB2A7!important}
+.ops-side-nav.colored .ops-side-item{color:var(--operations-sidebar-text)!important;font-size:12.5px!important;line-height:1.35!important;font-weight:500!important;min-height:41px}
+.ops-side-nav.colored .ops-side-item:hover{background:var(--operations-sidebar-hover)!important;color:#FFFFFF!important}
+.ops-side-nav.colored .ops-side-item.active{background:#FFFFFF!important;color:#23372C!important;box-shadow:inset 3px 0 0 #72A484,0 8px 20px rgba(8,24,15,.12)!important}
+.management-header,.ops-chrome{background:rgba(255,255,255,.98)!important;border-color:#E4E7EC!important;box-shadow:0 1px 0 rgba(15,23,42,.035)}
+.management-main>.page-enter{padding-top:16px!important}
+.management-dashboard{max-width:1480px;margin:0 auto}
+.management-dashboard>.grid,.management-dashboard>.ops-section-strip{margin-top:12px}
+.management-dashboard .pos-panel,.management-dashboard .pos-stat-card{border-color:#E3E8E5;box-shadow:0 6px 22px rgba(15,23,42,.04)}
+.management-dashboard .pos-stat-card{min-height:130px;background:#FFFFFF}
+.management-dashboard .kpi-strip>div{background:#FFFFFF;border-color:#E4E9E6}
+.management-dashboard .ops-section-strip{background:transparent;border:0;padding:0}
+.management-dashboard .control{min-height:40px}
+.ui-page-title{font-size:26px;font-weight:650}
+.ui-eyebrow{font-size:9.5px;font-weight:600}
+.pos-panel-head{min-height:52px;padding:.7rem .9rem}
+.pos-panel{border-radius:13px}
+.data-table td,.data-table th{padding-top:.68rem!important;padding-bottom:.68rem!important}
+.ops-ui,.management-main{background-image:none!important;background-color:var(--workspace-premium)!important}
+html[data-background] .ops-ui section,html[data-background] .ops-ui header{background:#FFFFFF}
