@@ -1104,6 +1104,44 @@ function pdfPageNumbers(doc,biz){
     doc.font('Helvetica').fontSize(7).fillColor('#94A3B8').text('Page '+(i-range.start+1)+' of '+range.count,m,y,{width:right-m,align:'right',lineBreak:false});
   }
 }
+function pdfReportHeader(doc,biz,title,number=''){
+  const m=doc.page.margins.left||30,right=doc.page.width-(doc.page.margins.right||30),usable=right-m,centerX=doc.page.width/2,accent=pdfAccent(biz);
+  let y=16;
+  const logo=drawBusinessLogoCentered(doc,biz,{centerX,y,maxWidth:38,maxHeight:24});
+  if(logo)y=Math.max(18,logo.bottom-2);
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#111827').text(String(biz.name||'Business').toUpperCase(),m,y,{width:usable,align:'center'});
+  y=doc.y+2;
+  doc.font('Helvetica-Bold').fontSize(13.5).fillColor('#0F172A').text(String(title||'REPORT').toUpperCase(),m,y,{width:usable,align:'center'});
+  if(number)doc.font('Helvetica-Bold').fontSize(6.8).fillColor(accent).text(String(number),m,doc.y+1,{width:usable,align:'center'});
+  y=doc.y+5;
+  doc.moveTo(m,y).lineTo(right,y).lineWidth(1.4).strokeColor(accent).stroke();
+  doc.y=y+7;
+  doc.fillColor('#111827');
+}
+function pdfReportMetaStrip(doc,items){
+  const vals=items.filter(x=>x&&x[1]!==undefined&&x[1]!==null&&x[1]!=='');
+  if(!vals.length)return;
+  const x=doc.page.margins.left||30,w=doc.page.width-x-(doc.page.margins.right||30),cols=Math.min(vals.length,6),gap=5,cw=(w-gap*(cols-1))/cols,y=doc.y,h=27;
+  vals.slice(0,6).forEach(([label,value],i)=>{
+    const bx=x+i*(cw+gap);
+    doc.roundedRect(bx,y,cw,h,3).fill('#F8FAFC');
+    doc.font('Helvetica').fontSize(5.8).fillColor('#94A3B8').text(String(label).toUpperCase(),bx+6,y+5,{width:cw-12,ellipsis:true});
+    doc.font('Helvetica-Bold').fontSize(7.4).fillColor('#334155').text(String(value),bx+6,y+14,{width:cw-12,ellipsis:true});
+  });
+  doc.y=y+h+5;
+}
+function pdfReportMetricStrip(doc,biz,cards){
+  if(!cards?.length)return;
+  const x=doc.page.margins.left||30,w=doc.page.width-x-(doc.page.margins.right||30),gap=5,cols=Math.min(cards.length,6),cw=(w-gap*(cols-1))/cols,y=doc.y,h=32,accent=pdfAccent(biz);
+  cards.slice(0,6).forEach((card,i)=>{
+    const bx=x+i*(cw+gap),tone=card.tone==='danger'?'#DC2626':card.tone==='warn'?'#D97706':accent;
+    doc.roundedRect(bx,y,cw,h,3).fill(card.tone==='danger'?'#FEF2F2':card.tone==='warn'?'#FFF7ED':'#F8FAFC');
+    doc.rect(bx,y,2.5,h).fill(tone);
+    doc.font('Helvetica').fontSize(5.8).fillColor('#64748B').text(String(card.label).toUpperCase(),bx+7,y+5,{width:cw-12,ellipsis:true});
+    doc.font('Helvetica-Bold').fontSize(8.8).fillColor(card.tone==='danger'?'#B91C1C':'#0F172A').text(String(card.value),bx+7,y+16,{width:cw-12,ellipsis:true});
+  });
+  doc.y=y+h+5;
+}
 function pdfSectionTitle(doc,title,sub=''){
   const m=doc.page.margins.left||42,accent='#111827';
   doc.moveDown(.2).font('Helvetica-Bold').fontSize(11).fillColor(accent).text(title,m,doc.y);
@@ -1139,7 +1177,7 @@ function pdfTable(doc,biz,columns,rows,opts={}){
     const y=doc.y;doc.roundedRect(margin,y,totalW,24,4).fill(accent);
     let x=margin;columns.forEach((col,i)=>{doc.font('Helvetica-Bold').fontSize(6.8).fillColor('#FFFFFF').text(String(col).toUpperCase(),x+6,y+8,{width:widths[i]-12,ellipsis:true});x+=widths[i]});doc.y=y+28;
   };
-  const ensure=(h=24)=>{if(doc.y+h>doc.page.height-(doc.page.margins.bottom||32)-24){pdfFooter(doc,biz);doc.addPage();pdfHeader(doc,biz,opts.title||'REPORT',opts.number||'');drawHeader()}};
+  const ensure=(h=24)=>{if(doc.y+h>doc.page.height-(doc.page.margins.bottom||32)-24){pdfFooter(doc,biz);doc.addPage();if(opts.compactReport)pdfReportHeader(doc,biz,opts.title||'REPORT',opts.number||'');else pdfHeader(doc,biz,opts.title||'REPORT',opts.number||'');drawHeader()}};
   drawHeader();
   rows.forEach((row,ri)=>{
     ensure(26);const y=doc.y,rowH=24;
@@ -1688,7 +1726,7 @@ async function scheduledReportWorker(){
 }
 function startBackgroundWorkers(){setTimeout(scheduledReportWorker,15000);setInterval(scheduledReportWorker,60000)}
 
-registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission,pdfHeader,pdfFooter,pdfMetaGrid,pdfSectionTitle,pdfTable,pdfMetricCards,pdfMoney,pdfPageNumbers});
+registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission,pdfHeader,pdfFooter,pdfMetaGrid,pdfSectionTitle,pdfTable,pdfMetricCards,pdfMoney,pdfPageNumbers,pdfReportHeader,pdfReportMetaStrip,pdfReportMetricStrip});
 app.get('*',(req,res)=>res.sendFile(process.cwd()+'/public/index.html'));
 
 init().then(()=>app.listen(port,'0.0.0.0',()=>{console.log('POS running on '+port);startBackgroundWorkers()})).catch(e=>{console.error(e);process.exit(1)});
