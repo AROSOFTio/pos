@@ -1144,12 +1144,12 @@ function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
     maxWidth:paper==='58mm'?38:48,
     maxHeight:paper==='58mm'?28:34
   });
-  if(logo)y=logo.bottom+1.5;
+  if(logo)y=Math.max(doc.page.margins.top||10,logo.bottom-(paper==='58mm'?5:7));
 
   doc.font('Courier-Bold')
     .fontSize(paper==='58mm'?8.8:10)
     .fillColor('#111')
-    .text(String(biz.name||'BUSINESS').toUpperCase(),0,y,{width,align:'center'});
+    .text(String(biz.name||'BUSINESS').toUpperCase(),8,y,{width:width-16,align:'center'});
 
   y=doc.y+2;
   const contact=[biz.address,biz.phone,biz.email].filter(Boolean).join(' | ');
@@ -1165,27 +1165,30 @@ function thermalReceiptHeader(doc,biz,title,number,meta=[],paper='80mm'){
     y=doc.y+1;
   }
 
+  const safeX=paper==='58mm'?9:12,safeW=width-safeX*2;
   doc.y=y+1;
-  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
+  doc.font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper,'='),safeX,doc.y,{width:safeW,align:'center'});
   doc.font('Courier-Bold').fontSize(paper==='58mm'?10:11)
-    .text(String(title||biz.receipt_title||'RECEIPT').toUpperCase(),0,doc.y,{width,align:'center'});
-  if(number)doc.font('Courier-Bold').fontSize(8).text('# '+number,0,doc.y,{width,align:'center'});
-  if(biz.receipt_header_note)doc.font('Courier').fontSize(6.5).fillColor('#444').text(biz.receipt_header_note,0,doc.y,{width,align:'center'});
-  doc.moveDown(.15).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),0,doc.y,{width,align:'center'});
+    .text(String(title||biz.receipt_title||'RECEIPT').toUpperCase(),safeX,doc.y,{width:safeW,align:'center'});
+  if(number)doc.font('Courier-Bold').fontSize(8).text('# '+number,safeX,doc.y,{width:safeW,align:'center'});
+  if(biz.receipt_header_note)doc.font('Courier').fontSize(6.5).fillColor('#444').text(biz.receipt_header_note,safeX,doc.y,{width:safeW,align:'center'});
+  doc.moveDown(.15).font('Courier').fontSize(7).fillColor('#111').text(thermalRule(paper),safeX,doc.y,{width:safeW,align:'center'});
   doc.font('Courier').fontSize(7).fillColor('#222');
-  for(const line of meta.filter(Boolean))doc.text(String(line).toUpperCase());
-  doc.text(thermalRule(paper),{align:'center'}).moveDown(.1);
+  for(const line of meta.filter(Boolean)){
+    doc.text(String(line).toUpperCase(),safeX,doc.y,{width:safeW,lineGap:0.5});
+  }
+  doc.text(thermalRule(paper),safeX,doc.y,{width:safeW,align:'center'}).moveDown(.1);
 }
 function thermalItems(doc,biz,paper,items){
-  const width=thermalWidth(paper)-20,qtyW=paper==='58mm'?24:28,totalW=paper==='58mm'?52:62,nameW=width-qtyW-totalW;
-  const xName=10,xQty=xName+nameW,xTotal=xQty+qtyW;
+  const edge=paper==='58mm'?9:12,width=thermalWidth(paper)-edge*2,qtyW=paper==='58mm'?24:28,totalW=paper==='58mm'?52:62,nameW=width-qtyW-totalW;
+  const xName=edge,xQty=xName+nameW,xTotal=xQty+qtyW;
   let y=doc.y;
   doc.font('Courier-Bold').fontSize(paper==='58mm'?6.7:7.3).fillColor('#111');
   doc.text('ITEM',xName,y,{width:nameW});
   doc.text('QTY',xQty,y,{width:qtyW,align:'right'});
   doc.text('TOTAL',xTotal,y,{width:totalW,align:'right'});
   doc.y=y+12;
-  doc.font('Courier').fontSize(7).text(thermalRule(paper),10,doc.y,{width:width,align:'center'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper),xName,doc.y,{width:width,align:'center'});
   for(const i of items){
     const name=String(i.product_name||i.name||'ITEM').toUpperCase();
     const qty=Number(i.qty||0),total=Number(i.line_total??i.total??0);
@@ -1224,10 +1227,11 @@ function thermalKotHeader(doc,biz,x,paper='80mm'){
     maxWidth:paper==='58mm'?36:44,
     maxHeight:paper==='58mm'?26:30
   });
-  if(logo)y=logo.bottom+1.5;
+  if(logo)y=Math.max(doc.page.margins.top||10,logo.bottom-(paper==='58mm'?5:7));
+  const safeX=paper==='58mm'?9:12,safeW=width-safeX*2;
   doc.font('Courier-Bold').fontSize(paper==='58mm'?8:9).fillColor('#111')
-    .text(String(biz.name||'BUSINESS').toUpperCase(),0,y,{width,align:'center'});
-  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
+    .text(String(biz.name||'BUSINESS').toUpperCase(),safeX,y,{width:safeW,align:'center'});
+  doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),safeX,doc.y,{width:safeW,align:'center'});
   doc.font('Courier-Bold').fontSize(13).fillColor('#111').text('KITCHEN ORDER TICKET',0,doc.y,{width,align:'center'});
   doc.font('Courier-Bold').fontSize(9).text('# '+x.ticket_no,0,doc.y,{width,align:'center'});
   doc.font('Courier').fontSize(7).text(thermalRule(paper,'='),0,doc.y,{width,align:'center'});
