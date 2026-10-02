@@ -178,6 +178,110 @@ function drawMauzoSopBrand(doc,{compact=false}={}){
   doc.font('Helvetica').fontSize(compact?6.5:7.5).fillColor('#64748B').text('Sell smarter. Grow faster.',x+40,y+(compact?20:24));
 }
 
+
+const MAUZO_TRAINING_LESSONS=[
+  ['Getting Started with MauzoPOS','Everyone',['Sign in with your own account.','Confirm business, branch and terminal.','Use Operations for daily service and Management for configuration/control.','Know where SOP / Help and Training Manual are located.'],'Practice: Move between Operations and Management and identify your branch.'],
+  ['Cashier: Make a Complete Sale','Cashier / Retail',['Open Sell or Checkout.','Find or scan the correct product and quantity.','Attach a customer only when needed.','Review cart, discounts, tax/service charge and total.','Choose the exact payment method used.','Complete the sale and use the generated receipt.'],'Practice: Complete a two-item test sale and find its receipt.'],
+  ['Customers and Open Balances','Cashier / Manager',['Search before creating a customer.','Use customer credit only when authorised.','Record repayments against the correct customer.','Use history to investigate balances.'],'Practice: Open one customer record and trace their most recent transaction.'],
+  ['Waiter / Restaurant Service','Waiter / Restaurant',['Open Tables / Floor.','Start or continue the correct table order.','Add items and kitchen notes.','Send the order to Kitchen/Bar.','Follow order status.','Review bill and take payment.','Reset the table after payment.'],'Practice: Open a test table, add items and follow status.'],
+  ['Kitchen / Bar Display','Kitchen / Bar',['Read ticket, table/order, station, quantities and notes.','Press Start when preparation begins.','Press Ready only when the item is ready.','Mark Served when applicable.','Use Rush only when necessary.','Use KOT reprint instead of creating another order.'],'Practice: Identify ticket number, timer, station and action buttons.'],
+  ['Products and Opening Stock','Manager / Storekeeper',['Create a clear product name and category.','Enter selling price and unit cost.','Add SKU/barcode where available.','Enter opening quantity only for stock already physically present.','Choose opening location.','Set reorder level.','Enable batch/expiry where required.'],'Practice: Create a sample product with opening location and reorder level.'],
+  ['Inventory / Stock Control','Storekeeper / Manager',['Review Stock on Hand.','Use Correct Stock for found, missing, damaged, wasted, expired or spoiled stock.','Use Move Stock for transfers.','Use Count Stock for physical counts.','Create real stock locations.','Assign batch/expiry only to existing stock.','Use Kitchen Prep for recipe production.','Check Stock History before correcting a discrepancy.'],'Practice: Trace one product from current quantity back through Stock History.'],
+  ['Purchasing and Goods Receiving','Storekeeper / Purchasing',['Create the Purchase Order.','Submit/approve when required.','Receive the actual delivered quantity.','Do not receive more than outstanding PO quantity.','Enter required batch/expiry.','Confirm actual unit cost.','Post Goods Receipt.','Use Purchase Return for supplier returns.'],'Practice: Open a PO and identify ordered, received and outstanding quantities.'],
+  ['Suppliers','Purchasing / Manager',['Create one record per supplier.','Link normal supplier products where useful.','Receive supplier stock through Purchasing rather than Correct Stock.'],'Practice: Find a supplier and review linked purchasing history.'],
+  ['My Shift and Cash Drawer','Cashier / Supervisor',['Open Shift with physical opening cash.','Use Add Float, Pay Out, Cash Drop or Deposit only for their real purpose.','Review Expected Cash.','Count actual cash at close.','Review difference before closing.'],'Practice: Identify Opening, Cash Sales, Expected and Actual cash.'],
+  ['Expenses and Staff Allowances','Manager / Accountant',['Choose the real expense/allowance category.','Record payee or employee.','Enter a clear description.','Choose the true payment source.','Attach evidence where available.','Complete approval if required.','Save once; Mauzo posts the accounting automatically.'],'Practice: Identify category, payee, payment source and evidence fields.'],
+  ['Manager Approvals','Manager / Owner',['Open the pending request.','Review source transaction, user, branch, reason, items and amount.','Approve only justified requests.','Reject incorrect/unclear requests.','Never share manager credentials.'],'Practice: Explain what you would check before approving a wastage or FOC request.'],
+  ['Reports and Analytics','Manager / Accountant / Owner',['Choose the report first.','Set From, To and Branch.','Generate the on-screen source-level report.','Review KPIs and detailed rows.','Use Excel, CSV or Download PDF for the same filters.','Use reconciliation reports when investigating differences.'],'Practice: Generate a Sales Detail report for one branch and compare the PDF filter.'],
+  ['Accounting for Non-Accountants','Manager / Accountant',['Review journals, balances and statements.','Remember operational workflows already post accounting.','Use manual journals only when necessary.','Trace source transactions before correction.','Use Inventory vs Accounts to reconcile stock value.'],'Practice: Open one journal and identify its source module/reference.'],
+  ['Users, Roles and Attendance','Administrator / Manager',['Create staff with the correct identity.','Assign the real job role.','Assign only required branches.','Use Quick PIN for authorised shared-terminal switching.','Review the Role Permission Matrix.','Disable access when staff leave.'],'Practice: Review one user and explain their effective access.'],
+  ['Business Setup and Settings','Administrator / Owner',['Maintain business name, currency, contacts and branding.','Create real branches and terminals/counters.','Create real stock locations.','Configure restaurant floors/tables/stations where used.','Set normal tax/service defaults.','Configure receipt/bill/printer rules.','Review security after staffing changes.'],'Practice: Locate business branding, branch, printer and restaurant settings.'],
+  ['Printing and Business Documents','Everyone',['Use generated receipts and bills.','Use KOT print/reprint from order/Kitchen.','Use Download PDF for reports.','Use reprint/document history rather than recreating a transaction.'],'Practice: Open a generated receipt and identify business name, reference and total.'],
+  ['End-of-Day Routine','Cashier / Manager',['Finish genuine open orders.','Check Kitchen for forgotten active tickets.','Record legitimate final cash movements.','Count and close shifts.','Review approvals, refunds, losses and unusual cash differences.','Run and store/share required daily reports.'],'Practice: Identify what must be clear before the next shift starts.'],
+  ['Troubleshooting Safely','Everyone',['Check shift, stock, approval and payment source when a sale fails.','Check Stock History before correcting stock.','Check role/permissions/branch when a module is missing.','Review all drawer movements before correcting cash.','Allow downloads and confirm session if PDF fails.','Record screen, action, time, branch, error and reference before contacting support.','Do not repeatedly retry financial actions when unsure whether the first attempt posted.'],'Practice: Prepare the information you would send support for a failed sale.']
+];
+
+app.get('/api/training/pdf',auth,async(req,res)=>{
+  try{
+    const doc=new PDFDocument({size:'A4',margin:42,bufferPages:true,info:{Title:'MauzoPOS Complete Training Manual',Author:'MauzoPOS'}});
+    res.setHeader('Content-Type','application/pdf');
+    res.setHeader('Content-Disposition','attachment; filename="MauzoPOS-Training-Manual.pdf"');
+    doc.pipe(res);
+
+    drawMauzoSopBrand(doc);
+    doc.moveDown(4);
+    doc.font('Helvetica-Bold').fontSize(24).fillColor('#0F172A').text('Complete Training Manual');
+    doc.font('Helvetica').fontSize(10).fillColor('#64748B').text('Role-based practical training for everyday MauzoPOS users.');
+    doc.moveDown(.8);
+    doc.roundedRect(42,doc.y,doc.page.width-84,48,6).fill('#F1F5F9');
+    const introY=doc.y;
+    doc.font('Helvetica-Bold').fontSize(8).fillColor('#22A53A').text('TRAINING VS SOP',54,introY+10);
+    doc.font('Helvetica').fontSize(8.3).fillColor('#334155').text('Training teaches users how to work in MauzoPOS through explanation and practice. The SOP remains the shorter approved daily procedure.',54,introY+22,{width:doc.page.width-108});
+    doc.y=introY+62;
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#0F172A').text('Learning Paths');
+    doc.font('Helvetica').fontSize(8).fillColor('#475569').text('Cashier · Waiter · Kitchen/Bar · Storekeeper · Manager · Accountant · Administrator/Owner',{lineGap:2});
+    doc.moveDown(.5);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#0F172A').text('Contents');
+    doc.moveDown(.2);
+    MAUZO_TRAINING_LESSONS.forEach((l,i)=>doc.font('Helvetica').fontSize(7.5).fillColor('#475569').text((i+1)+'. '+l[0]+' · '+l[1]));
+    doc.addPage();
+
+    const shots=[
+      {lesson:'Kitchen / Bar Display',path:'/app/apps/web/public/training/kitchen.webp',caption:'Live Kitchen / KDS screen'},
+      {lesson:'Reports and Analytics',path:'/app/apps/web/public/training/sales-report.webp',caption:'Generated Sales Detail report'},
+      {lesson:'Printing and Business Documents',path:'/app/apps/web/public/training/receipt.webp',caption:'Generated receipt'}
+    ];
+    const bottom=()=>doc.page.height-72;
+    const addHeader=()=>{drawMauzoSopBrand(doc,{compact:true});doc.y=62;doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748B').text('COMPLETE TRAINING MANUAL',{align:'right'});doc.moveTo(42,76).lineTo(doc.page.width-42,76).lineWidth(.7).strokeColor('#CBD5E1').stroke();doc.y=90};
+    const ensure=(h=50)=>{if(doc.y+h>bottom()){doc.addPage();addHeader()}};
+    addHeader();
+
+    MAUZO_TRAINING_LESSONS.forEach((l,idx)=>{
+      ensure(90);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#22A53A').text('LESSON '+String(idx+1).padStart(2,'0')+' · '+String(l[1]).toUpperCase());
+      doc.font('Helvetica-Bold').fontSize(15).fillColor('#0F172A').text(l[0]);
+      doc.moveDown(.35);
+
+      const shot=shots.find(x=>x.lesson===l[0]);
+      if(shot&&fs.existsSync(shot.path)){
+        ensure(180);
+        try{
+          doc.image(shot.path,42,doc.y,{fit:[doc.page.width-84,165],align:'center'});
+          doc.y+=170;
+          doc.font('Helvetica-Oblique').fontSize(7).fillColor('#64748B').text('Screen example: '+shot.caption);
+          doc.moveDown(.35);
+        }catch{}
+      }
+
+      l[2].forEach((step,i)=>{
+        ensure(32);
+        const y=doc.y;
+        doc.roundedRect(42,y,20,20,5).fill('#0F172A');
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#FFFFFF').text(String(i+1),42,y+6,{width:20,align:'center'});
+        doc.font('Helvetica').fontSize(8.4).fillColor('#334155').text(step,70,y+1,{width:doc.page.width-112,lineGap:1.2});
+        doc.y=Math.max(doc.y,y+25);
+      });
+
+      ensure(40);
+      doc.roundedRect(42,doc.y,doc.page.width-84,31,5).fill('#FFF7ED');
+      const py=doc.y;
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#D97706').text('PRACTICE',52,py+7);
+      doc.font('Helvetica').fontSize(7.8).fillColor('#7C2D12').text(l[3],105,py+7,{width:doc.page.width-157});
+      doc.y=py+42;
+    });
+
+    const range=doc.bufferedPageRange();
+    for(let i=range.start;i<range.start+range.count;i++){
+      doc.switchToPage(i);
+      const y=doc.page.height-28;
+      doc.moveTo(42,y-6).lineTo(doc.page.width-42,y-6).lineWidth(.4).strokeColor('#E2E8F0').stroke();
+      doc.font('Helvetica').fontSize(6.5).fillColor('#94A3B8').text('MauzoPOS · Complete Training Manual',42,y,{width:300});
+      doc.text('Page '+(i-range.start+1)+' of '+range.count,doc.page.width-130,y,{width:88,align:'right'});
+    }
+    doc.end();
+  }catch(e){if(!res.headersSent)res.status(500).json({error:'Unable to generate training manual'})}
+});
+
 app.get('/api/public/sop/pdf',(req,res)=>{
   try{
     const doc=new PDFDocument({size:'A4',margin:42,bufferPages:true,info:{Title:'MauzoPOS Standard Operating Procedure',Author:'MauzoPOS',Subject:'Official MauzoPOS Standard Operating Procedure'}});
