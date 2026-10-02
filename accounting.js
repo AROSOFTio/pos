@@ -540,7 +540,7 @@ export function registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rol
     if(type==='reorder'){
       const q=await pool.query(`SELECT CASE WHEN ib.qty<=coalesce(rl.reorder_level,p.reorder_level) THEN 'reorder' ELSE 'ok' END status,p.sku,p.name product,coalesce(b.name,'-') branch,l.name location,ib.qty,coalesce(rl.reorder_level,p.reorder_level)::numeric reorder_level,greatest(0,coalesce(rl.reorder_level,p.reorder_level)-ib.qty)::numeric shortage,ib.avg_cost,(ib.qty*ib.avg_cost)::numeric stock_value
         FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id LEFT JOIN branches b ON b.id=l.branch_id LEFT JOIN inventory_reorder_levels rl ON rl.business_id=ib.business_id AND rl.product_id=ib.product_id AND rl.location_id=ib.location_id
-        WHERE ib.business_id=$1 AND p.active=true AND ($4::bigint[] IS NULL OR l.branch_id=ANY($4::bigint[])) ORDER BY status DESC,p.name,l.name`,p);
+        WHERE ib.business_id=$1 AND p.active=true AND ($2::bigint[] IS NULL OR l.branch_id=ANY($2::bigint[])) ORDER BY status DESC,p.name,l.name`,[bid,branchIds]);
       const rows=q.rows.map(x=>({...x,qty:n(x.qty),reorder_level:n(x.reorder_level),shortage:n(x.shortage),avg_cost:n(x.avg_cost),stock_value:n(x.stock_value)}));
       return {title:'Reorder Report',columns:[['status','Status'],['sku','SKU'],['product','Product'],['branch','Branch'],['location','Location'],['qty','On Hand'],['reorder_level','Reorder At'],['shortage','Qty Needed'],['avg_cost','Avg Cost'],['stock_value','Stock Value']],rows,summary:{needsReorder:rows.filter(x=>x.status==='reorder').length,estimatedQtyNeeded:rows.reduce((a,x)=>a+x.shortage,0)}};
     }
