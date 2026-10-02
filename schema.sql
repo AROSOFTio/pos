@@ -2163,6 +2163,15 @@ CREATE INDEX IF NOT EXISTS idx_payments_terminal_date ON payments(business_id,te
 
 -- Inventory control hardening v2
 ALTER TABLE products ADD COLUMN IF NOT EXISTS lot_tracking_required BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_source TEXT NOT NULL DEFAULT 'purchased' CHECK (stock_source IN ('purchased','prepared','both'));
+-- Legacy products predate restock-method selection; allow both paths until explicitly classified.
+UPDATE products SET stock_source='both' WHERE stock_source='purchased' AND created_at < TIMESTAMPTZ '2026-10-02 09:45:00+00';
+UPDATE products p SET stock_source=CASE
+  WHEN EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=p.business_id AND r.product_id=p.id AND r.active=true)
+   AND EXISTS(SELECT 1 FROM supplier_products sp WHERE sp.business_id=p.business_id AND sp.product_id=p.id AND sp.active=true) THEN 'both'
+  WHEN EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=p.business_id AND r.product_id=p.id AND r.active=true) THEN 'prepared'
+  ELSE stock_source END
+WHERE EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=p.business_id AND r.product_id=p.id AND r.active=true);
 ALTER TABLE stock_count_items ADD COLUMN IF NOT EXISTS unit_cost NUMERIC(14,4) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS inventory_reorder_levels (

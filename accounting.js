@@ -219,7 +219,7 @@ export async function postRefundAccounting(client,{bid,refundId,userId=null}){
 export async function postStockAdjustmentAccounting(client,{bid,adjustmentId,userId=null}){
   const hq=await client.query("SELECT sa.*,l.branch_id FROM stock_adjustments sa JOIN inventory_locations l ON l.id=sa.location_id WHERE sa.id=$1 AND sa.business_id=$2",[adjustmentId,bid]);
   if(!hq.rowCount)throw new Error('Stock adjustment not found for accounting');
-  const h=hq.rows[0],rows=(await client.query("SELECT sai.*,p.name product_name,p.cost product_cost,EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=$2 AND r.product_id=sai.product_id AND r.active=true) finished FROM stock_adjustment_items sai JOIN products p ON p.id=sai.product_id WHERE sai.adjustment_id=$1",[adjustmentId,bid])).rows;
+  const h=hq.rows[0],rows=(await client.query("SELECT sai.*,p.name product_name,p.cost product_cost,p.item_type,p.category,EXISTS(SELECT 1 FROM recipes r WHERE r.business_id=$2 AND r.product_id=sai.product_id AND r.active=true) finished FROM stock_adjustment_items sai JOIN products p ON p.id=sai.product_id WHERE sai.adjustment_id=$1",[adjustmentId,bid])).rows;
   const lines=[];let loss=0;
   for(const x of rows){
     const amount=positive(Math.abs(Number(x.qty_change||0))*Number(x.unit_cost||x.product_cost||0));if(amount<=0)continue;
@@ -230,7 +230,7 @@ export async function postStockAdjustmentAccounting(client,{bid,adjustmentId,use
       loss=money(loss+amount);
     }else{
       lines.push({accountKey:invKey,debit:amount,memo:'Inventory increase · '+x.product_name});
-      lines.push({accountKey:'production_variance',credit:amount,memo:'Stock count gain · '+x.product_name});
+      lines.push({accountKey:'production_variance',credit:amount,memo:(h.adjustment_type==='prepared_stock'?'Prepared / added stock':'Stock count gain')+' · '+x.product_name});
     }
   }
   if(!lines.length)return null;

@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRightLeft, Boxes, Building2, ClipboardList, Plus, RefreshCw, Search, Scale, Warehouse } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, Boxes, Building2, ClipboardList, PackagePlus, Plus, RefreshCw, Search, Scale, Truck } from 'lucide-react'
 import { api, money, nice } from '../api'
 import { PageHeading, Stat, Panel, DataTable, Loading, Badge, Modal } from '../components'
 
 type Section='overview'|'stock'|'movements'|'transfers'|'counts'|'locations'|'lots'|'batches'
 const asArray=(v:any)=>Array.isArray(v)?v:[]
 
-export default function Inventory({currency}:{currency:string}){
+export default function Inventory({currency,onOpenPurchasing}:{currency:string;onOpenPurchasing?:()=>void}){
  const [section,setSection]=useState<Section>('overview')
- const [o,setO]=useState<any>(null),[loc,setLoc]=useState<any[]>([]),[bal,setBal]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([]),[transfers,setTransfers]=useState<any[]>([]),[counts,setCounts]=useState<any[]>([]),[lots,setLots]=useState<any[]>([]),[lotMoves,setLotMoves]=useState<any[]>([]),[batches,setBatches]=useState<any[]>([]),[recipes,setRecipes]=useState<any[]>([]),[suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([])
+ const [o,setO]=useState<any>(null),[loc,setLoc]=useState<any[]>([]),[bal,setBal]=useState<any[]>([]),[moves,setMoves]=useState<any[]>([]),[transfers,setTransfers]=useState<any[]>([]),[counts,setCounts]=useState<any[]>([]),[lots,setLots]=useState<any[]>([]),[lotMoves,setLotMoves]=useState<any[]>([]),[batches,setBatches]=useState<any[]>([]),[recipes,setRecipes]=useState<any[]>([]),[products,setProducts]=useState<any[]>([]),[suppliers,setSuppliers]=useState<any[]>([]),[branches,setBranches]=useState<any[]>([])
  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[query,setQuery]=useState(''),[busy,setBusy]=useState(false)
- const [adjustOpen,setAdjustOpen]=useState(false),[transferOpen,setTransferOpen]=useState(false),[countOpen,setCountOpen]=useState(false),[countEdit,setCountEdit]=useState<any>(null),[locationOpen,setLocationOpen]=useState(false),[lotOpen,setLotOpen]=useState(false),[batchOpen,setBatchOpen]=useState(false),[reorderOpen,setReorderOpen]=useState<any>(null)
+ const [restockOpen,setRestockOpen]=useState(false),[adjustOpen,setAdjustOpen]=useState(false),[transferOpen,setTransferOpen]=useState(false),[countOpen,setCountOpen]=useState(false),[countEdit,setCountEdit]=useState<any>(null),[locationOpen,setLocationOpen]=useState(false),[lotOpen,setLotOpen]=useState(false),[batchOpen,setBatchOpen]=useState(false),[reorderOpen,setReorderOpen]=useState<any>(null)
+ const [restock,setRestock]=useState<any>({locationId:'',productId:'',qty:'',notes:''})
  const [adjust,setAdjust]=useState<any>({locationId:'',productId:'',action:'decrease',qty:'',reason:''})
  const [transfer,setTransfer]=useState<any>({fromLocationId:'',toLocationId:'',productId:'',qty:'',notes:''})
  const [count,setCount]=useState<any>({locationId:'',notes:''})
@@ -26,11 +27,11 @@ export default function Inventory({currency}:{currency:string}){
    const results=await Promise.allSettled([
     api('/inventory/overview'),api('/inventory/locations'),api('/inventory/balances'),api('/stock-movements'),
     api('/inventory/transfers').catch(()=>[]),api('/inventory/counts'),api('/inventory/lots').catch(()=>[]),api('/inventory/lot-movements').catch(()=>[]),
-    api('/inventory/recipe-batches').catch(()=>[]),api('/recipes').catch(()=>[]),api('/suppliers').catch(()=>[]),api('/branches').catch(()=>[])
+    api('/inventory/recipe-batches').catch(()=>[]),api('/recipes').catch(()=>[]),api('/products').catch(()=>[]),api('/suppliers').catch(()=>[]),api('/branches').catch(()=>[])
    ])
    const vals=results.map(x=>x.status==='fulfilled'?x.value:[])
    setO(results[0].status==='fulfilled'?results[0].value:{stockValue:0,locations:0,lowStock:0,openCounts:0})
-   setLoc(asArray(vals[1]));setBal(asArray(vals[2]));setMoves(asArray(vals[3]));setTransfers(asArray(vals[4]));setCounts(asArray(vals[5]));setLots(asArray(vals[6]));setLotMoves(asArray(vals[7]));setBatches(asArray(vals[8]));setRecipes(asArray(vals[9]));setSuppliers(asArray(vals[10]));setBranches(asArray(vals[11]))
+   setLoc(asArray(vals[1]));setBal(asArray(vals[2]));setMoves(asArray(vals[3]));setTransfers(asArray(vals[4]));setCounts(asArray(vals[5]));setLots(asArray(vals[6]));setLotMoves(asArray(vals[7]));setBatches(asArray(vals[8]));setRecipes(asArray(vals[9]));setProducts(asArray(vals[10]));setSuppliers(asArray(vals[11]));setBranches(asArray(vals[12]))
    const failed=results.filter(x=>x.status==='rejected')
    if(failed.length)setError(failed.length===results.length?'Inventory could not be loaded. Please refresh.':'Some inventory information could not be loaded.')
   }finally{setLoading(false)}
@@ -47,6 +48,30 @@ export default function Inventory({currency}:{currency:string}){
    const b=bal.find(x=>Number(x.product_id)===productId&&Number(x.location_id)===locationId)
    const assigned=lots.filter(x=>Number(x.product_id)===productId&&Number(x.location_id)===locationId).reduce((n,x)=>n+Number(x.qty||0),0)
    return Math.max(0,Number(b?.qty||0)-assigned)
+ }
+
+ const restockProducts=products.filter(x=>['prepared','both'].includes(String(x.stock_source||'purchased')))
+ const chosenRestock=bal.find(x=>Number(x.product_id)===Number(restock.productId)&&Number(x.location_id)===Number(restock.locationId))
+ const chosenProduct=products.find(x=>Number(x.id)===Number(restock.productId))
+ const chosenRecipe=recipes.find(r=>Number(r.product_id)===Number(restock.productId))
+ function openRestock(row?:any){
+   setError('')
+   setRestock({locationId:row?String(row.location_id):'',productId:row?String(row.product_id):'',qty:'',notes:''})
+   setRestockOpen(true)
+ }
+ async function postRestock(){
+   const qty=Number(restock.qty||0)
+   if(!restock.locationId||!restock.productId||!(qty>0))return
+   setBusy(true);setError('')
+   try{
+     await api('/inventory/restock',{method:'POST',body:JSON.stringify({locationId:Number(restock.locationId),productId:Number(restock.productId),qty,notes:restock.notes.trim()||null})})
+     setRestockOpen(false);setRestock({locationId:'',productId:'',qty:'',notes:''});await load()
+   }catch(e:any){setError(e.message)}finally{setBusy(false)}
+ }
+ function prepareWithRecipe(){
+   if(!chosenRecipe||!restock.locationId)return
+   setBatch({recipeId:String(chosenRecipe.id),locationId:String(restock.locationId),actualYield:restock.qty,notes:restock.notes})
+   setRestockOpen(false);setBatchOpen(true)
  }
 
  async function postAdjustment(){
@@ -103,7 +128,7 @@ export default function Inventory({currency}:{currency:string}){
  const nav:Array<[Section,string]>=[['overview','Overview'],['stock','Stock on Hand'],['movements','History'],['transfers','Transfers'],['counts','Count Stock'],['locations','Locations'],['lots','Batches & Expiry'],['batches','Kitchen Prep']]
 
  return <div>
-  <PageHeading eyebrow="Stock control" title="Inventory" sub="Know what you have, where it is, what moved and why." action={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button>}/>
+  <PageHeading eyebrow="Stock control" title="Inventory" sub="Add, receive, move, count and correct stock without accounting jargon." action={<button onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-600"><RefreshCw size={13}/>Refresh</button>}/>
   {error&&<div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[11px] text-amber-800">{error}</div>}
 
   <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">
@@ -117,24 +142,26 @@ export default function Inventory({currency}:{currency:string}){
     <Stat label="Needs Reorder" value={o?.lowStock||0} sub="Products at or below reorder level" icon={AlertTriangle} tone={o?.lowStock?'amber':'emerald'}/>
     <Stat label="Counts in Progress" value={o?.openCounts||0} sub="Physical counts not yet posted" icon={ClipboardList} tone="violet"/>
    </div>
-   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    <Quick icon={Scale} title="Correct Stock" sub="Found, damaged or missing stock" onClick={()=>setAdjustOpen(true)}/>
-    <Quick icon={ArrowRightLeft} title="Move Stock" sub="Transfer between stores or kitchens" onClick={()=>setTransferOpen(true)}/>
-    <Quick icon={ClipboardList} title="Count Stock" sub="Do a physical stock check" onClick={()=>setCountOpen(true)}/>
-    <Quick icon={Warehouse} title="Add Location" sub="Create a store, kitchen or bar" onClick={()=>setLocationOpen(true)}/>
+   <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-[11px] leading-5 text-emerald-900"><b>Need to increase stock?</b> If you made/prepared it here, use <b>Add / Refill Stock</b>. If a supplier brought it, use <b>Receive Delivery</b>. Use <b>Correct Stock</b> only when the physical quantity is unexpectedly different.</div>
+   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <Quick icon={PackagePlus} title="Add / Refill Stock" sub="Prepared or produced here" onClick={()=>openRestock()}/>
+    <Quick icon={Truck} title="Receive Delivery" sub="Stock brought by a supplier" onClick={()=>onOpenPurchasing?.()}/>
+    <Quick icon={ArrowRightLeft} title="Move Stock" sub="Transfer between locations" onClick={()=>setTransferOpen(true)}/>
+    <Quick icon={ClipboardList} title="Count Stock" sub="Physical stock check" onClick={()=>setCountOpen(true)}/>
+    <Quick icon={Scale} title="Correct Stock" sub="Fix an unexpected difference" onClick={()=>setAdjustOpen(true)}/>
    </div>
    <div className="mt-4 grid gap-4 xl:grid-cols-2">
-    <Panel title="Needs reorder" sub={lowRows.length+' location balance'+(lowRows.length===1?'':'s')}>{lowRows.length?<DataTable head={['Product','Location','On Hand','Reorder']} rows={lowRows.slice(0,12).map(x=>[<b>{x.product_name}</b>,x.location_name,Number(x.qty),Number(x.reorder_level||0)])}/>:<Empty text="Nothing needs reordering right now."/>}</Panel>
+    <Panel title="Needs refill / reorder" sub={lowRows.length+' location balance'+(lowRows.length===1?'':'s')}>{lowRows.length?<DataTable head={['Product','Location','On Hand','Alert At','What to do']} rows={lowRows.slice(0,12).map(x=>[<b>{x.product_name}</b>,x.location_name,Number(x.qty),Number(x.reorder_level||0),<button onClick={()=>x.stock_source==='purchased'?onOpenPurchasing?.():openRestock(x)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700">{x.stock_source==='purchased'?'Receive Delivery':'Add / Refill'}</button>])}/>:<Empty text="Nothing needs refilling or reordering right now."/>}</Panel>
     <Panel title="Recent stock activity" sub={moves.length+' recorded movements'}>{moves.length?<DataTable head={['Product','What happened','Qty','Reference']} rows={moves.slice(0,12).map(x=>[<b>{x.product_name}</b>,<Badge>{movementName(x.movement_type)}</Badge>,Number(x.quantity),x.reference_no||'-'])}/>:<Empty text="No stock activity yet."/>}</Panel>
    </div>
   </>}
 
   {section==='stock'&&<Panel title="Stock on Hand" sub="What is physically available at each location." action={<SearchBox value={query} setValue={setQuery}/>}>
-   {stockRows.length?<DataTable head={['Product','Branch / Location','On Hand','Reorder At','Average Cost','Stock Value','']} rows={stockRows.map(x=>[
+   {stockRows.length?<DataTable head={['Product','Branch / Location','On Hand','Restock Method','Reorder At','Average Cost','Stock Value','Actions']} rows={stockRows.map(x=>[
     <div><b>{x.product_name}</b><div className="text-[10px] text-slate-400">{x.sku||'No SKU'}{x.lot_tracking_required?' · Batch tracked':''}</div>{x.lot_tracking_required&&Number(x.unassigned_lot_qty)>0&&<div className="mt-1 text-[9.5px] font-semibold text-amber-600">{Number(x.unassigned_lot_qty)} needs batch / expiry</div>}</div>,
     <div>{x.branch_name}<div className="text-[10px] text-slate-400">{x.location_name}</div></div>,
-    <Badge tone={Number(x.qty)<=Number(x.reorder_level||0)?'amber':'green'}>{Number(x.qty)}</Badge>,Number(x.reorder_level||0),money(x.avg_cost,currency),money(Number(x.qty)*Number(x.avg_cost),currency),
-    <button onClick={()=>{setReorderOpen(x);setReorderLevel(String(Number(x.reorder_level||0)))}} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">Set reorder</button>
+    <Badge tone={Number(x.qty)<=Number(x.reorder_level||0)?'amber':'green'}>{Number(x.qty)}</Badge>,<Badge>{x.stock_source==='prepared'?'Prepared here':x.stock_source==='both'?'Supplier + prepared':'Supplier'}</Badge>,Number(x.reorder_level||0),money(x.avg_cost,currency),money(Number(x.qty)*Number(x.avg_cost),currency),
+    <div className="flex flex-wrap gap-1.5">{x.stock_source!=='purchased'&&<button onClick={()=>openRestock(x)} className="rounded-lg bg-[var(--brand-primary)] px-2.5 py-1.5 text-[10px] font-semibold text-white">+ Add / Refill</button>}{x.stock_source!=='prepared'&&<button onClick={()=>onOpenPurchasing?.()} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700">Receive</button>}<button onClick={()=>{setReorderOpen(x);setReorderLevel(String(Number(x.reorder_level||0)))}} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600">Alert level</button></div>
    ])}/>:<Empty text="No stock balances found."/>}
   </Panel>}
 
@@ -162,15 +189,28 @@ export default function Inventory({currency}:{currency:string}){
    <div className="mt-4"><Panel title="Batch History" sub="Where tracked batches came from and how they were used.">{lotMoves.length?<DataTable head={['Date','Product','Batch','Location','Activity','Qty','Reference','By']} rows={lotMoves.slice(0,100).map(x=>[new Date(x.created_at).toLocaleString(),<b>{x.product_name}</b>,x.lot_no||'-',x.location_name,movementName(x.movement_type),Number(x.quantity),x.reference_no||'-',x.created_by||'-'])}/>:<Empty text="No batch movement history yet."/>}</Panel></div>
   </>}
 
-  {section==='batches'&&<Panel title="Kitchen Preparation" sub="Turn ingredients into finished portions and let Mauzo calculate the food cost automatically." action={<button onClick={()=>setBatchOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Prepare Batch</button>}>
+  {section==='batches'&&<Panel title="Prepare with Recipe" sub="Use ingredients to produce finished stock and calculate the real food cost automatically." action={<button onClick={()=>setBatchOpen(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-[10.5px] font-semibold text-white"><Plus size={13} className="mr-1 inline"/>Prepare Batch</button>}>
    {batches.length?<DataTable head={['Batch','Recipe','Location','Yield','Cost','Prepared By','Date']} rows={batches.map(x=>[<b>{x.batch_no}</b>,x.recipe_name,x.location_name,Number(x.actual_yield),money(x.total_cost,currency),x.prepared_by||'-',new Date(x.prepared_at).toLocaleString()])}/>:<Empty text="No preparation batches yet."/>}
   </Panel>}
 
+  {restockOpen&&<Modal title="Add / Refill Stock" onClose={()=>!busy&&setRestockOpen(false)} size="md">
+   <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3.5 py-3 text-[11px] leading-5 text-emerald-900"><b>Use this when your team prepared or produced more stock.</b><br/>Example: Chapati current stock 10 + prepared 50 = new stock 60. Supplier deliveries should use <b>Receive Delivery</b> in Purchasing.</div>
+   <div className="grid gap-3 sm:grid-cols-2">
+    <Field label="Location"><select className="control" value={restock.locationId} onChange={e=>setRestock({...restock,locationId:e.target.value,productId:''})}><option value="">Choose location</option>{loc.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>
+    <Field label="Product"><select className="control" value={restock.productId} onChange={e=>setRestock({...restock,productId:e.target.value})}><option value="">Choose product</option>{restockProducts.map(x=>{const b=bal.find(z=>Number(z.product_id)===Number(x.id)&&Number(z.location_id)===Number(restock.locationId));return <option key={x.id} value={x.id}>{x.name}{restock.locationId?' · '+Number(b?.qty||0)+' available':''}</option>})}</select></Field>
+    <Field label="Quantity being added"><input className="control" inputMode="decimal" value={restock.qty} onChange={e=>setRestock({...restock,qty:e.target.value.replace(/[^0-9.]/g,'')})} placeholder="e.g. 50"/></Field>
+    <Field label="Note"><input className="control" value={restock.notes} onChange={e=>setRestock({...restock,notes:e.target.value})} placeholder="e.g. Morning chapati batch"/></Field>
+   </div>
+   {chosenProduct&&restock.locationId&&Number(restock.qty)>0&&<div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center"><div><div className="text-[9px] uppercase tracking-wide text-slate-400">Current</div><div className="mt-1 text-[16px] font-bold text-slate-800">{Number(chosenRestock?.qty||0)}</div></div><div><div className="text-[9px] uppercase tracking-wide text-slate-400">Add</div><div className="mt-1 text-[16px] font-bold text-emerald-600">+{Number(restock.qty)}</div></div><div><div className="text-[9px] uppercase tracking-wide text-slate-400">New stock</div><div className="mt-1 text-[16px] font-bold text-slate-950">{Number(chosenRestock?.qty||0)+Number(restock.qty)}</div></div></div>}
+   {chosenRecipe&&chosenProduct&&<div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-[10.5px] leading-5 text-blue-900"><b>This product has a recipe.</b> For accurate ingredient usage and food cost, use <b>Prepare with Recipe</b>. Quick Add increases the finished stock without deducting ingredients.</div>}
+   <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">{chosenRecipe&&<button onClick={prepareWithRecipe} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="rounded-lg border border-[var(--brand-primary)] bg-white px-4 py-3 text-[11px] font-semibold text-[var(--brand-primary)] disabled:opacity-40">Prepare with Recipe</button>}<button onClick={postRestock} disabled={busy||!restock.locationId||!restock.productId||!(Number(restock.qty)>0)} className="rounded-lg bg-[var(--brand-primary)] px-4 py-3 text-[11px] font-semibold text-white disabled:opacity-40">{busy?'Adding…':'Add Stock'}</button></div>
+  </Modal>}
+
   {adjustOpen&&<Modal title="Correct Stock" onClose={()=>!busy&&setAdjustOpen(false)} size="md">
-   <p className="mb-3 text-[11px] leading-5 text-slate-500">Use this only when physical stock is different from Mauzo. Supplier deliveries should be received through Purchasing.</p>
+   <p className="mb-3 text-[11px] leading-5 text-slate-500"><b>Correction only.</b> Use this when physical stock is unexpectedly different from Mauzo. Do not use it for normal refill or supplier delivery.</p>
    <div className="grid gap-3 sm:grid-cols-2">
     <Field label="Location"><select className="control" value={adjust.locationId} onChange={e=>setAdjust({...adjust,locationId:e.target.value,productId:''})}><option value="">Choose location</option>{loc.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field>
-    <Field label="What happened?"><select className="control" value={adjust.action} onChange={e=>setAdjust({...adjust,action:e.target.value})}><option value="increase">Found more stock</option><option value="decrease">Stock missing / correction</option><option value="wastage">Wasted / damaged</option><option value="spoilage">Expired / spoiled</option></select></Field>
+    <Field label="What happened?"><select className="control" value={adjust.action} onChange={e=>setAdjust({...adjust,action:e.target.value})}><option value="increase">Found unexpected extra stock</option><option value="decrease">Stock missing / correction</option><option value="wastage">Wasted / damaged</option><option value="spoilage">Expired / spoiled</option></select></Field>
     <Field label="Product"><select className="control" value={adjust.productId} onChange={e=>setAdjust({...adjust,productId:e.target.value})}><option value="">Choose product</option>{adjustBalances.map(x=><option key={x.product_id} value={x.product_id}>{x.product_name} · {Number(x.qty)} on hand</option>)}</select></Field>
     <Field label="Quantity"><input className="control" inputMode="decimal" value={adjust.qty} onChange={e=>setAdjust({...adjust,qty:e.target.value.replace(/[^0-9.]/g,'')})}/></Field>
    </div>
@@ -229,14 +269,14 @@ export default function Inventory({currency}:{currency:string}){
    <button onClick={saveReorder} disabled={busy} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white">Save Reorder Level</button>
   </Modal>}
 
-  {batchOpen&&<Modal title="Prepare Kitchen Batch" onClose={()=>!busy&&setBatchOpen(false)} size="md">
+  {batchOpen&&<Modal title="Prepare with Recipe" onClose={()=>!busy&&setBatchOpen(false)} size="md">
    <div className="grid gap-3 sm:grid-cols-2"><Field label="Recipe"><select className="control" value={batch.recipeId} onChange={e=>setBatch({...batch,recipeId:e.target.value})}><option value="">Choose recipe</option>{recipes.map(r=><option key={r.id} value={r.id}>{r.name} · {r.product_name}</option>)}</select></Field><Field label="Location"><select className="control" value={batch.locationId} onChange={e=>setBatch({...batch,locationId:e.target.value})}><option value="">Choose location</option>{loc.map(x=><option key={x.id} value={x.id}>{x.branch_name} · {x.name}</option>)}</select></Field><Field label="Finished portions / yield"><input className="control" inputMode="decimal" value={batch.actualYield} onChange={e=>setBatch({...batch,actualYield:e.target.value.replace(/[^0-9.]/g,'')})}/></Field><Field label="Note"><input className="control" value={batch.notes} onChange={e=>setBatch({...batch,notes:e.target.value})}/></Field></div>
-   <button onClick={async()=>{setBusy(true);try{await api('/inventory/recipe-batches',{method:'POST',body:JSON.stringify({recipeId:Number(batch.recipeId),locationId:Number(batch.locationId),actualYield:Number(batch.actualYield||0),notes:batch.notes.trim()||null})});setBatchOpen(false);setBatch({recipeId:'',locationId:'',actualYield:'',notes:''});await load()}catch(e:any){setError(e.message)}finally{setBusy(false)}}} disabled={busy||!batch.recipeId||!batch.locationId||!(Number(batch.actualYield)>0)} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">Post Preparation</button>
+   <button onClick={async()=>{setBusy(true);try{await api('/inventory/recipe-batches',{method:'POST',body:JSON.stringify({recipeId:Number(batch.recipeId),locationId:Number(batch.locationId),actualYield:Number(batch.actualYield||0),notes:batch.notes.trim()||null})});setBatchOpen(false);setBatch({recipeId:'',locationId:'',actualYield:'',notes:''});await load()}catch(e:any){setError(e.message)}finally{setBusy(false)}}} disabled={busy||!batch.recipeId||!batch.locationId||!(Number(batch.actualYield)>0)} className="mt-4 w-full rounded-lg bg-[var(--brand-primary)] py-3 text-[12px] font-semibold text-white disabled:opacity-40">Prepare & Add Stock</button>
   </Modal>}
  </div>
 }
 
-function movementName(v:string){return ({opening_stock:'Opening stock',purchase_receipt:'Supplier receipt',sale_consumption:'Sold',refund_return:'Customer return',transfer_out:'Moved out',transfer_in:'Moved in',count_adjustment:'Count correction',adjustment:'Stock correction',wastage:'Wasted / damaged',spoilage:'Expired / spoiled',recipe_batch_consumption:'Used in kitchen prep',recipe_batch_output:'Prepared in kitchen',lot_assignment:'Batch assigned'} as any)[v]||nice(v)}
+function movementName(v:string){return ({opening_stock:'Opening stock',purchase_receipt:'Supplier receipt',sale_consumption:'Sold',refund_return:'Customer return',transfer_out:'Moved out',transfer_in:'Moved in',count_adjustment:'Count correction',adjustment:'Stock correction',wastage:'Wasted / damaged',spoilage:'Expired / spoiled',recipe_batch_consumption:'Used in kitchen prep',recipe_batch_output:'Prepared with recipe',prepared_stock:'Prepared / refilled',lot_assignment:'Batch assigned'} as any)[v]||nice(v)}
 function Quick({icon:Icon,title,sub,onClick}:{icon:any;title:string;sub:string;onClick:()=>void}){return <button onClick={onClick} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[var(--brand-border)] hover:shadow-md"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand-primary)]"><Icon size={17}/></div><div className="mt-3 text-[12px] font-bold text-slate-800">{title}</div><div className="mt-1 text-[10.5px] leading-4 text-slate-500">{sub}</div></button>}
 function Field({label,children}:{label:string;children:any}){return <label className="mt-3 block text-[11px] font-medium text-slate-600">{label}{children}</label>}
 function SearchBox({value,setValue}:{value:string;setValue:(v:string)=>void}){return <div className="relative hidden sm:block"><Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={value} onChange={e=>setValue(e.target.value)} placeholder="Search stock" className="w-56 rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-[11px] outline-none focus:border-[var(--brand-primary)]"/></div>}

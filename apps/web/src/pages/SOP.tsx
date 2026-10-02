@@ -60,12 +60,15 @@ const sections:SOPSection[]=[
   {title:'Set opening stock carefully',body:'If the item already has stock, enter the opening quantity and choose where the stock is physically located.'},
   {title:'Set reorder level',body:'Use the default reorder level or location-specific levels in Inventory.'},
   {title:'Enable batch/expiry tracking when needed',body:'Turn on Require batch / expiry for food, drinks, medicine or other expiry-sensitive stock.'},
-  {title:'Use Inventory for later quantity changes',body:'After creation, never edit stock by changing the product record. Use Correct Stock, Receive Stock, Move Stock or Count Stock.'}
+  {title:'Choose how the item is restocked',body:'Set Bought from supplier, Prepared / produced here, or Both. This controls the correct refill action shown in Inventory.'},
+  {title:'Use Inventory for later quantity changes',body:'After creation, never edit stock by changing the product record. Use Add / Refill Stock, Receive Delivery, Move Stock, Count Stock or Correct Stock as appropriate.'}
  ]},
 
  {id:'inventory',title:'Inventory / Stock',icon:Store,summary:'Know what stock exists, where it is and why it changed.',steps:[
   {title:'Check Stock on Hand',body:'Review product, branch/location, quantity, reorder level, average cost and stock value.'},
-  {title:'Correct Stock',body:'Use Found more stock, Stock missing/correction, Wasted/damaged or Expired/spoiled. Enter a clear reason.'},
+  {title:'Add / Refill Stock',body:'Use when your team prepares or produces more of an item. Example: Chapati 10 + prepared 50 = 60 available.'},
+  {title:'Receive Delivery',body:'Use Purchasing when a supplier brings stock. Creating a Purchase Order alone does not increase stock; receiving the delivery does.'},
+  {title:'Correct Stock',body:'Use only when physical stock is unexpectedly different from Mauzo: found extra stock, missing stock, damage, wastage, expiry or spoilage. Enter a clear reason.'},
   {title:'Move Stock',body:'Select From location, To location, product and quantity. Mauzo records both sides of the transfer automatically.'},
   {title:'Count Stock',body:'Start a physical count for one location, count every item, enter actual quantities, save as draft if unfinished, then Post Count & Correct Stock when complete.'},
   {title:'Manage stock locations',body:'Create stores, kitchens, bars or warehouses under Locations.'},

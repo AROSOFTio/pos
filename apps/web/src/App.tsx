@@ -164,7 +164,7 @@ export default function App(){
     {view==='Restaurant'&&hasRestaurant&&<Restaurant currency={currency} go={safeGo}/>}
     {view==='Customers'&&<Customers currency={currency}/>}
     {view==='Approvals'&&canAccessView('Approvals')&&<Approvals currency={currency}/>}
-    {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency}/>}
+    {view==='Inventory'&&canAccessView('Inventory')&&<Inventory currency={currency} onOpenPurchasing={()=>setView('Purchasing')}/>}
     {view==='Purchasing'&&canAccessView('Purchasing')&&enabled.has('purchasing')&&<Purchasing currency={currency}/>}
     {view==='Expenses'&&canAccessView('Expenses')&&<Expenses currency={currency}/>}
     {view==='Accounting'&&canAccessView('Accounting')&&<Accounting currency={currency}/>}
