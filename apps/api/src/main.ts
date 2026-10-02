@@ -35,7 +35,7 @@ async function bootstrap() {
     });
 
     proxy.on('error', error => {
-      if (!res.headersSent) res.status(502).json({ error: 'Legacy service unavailable', detail: error.message });
+      if (!res.headersSent) res.status(502).json({ error: 'MauzoPOS service temporarily unavailable', detail: error.message });
       else res.end();
     });
 

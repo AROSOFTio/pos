@@ -1837,11 +1837,13 @@ app.put('/api/notification-settings',auth,tenant,rolesAllowed('owner','administr
  res.json(q.rows[0]);
 });
 app.post('/api/notification-settings/test-email',auth,tenant,rolesAllowed('owner','administrator','admin'),async(req,res)=>{
- const bid=await getBiz(req),q=await pool.query('SELECT ns.*,b.name FROM notification_settings ns JOIN businesses b ON b.id=ns.business_id WHERE ns.business_id=$1',[bid]);
- const row=q.rows[0]||{},recipients=await notificationRecipients(bid,row.recipients||[]);
- if(!recipients.length)return res.status(400).json({error:'Add a business or notification email first'});
- await sendSystemEmail({to:recipients,subject:(row.name||'MauzoPOS')+' · Notification test',html:'<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2>MauzoPOS notification test</h2><p>Email notifications are configured correctly for <b>'+reportHtmlEscape(row.name||'your business')+'</b>.</p></div>'});
- res.json({ok:true,recipients});
+ try{
+  const bid=await getBiz(req),q=await pool.query('SELECT ns.*,b.name FROM notification_settings ns JOIN businesses b ON b.id=ns.business_id WHERE ns.business_id=$1',[bid]);
+  const row=q.rows[0]||{},recipients=await notificationRecipients(bid,row.recipients||[]);
+  if(!recipients.length)return res.status(400).json({error:'Add a business or notification email first'});
+  await sendSystemEmail({to:recipients,subject:(row.name||'MauzoPOS')+' · Notification test',html:'<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2>MauzoPOS notification test</h2><p>Email notifications are configured correctly for <b>'+reportHtmlEscape(row.name||'your business')+'</b>.</p></div>'});
+  res.json({ok:true,recipients});
+ }catch(e){console.error('notification test email',e);res.status(502).json({error:'Email could not be sent. Check mail delivery settings and try again.'})}
 });
 
 app.get('/api/notifications',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query("SELECT * FROM notification_events WHERE business_id=$1 ORDER BY read_at NULLS FIRST,created_at DESC LIMIT 100",[bid])).rows)});
