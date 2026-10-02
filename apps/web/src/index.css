@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root{
-  --brand-primary:#22A53A;
-  --brand-primary-soft:rgba(34,165,58,.08);
-  --brand-soft:#ECF8EF;
-  --brand-border:#BDE7C5;
+  --brand-primary:#3B8F5A;
+  --brand-primary-soft:rgba(59,143,90,.07);
+  --brand-soft:#F2F8F4;
+  --brand-border:#D7E9DD;
   --app-bg:#F7F9F7;
   --app-surface:#FFFFFF;
   --app-text:#172033;
   --app-muted:#64748B;
   --app-sidebar:#FBFCFB;
-  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-family:Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,ui-sans-serif,system-ui,sans-serif;
   color:#172033;
   background:#f7f8fa;
   font-synthesis:none;
@@ -37,7 +37,7 @@ a{color:inherit}
 .control{
   margin-top:.35rem;width:100%;min-height:42px;border:1px solid #e2e8f0;border-radius:.65rem;background:#fff;
   padding:.6rem .72rem;color:#172033;outline:none;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease;
-  font-weight:400;font-size:.84rem;
+  font-weight:400;font-size:.82rem;
 }
 .control:hover{border-color:#cbd5e1}
 .control:focus,.control:focus-visible{border-color:var(--brand-primary);box-shadow:none;outline:none}
@@ -188,7 +188,7 @@ body{background:var(--app-bg)}
 /* Operations terminal UI */
 .ops-ui{font-variant-numeric:tabular-nums lining-nums;background-color:var(--theme-workspace-bg,var(--app-bg));background-image:var(--theme-workspace-image,none);background-size:var(--theme-workspace-image-size,cover);background-repeat:var(--theme-workspace-image-repeat,no-repeat);background-position:center;background-attachment:fixed}
 .ops-ui h1,.ops-ui h2,.ops-ui h3{letter-spacing:-.015em}
-.ops-ui button{font-weight:600}
+.ops-ui button{font-weight:500}
 .ops-ui .control{min-height:46px;border-radius:9px;border-color:#d7dde4;font-size:15px}
 .ops-ui .control:focus,.ops-ui .control:focus-visible{border-color:var(--brand-primary);box-shadow:none;outline:none}
 .ops-ui .premium-shadow{box-shadow:0 1px 4px rgba(15,23,42,.035)}
@@ -253,12 +253,12 @@ body{background:var(--pos-workspace)}
   background:var(--pos-chrome);color:#fff;border-radius:13px;padding:1rem;
   box-shadow:0 10px 24px rgba(15,23,42,.15)
 }
-.ops-total{font-size:30px;line-height:1;font-weight:800;letter-spacing:-.04em}
+.ops-total{font-size:30px;line-height:1;font-weight:650;letter-spacing:-.035em}
 .ops-primary{
-  min-height:48px;border-radius:10px;background:var(--brand-primary);color:#fff;font-weight:800;
+  min-height:48px;border-radius:10px;background:var(--brand-primary);color:#fff;font-weight:600;
   box-shadow:0 6px 18px color-mix(in srgb,var(--brand-primary) 22%,transparent)
 }
-.ops-secondary{min-height:44px;border:1px solid #D5DDE5;border-radius:10px;background:#fff;color:#475569;font-weight:650}
+.ops-secondary{min-height:44px;border:1px solid #D5DDE5;border-radius:10px;background:#fff;color:#475569;font-weight:500}
 .ops-section-strip{border:1px solid #D8E0E7;background:#F6F8FA;border-radius:12px;padding:.75rem}
 .kpi-strip{display:grid;gap:.65rem;grid-template-columns:repeat(2,minmax(0,1fr))}
 .kpi-strip>div{border:1px solid #E1E7EC;background:#F8FAFB;border-radius:11px;padding:.8rem}
@@ -268,13 +268,13 @@ body{background:var(--pos-workspace)}
 .kds-card .kds-item{background:#F7F9FB;border:1px solid #E1E7EC}
 .brand-lockup{display:flex;min-width:0;align-items:center;gap:.65rem}
 .brand-lockup-mark{display:grid;height:38px;width:38px;flex:none;place-items:center;overflow:hidden;border-radius:10px;background:#fff;padding:3px;box-shadow:inset 0 0 0 1px rgba(148,163,184,.25)}
-.brand-lockup-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:800;letter-spacing:-.01em}
+.brand-lockup-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;letter-spacing:-.005em}
 .brand-lockup-sub{font-size:9px;color:#94A3B8}
 .management-sidebar{background:#F8FAFB!important;border-color:#DCE3E9!important;color:#172033}
-.management-sidebar .mgmt-nav-title{color:#94A3B8!important}
-.management-sidebar .mgmt-nav-item{color:#586674}
+.management-sidebar .mgmt-nav-title{color:#98A2B3!important;font-weight:600!important;letter-spacing:.11em!important}
+.management-sidebar .mgmt-nav-item{color:#475467;font-weight:500!important;letter-spacing:-.005em}
 .management-sidebar .mgmt-nav-item:hover{background:#EEF3F6;color:#172033}
-.management-sidebar .mgmt-nav-item.active{background:var(--brand-soft);color:var(--brand-primary);box-shadow:inset 3px 0 0 var(--brand-primary)}
+.management-sidebar .mgmt-nav-item.active{background:#FFFFFF;color:#244B33;box-shadow:inset 2px 0 0 var(--brand-primary),0 1px 2px rgba(15,23,42,.035)}
 .management-header{background:#fff;border-color:#DDE4EA}
 .data-table th{background:#FAFBFC!important}
 .data-table tbody tr:hover{background:#F7F9FB!important}
@@ -288,10 +288,22 @@ body{background:var(--pos-workspace)}
 [data-theme="dark"] .ops-workspace{background:#0F1419}
 
 /* Restaurant operations navigation themes */
-.ops-side-nav.colored{color:#fff;border-color:rgba(255,255,255,.15);box-shadow:8px 0 24px rgba(15,23,42,.08)}
-.ops-side-nav.colored .ops-side-item{color:rgba(255,255,255,.86)}
-.ops-side-nav.colored .ops-side-item:hover{background:rgba(255,255,255,.10);color:#fff}
-.ops-side-nav.colored .ops-side-item.active{background:#fff;color:var(--brand-primary);box-shadow:0 5px 16px rgba(15,23,42,.12)}
-.ops-side-nav.plain{background:#fff;color:#586674;border-color:#DCE3E9}
+.ops-side-nav.colored{color:#344054;border-color:#E4E7EC;background:#F7FAF8!important;box-shadow:6px 0 20px rgba(15,23,42,.035)}
+.ops-side-nav.colored .ops-side-item{color:#475467;font-weight:500!important;letter-spacing:-.005em}
+.ops-side-nav.colored .ops-side-item:hover{background:#EEF5F0;color:#1F3B2A}
+.ops-side-nav.colored .ops-side-item.active{background:#FFFFFF;color:#244B33;box-shadow:inset 2px 0 0 var(--brand-primary),0 1px 3px rgba(15,23,42,.05)}
+.ops-side-nav.plain{background:#fff;color:#475467;border-color:#E4E7EC}
 .ops-side-nav.plain .ops-side-item:hover{background:#F4F7F9;color:#172033}
-.ops-side-nav.plain .ops-side-item.active{background:var(--brand-soft);color:var(--brand-primary);box-shadow:inset 3px 0 0 var(--brand-primary)}
+.ops-side-nav.plain .ops-side-item.active{background:#F7F9F8;color:#244B33;box-shadow:inset 2px 0 0 var(--brand-primary)}
+
+/* 2026-10 professional typography refinement */
+body{font-family:Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,ui-sans-serif,system-ui,sans-serif;font-weight:400;letter-spacing:-.003em}
+button,input,select,textarea{font-family:inherit}
+.management-sidebar,.ops-side-nav,.ops-chrome{font-feature-settings:"kern" 1,"liga" 1}
+.management-sidebar button,.ops-side-nav button,.ops-chrome button{font-weight:500!important}
+.management-sidebar .mgmt-nav-item,.ops-side-nav .ops-side-item{font-size:11.5px!important;line-height:1.3}
+.management-sidebar .mgmt-nav-title,.ops-side-nav>div:first-child{font-size:8.5px!important}
+.ui-page-title{font-weight:650;letter-spacing:-.025em}
+.ui-panel-title,.pos-panel-head{font-weight:600}
+.data-table th{font-weight:600;letter-spacing:.01em}
+.brand-lockup-name{font-weight:600!important}
