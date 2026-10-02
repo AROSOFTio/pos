@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, Boxes, CalendarClock, ChefHat, CircleDollarSign, ClipboardList, Download, Package, Plus, Printer, ReceiptText, RefreshCw, ShoppingCart, Truck, UsersRound, UtensilsCrossed, WalletCards } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, downloadFile, money, nice, openPdf } from '../api'
-import { Badge, DataTable, Modal, PageHeading, Panel, Stat, Loading } from '../components'
+import { Badge, DataTable, Modal, Panel, Stat, Loading } from '../components'
 
 const types=[
  ['financial','Financial Summary'],['sales','Sales Detail'],['restaurant','Restaurant Operations'],['counters','Sales by Counter / Bar'],['payments','Payment Reconciliation'],['cash_flow','Cash Flow'],['expenses','Expense & Cash-Out'],['allowances','Employee Allowances'],['inventory','Stock On Hand & Valuation'],['stock','Stock Movement'],['stock_counts','Stock Count Variance'],['stock_transfers','Stock Transfers'],['reorder','Reorder Report'],['lot_movement','Batch / Lot Movement'],['inventory_reconciliation','Inventory vs Accounts'],['expiry','Stock Expiry'],['food','Food Consumption & Wastage'],['purchases','Purchases'],['refunds','Refunds & Voids'],['kitchen','Kitchen Performance'],['shifts','Shift Reconciliation'],['ledger','General Ledger'],
@@ -30,9 +30,21 @@ export default function Reports({currency}:{currency:string}){
  if(!summary||!dash)return <Loading/>
  const netSales=Number(dash.sales?.total||0)-Number(dash.refunds?.total||0),avgCheck=Number(dash.sales?.count||0)?Number(dash.sales.total)/Number(dash.sales.count):0
  return <div>
-  <PageHeading eyebrow="Management Intelligence" title="Reports & Analytics" sub="Trace every KPI from module performance down to the system activity that produced it." action={<button onClick={()=>load()} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10.5px] font-medium text-slate-600"><RefreshCw size={13} className="mr-1 inline"/>Refresh</button>}/>
-  <div className="mb-4 grid gap-3 sm:grid-cols-3"><label className="text-[10.5px] font-medium text-slate-600">From<input type="date" className="control" value={from} onChange={e=>setFrom(e.target.value)}/></label><label className="text-[10.5px] font-medium text-slate-600">To<input type="date" className="control" value={to} onChange={e=>setTo(e.target.value)}/></label><label className="text-[10.5px] font-medium text-slate-600">Branch<select className="control" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label></div>
-  <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">{sections.map(([v,n])=><button key={v} onClick={()=>setSection(v)} className={'shrink-0 rounded-lg px-3.5 py-2 text-[10.5px] font-medium '+(section===v?'bg-slate-950 text-white':'text-slate-500')}>{n}</button>)}</div>
+  <div className="mb-3 flex flex-col gap-2.5 xl:flex-row xl:items-end xl:justify-between">
+   <div className="min-w-0">
+    <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[var(--brand-primary)]">Reports</div>
+    <h2 className="mt-0.5 text-[23px] font-bold tracking-[-.035em] text-slate-950">Reports & Analytics</h2>
+   </div>
+   <div className="flex flex-wrap items-end gap-2">
+    <label className="text-[9.5px] font-semibold text-slate-500">From<input type="date" className="mt-1 h-9 w-[155px] rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] text-slate-700 outline-none focus:border-[var(--brand-primary)]" value={from} onChange={e=>setFrom(e.target.value)}/></label>
+    <label className="text-[9.5px] font-semibold text-slate-500">To<input type="date" className="mt-1 h-9 w-[155px] rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] text-slate-700 outline-none focus:border-[var(--brand-primary)]" value={to} onChange={e=>setTo(e.target.value)}/></label>
+    <label className="text-[9.5px] font-semibold text-slate-500">Branch<select className="mt-1 h-9 w-[170px] rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] text-slate-700 outline-none focus:border-[var(--brand-primary)]" value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">All branches</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+    <button onClick={()=>load()} className="mb-0 h-9 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"><RefreshCw size={12} className="mr-1 inline"/>Refresh</button>
+   </div>
+  </div>
+  <div className="mb-3 max-w-full overflow-x-auto">
+   <div className="inline-flex min-w-max gap-0.5 rounded-lg border border-slate-200 bg-white p-0.5">{sections.map(([v,n])=><button key={v} onClick={()=>setSection(v)} className={'shrink-0 rounded-md px-3 py-1.5 text-[10px] font-semibold '+(section===v?'bg-slate-950 text-white':'text-slate-500 hover:bg-slate-50')}>{n}</button>)}</div>
+  </div>
 
   {section==='overview'&&<Executive dash={dash} currency={currency} netSales={netSales} avgCheck={avgCheck}/>}
   {section==='modules'&&<Modules dash={dash} currency={currency}/>}
