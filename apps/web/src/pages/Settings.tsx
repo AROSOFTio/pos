@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, UtensilsCrossed, ReceiptText, Percent, ShieldCheck, ImagePlus, Pencil, Plus, Printer, LayoutGrid, MonitorSmartphone, SlidersHorizontal, RefreshCw } from 'lucide-react'
+import { Bell, Building2, UtensilsCrossed, ReceiptText, Percent, ShieldCheck, ImagePlus, Pencil, Plus, Printer, LayoutGrid, MonitorSmartphone, SlidersHorizontal, RefreshCw, Send } from 'lucide-react'
 import { api, money } from '../api'
 import { PageHeading, Panel, Loading, DataTable, Badge, Modal } from '../components'
 
 const asArray=(value:any):any[]=>Array.isArray(value)?value:Array.isArray(value?.rows)?value.rows:Array.isArray(value?.data)?value.data:[]
-type Section='business'|'tables'|'menu'|'operations'|'documents'|'devices'|'tax'|'security'
+type Section='business'|'tables'|'menu'|'operations'|'notifications'|'documents'|'devices'|'tax'|'security'
 
 const nav:Array<[Section,string,any,string]>=[
  ['business','Business Profile',Building2,'Name, logo and contact details'],
  ['tables','Floors & Tables',LayoutGrid,'Restaurant areas and table setup'],
  ['menu','Menu & Pricing',UtensilsCrossed,'Categories, prices and availability'],
  ['operations','Restaurant Policies',SlidersHorizontal,'Reservations, stock, loyalty and terminal behavior'],
+ ['notifications','Notifications',Bell,'Email alerts and report delivery'],
  ['documents','Receipts & Printing',ReceiptText,'Bills, receipts, KOT and printers'],
  ['devices','Devices & Recovery',MonitorSmartphone,'Registered terminals and print recovery'],
  ['tax','Tax & Charges',Percent,'Tax and service charge defaults'],
@@ -39,6 +40,7 @@ export default function Settings(){
  const [menuForm,setMenuForm]=useState({productId:0,categoryId:0,kitchenStationId:0,price:'',available:true,soldOut:false})
  const [currentPassword,setCurrentPassword]=useState(''),[newPassword,setNewPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState(''),[passwordMessage,setPasswordMessage]=useState(''),[passwordBusy,setPasswordBusy]=useState(false)
  const [policies,setPolicies]=useState<any>(null),[devices,setDevices]=useState<any[]>([]),[printJobs,setPrintJobs]=useState<any[]>([]),[policyBusy,setPolicyBusy]=useState(false)
+ const [notificationSettings,setNotificationSettings]=useState<any>(null),[notificationBusy,setNotificationBusy]=useState(false)
 
  const load=()=>Promise.all([
    api('/document-settings'),
@@ -53,10 +55,11 @@ export default function Settings(){
    api('/products').catch(()=>[]),
    api('/restaurant/policies').catch(()=>({})),
    api('/devices').catch(()=>[]),
-   api('/print-jobs').catch(()=>[])
- ]).then(([x,p,ks,logs,b,a,t,c,m,pr,pol,dev,jobs])=>{
+   api('/print-jobs').catch(()=>[]),
+   api('/notification-settings').catch(()=>({expiry_email_enabled:false,expiry_days_before:30,stockout_email_enabled:false,periodic_reports_enabled:true,recipients:[]}))
+ ]).then(([x,p,ks,logs,b,a,t,c,m,pr,pol,dev,jobs,ns])=>{
    setS(x&&typeof x==='object'&&!Array.isArray(x)?x:{})
-   setProfiles(asArray(p));setStations(asArray(ks));setPrintLogs(asArray(logs));setBranches(asArray(b));setAreas(asArray(a));setTables(asArray(t));setCategories(asArray(c));setMenu(asArray(m));setProducts(asArray(pr));setPolicies(pol&&typeof pol==='object'?pol:{});setDevices(asArray(dev));setPrintJobs(asArray(jobs))
+   setProfiles(asArray(p));setStations(asArray(ks));setPrintLogs(asArray(logs));setBranches(asArray(b));setAreas(asArray(a));setTables(asArray(t));setCategories(asArray(c));setMenu(asArray(m));setProducts(asArray(pr));setPolicies(pol&&typeof pol==='object'?pol:{});setDevices(asArray(dev));setPrintJobs(asArray(jobs));setNotificationSettings(ns&&typeof ns==='object'?ns:{expiry_email_enabled:false,expiry_days_before:30,stockout_email_enabled:false,periodic_reports_enabled:true,recipients:[]})
  })
 
  useEffect(()=>{load().catch((e:any)=>setError(e.message||'Settings could not be loaded.'))},[])
@@ -78,6 +81,27 @@ export default function Settings(){
      })})
      setS(next);applyLocalTheme(next?.theme_key||'green',next?.document_accent||'',next?.theme_background||'clean',next?.theme_background_scope||'operations',next?.theme_background_image||'',next?.theme_background_image_fit||'cover');setMessage('Settings saved successfully.')
    }catch(e:any){setError(e.message||'Settings could not be saved.')}finally{setSaving(false)}
+ }
+
+ async function saveNotifications(){
+   if(!notificationSettings)return
+   setNotificationBusy(true);setMessage('');setError('')
+   try{
+     const recipients=String(Array.isArray(notificationSettings.recipients)?notificationSettings.recipients.join(', '):notificationSettings.recipients||'').split(/[;,\n]/).map(x=>x.trim()).filter(Boolean)
+     const next=await api('/notification-settings',{method:'PUT',body:JSON.stringify({
+       expiryEmailEnabled:!!notificationSettings.expiry_email_enabled,
+       expiryDaysBefore:Number(notificationSettings.expiry_days_before||30),
+       stockoutEmailEnabled:!!notificationSettings.stockout_email_enabled,
+       periodicReportsEnabled:notificationSettings.periodic_reports_enabled!==false,
+       recipients
+     })})
+     setNotificationSettings(next);setMessage('Notification settings saved.')
+   }catch(e:any){setError(e.message||'Notification settings could not be saved.')}finally{setNotificationBusy(false)}
+ }
+ async function testNotificationEmail(){
+   setNotificationBusy(true);setMessage('');setError('')
+   try{const r=await api('/notification-settings/test-email',{method:'POST',body:'{}'});setMessage('Test email sent to '+(r.recipients||[]).join(', '))}
+   catch(e:any){setError(e.message||'Test email could not be sent.')}finally{setNotificationBusy(false)}
  }
 
  async function uploadLogo(file?:File){
@@ -254,6 +278,22 @@ export default function Settings(){
           <Toggle label="Allow negative stock" checked={!!policies?.allow_negative_stock} onChange={v=>setPolicies({...policies,allow_negative_stock:v})}/>
         </div>
         <div className="mt-5 flex justify-end"><button onClick={savePolicies} disabled={policyBusy} className="rounded-lg bg-[var(--brand-primary)] px-5 py-2.5 text-[12px] font-semibold text-white disabled:opacity-40">{policyBusy?'Saving…':'Save Policies'}</button></div>
+      </Panel>}
+
+      {section==='notifications'&&notificationSettings&&<Panel title="Email Notifications" sub="Alerts and scheduled report delivery.">
+        <div className="grid gap-3 md:grid-cols-3">
+          <Toggle label="Expiry alerts" checked={!!notificationSettings.expiry_email_enabled} onChange={v=>setNotificationSettings({...notificationSettings,expiry_email_enabled:v})}/>
+          <Toggle label="Stock-out alerts" checked={!!notificationSettings.stockout_email_enabled} onChange={v=>setNotificationSettings({...notificationSettings,stockout_email_enabled:v})}/>
+          <Toggle label="Periodic reports" checked={notificationSettings.periodic_reports_enabled!==false} onChange={v=>setNotificationSettings({...notificationSettings,periodic_reports_enabled:v})}/>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Field label="Expiry alert before (days)"><input className="control" type="number" min="1" max="365" value={Number(notificationSettings.expiry_days_before||30)} onChange={e=>setNotificationSettings({...notificationSettings,expiry_days_before:Number(e.target.value)})}/></Field>
+          <Field label="Email recipients"><input className="control" value={Array.isArray(notificationSettings.recipients)?notificationSettings.recipients.join(', '):notificationSettings.recipients||''} onChange={e=>setNotificationSettings({...notificationSettings,recipients:e.target.value})} placeholder="owner@example.com, manager@example.com"/></Field>
+        </div>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <button onClick={testNotificationEmail} disabled={notificationBusy} className="ui-btn"><Send size={14}/>Test Email</button>
+          <button onClick={saveNotifications} disabled={notificationBusy} className="ui-btn ui-btn-primary">{notificationBusy?'Saving…':'Save Notifications'}</button>
+        </div>
       </Panel>}
 
       {section==='documents'&&<div className="space-y-4">

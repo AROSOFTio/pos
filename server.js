@@ -1810,6 +1810,40 @@ app.get('/api/restaurant/day-close/status',auth,tenant,async(req,res)=>{const bi
  pool.query("SELECT count(*)::int n FROM kitchen_tickets WHERE business_id=$1 AND branch_id=$2 AND status IN ('new','preparing','ready')",[bid,branchId])
 ]);res.json({businessDate:new Date().toISOString().slice(0,10),salesTotal:Number(sales.rows[0].total||0),expensesTotal:Number(exp.rows[0].total||0),openOrders:orders.rows[0].n,openShifts:shifts.rows[0].n,pendingKots:kots.rows[0].n,cashExpected:Number(shifts.rows[0].cash||0),canClose:orders.rows[0].n===0&&shifts.rows[0].n===0&&kots.rows[0].n===0})});
 app.post('/api/restaurant/day-close',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','restaurant_manager','accountant'),async(req,res)=>{const bid=await getBiz(req),branchId=Number(req.body?.branchId||0),notes=String(req.body?.notes||'').trim()||null;if(!branchId)return res.status(400).json({error:'Branch is required'});const [sales,exp,orders,shifts,kots]=await Promise.all([pool.query("SELECT coalesce(sum(total),0)::numeric total FROM sales WHERE business_id=$1 AND branch_id=$2 AND created_at::date=(now() AT TIME ZONE 'Africa/Kampala')::date",[bid,branchId]),pool.query("SELECT coalesce(sum(amount),0)::numeric total FROM expenses WHERE business_id=$1 AND status='posted' AND expense_date=(now() AT TIME ZONE 'Africa/Kampala')::date",[bid]),pool.query("SELECT count(*)::int n FROM restaurant_orders WHERE business_id=$1 AND branch_id=$2 AND status NOT IN ('paid','closed','cancelled')",[bid,branchId]),pool.query("SELECT count(*)::int n,coalesce(sum(expected_cash),0)::numeric cash FROM cash_sessions WHERE business_id=$1 AND branch_id=$2 AND status='open'",[bid,branchId]),pool.query("SELECT count(*)::int n FROM kitchen_tickets WHERE business_id=$1 AND branch_id=$2 AND status IN ('new','preparing','ready')",[bid,branchId])]);if(orders.rows[0].n||shifts.rows[0].n||kots.rows[0].n)return res.status(400).json({error:'Close all open orders, shifts and kitchen tickets before ending the business day'});const q=await pool.query("INSERT INTO business_day_closures(business_id,branch_id,business_date,status,sales_total,expenses_total,cash_expected,open_orders,open_shifts,pending_kots,notes,closed_by_user_id,closed_by,closed_at) VALUES($1,$2,(now() AT TIME ZONE 'Africa/Kampala')::date,'closed',$3,$4,$5,0,0,0,$6,$7,$8,now()) ON CONFLICT(business_id,branch_id,business_date) DO UPDATE SET status='closed',sales_total=EXCLUDED.sales_total,expenses_total=EXCLUDED.expenses_total,cash_expected=EXCLUDED.cash_expected,notes=EXCLUDED.notes,closed_by_user_id=EXCLUDED.closed_by_user_id,closed_by=EXCLUDED.closed_by,closed_at=now() RETURNING *",[bid,branchId,Number(sales.rows[0].total||0),Number(exp.rows[0].total||0),Number(shifts.rows[0].cash||0),notes,req.user.id,req.user.name]);await audit(req.user,bid,'close','business_day',q.rows[0].id,{branchId});res.json(q.rows[0])});
+
+async function notificationRecipients(bid,configured=[]){
+ const cleaned=[...new Set((Array.isArray(configured)?configured:[]).map(x=>String(x||'').trim().toLowerCase()).filter(x=>/^[^@s]+@[^@s]+.[^@s]+$/.test(x)))];
+ if(cleaned.length)return cleaned;
+ const b=await pool.query('SELECT email FROM businesses WHERE id=$1',[bid]);
+ if(b.rows[0]?.email&&/^[^@s]+@[^@s]+.[^@s]+$/.test(String(b.rows[0].email)))return [String(b.rows[0].email).trim().toLowerCase()];
+ const o=await pool.query("SELECT DISTINCT lower(u.email) email FROM user_businesses ub JOIN users u ON u.id=ub.user_id WHERE ub.business_id=$1 AND ub.active=true AND u.active=true AND coalesce(ub.staff_status,'active')='active' AND ub.role IN ('owner','admin','administrator') ORDER BY email",[bid]);
+ return o.rows.map(x=>x.email).filter(Boolean);
+}
+app.get('/api/notification-settings',auth,tenant,async(req,res)=>{
+ const bid=await getBiz(req);
+ await pool.query('INSERT INTO notification_settings(business_id) VALUES($1) ON CONFLICT(business_id) DO NOTHING',[bid]);
+ const q=await pool.query('SELECT * FROM notification_settings WHERE business_id=$1',[bid]);
+ res.json(q.rows[0]);
+});
+app.put('/api/notification-settings',auth,tenant,rolesAllowed('owner','administrator','admin'),async(req,res)=>{
+ const bid=await getBiz(req),x=req.body||{},days=Math.min(365,Math.max(1,Number(x.expiryDaysBefore||30)));
+ const recipients=[...new Set((Array.isArray(x.recipients)?x.recipients:[]).map(v=>String(v||'').trim().toLowerCase()).filter(Boolean))];
+ for(const email of recipients)if(!/^[^@s]+@[^@s]+.[^@s]+$/.test(email))return res.status(400).json({error:'Enter valid notification email addresses'});
+ const q=await pool.query(`INSERT INTO notification_settings(business_id,expiry_email_enabled,expiry_days_before,stockout_email_enabled,periodic_reports_enabled,recipients,updated_by_user_id,updated_at)
+ VALUES($1,$2,$3,$4,$5,$6,$7,now())
+ ON CONFLICT(business_id) DO UPDATE SET expiry_email_enabled=EXCLUDED.expiry_email_enabled,expiry_days_before=EXCLUDED.expiry_days_before,stockout_email_enabled=EXCLUDED.stockout_email_enabled,periodic_reports_enabled=EXCLUDED.periodic_reports_enabled,recipients=EXCLUDED.recipients,updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at=now()
+ RETURNING *`,[bid,!!x.expiryEmailEnabled,days,!!x.stockoutEmailEnabled,x.periodicReportsEnabled!==false,recipients,req.user.id]);
+ await audit(req.user,bid,'update','notification_settings',bid,{expiryEmailEnabled:!!x.expiryEmailEnabled,expiryDaysBefore:days,stockoutEmailEnabled:!!x.stockoutEmailEnabled,periodicReportsEnabled:x.periodicReportsEnabled!==false,recipients});
+ res.json(q.rows[0]);
+});
+app.post('/api/notification-settings/test-email',auth,tenant,rolesAllowed('owner','administrator','admin'),async(req,res)=>{
+ const bid=await getBiz(req),q=await pool.query('SELECT ns.*,b.name FROM notification_settings ns JOIN businesses b ON b.id=ns.business_id WHERE ns.business_id=$1',[bid]);
+ const row=q.rows[0]||{},recipients=await notificationRecipients(bid,row.recipients||[]);
+ if(!recipients.length)return res.status(400).json({error:'Add a business or notification email first'});
+ await sendSystemEmail({to:recipients,subject:(row.name||'MauzoPOS')+' · Notification test',html:'<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto"><h2>MauzoPOS notification test</h2><p>Email notifications are configured correctly for <b>'+reportHtmlEscape(row.name||'your business')+'</b>.</p></div>'});
+ res.json({ok:true,recipients});
+});
+
 app.get('/api/notifications',auth,tenant,async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query("SELECT * FROM notification_events WHERE business_id=$1 ORDER BY read_at NULLS FIRST,created_at DESC LIMIT 100",[bid])).rows)});
 app.put('/api/notifications/:id/read',auth,tenant,async(req,res)=>{const bid=await getBiz(req),id=Number(req.params.id);const q=await pool.query('UPDATE notification_events SET read_at=coalesce(read_at,now()) WHERE id=$1 AND business_id=$2 RETURNING *',[id,bid]);res.json(q.rows[0]||null)});
 app.get('/api/scheduled-reports',auth,tenant,rolesAllowed('owner','administrator','admin','branch_manager','accountant'),async(req,res)=>{const bid=await getBiz(req);res.json((await pool.query('SELECT * FROM scheduled_reports WHERE business_id=$1 ORDER BY report_type,cadence',[bid])).rows)});
@@ -1949,9 +1983,49 @@ function schedulePeriod(schedule,businessDate){
  if(schedule.cadence==='monthly')return [businessDate.slice(0,8)+'01',businessDate];
  return [businessDate,businessDate];
 }
+
+function alertEmailShell(businessName,title,subtitle,body){
+ return '<div style="font-family:Inter,Arial,sans-serif;background:#f6f8fa;padding:28px;color:#172033"><div style="max-width:760px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden"><div style="padding:22px 26px;border-bottom:1px solid #eef0f2"><div style="font-size:11px;color:#22A53A;font-weight:700;text-transform:uppercase;letter-spacing:.12em">'+reportHtmlEscape(businessName||'MauzoPOS')+'</div><h1 style="font-size:21px;margin:6px 0 0">'+reportHtmlEscape(title)+'</h1><div style="font-size:12px;color:#64748b;margin-top:4px">'+reportHtmlEscape(subtitle||'')+'</div></div><div style="padding:22px 26px">'+body+'<a href="'+(process.env.APP_URL||'https://pos.owltechsolutionsltd.com')+'/app" style="display:block;margin-top:22px;background:#172033;color:white;text-decoration:none;text-align:center;padding:12px;border-radius:9px;font-size:12px;font-weight:600">Open MauzoPOS</a></div></div></div>';
+}
+async function sendConditionEmail(bid,type,businessDate){
+ const sq=await pool.query('SELECT ns.*,b.name,b.timezone FROM notification_settings ns JOIN businesses b ON b.id=ns.business_id WHERE ns.business_id=$1',[bid]);
+ if(!sq.rowCount)return false;
+ const st=sq.rows[0],recipients=await notificationRecipients(bid,st.recipients||[]);
+ if(!recipients.length)return false;
+ let rows=[],title='',subtitle='',body='',notificationKey='';
+ if(type==='expiry'){
+   if(!st.expiry_email_enabled)return false;
+   const q=await pool.query("SELECT il.id lot_id,p.id product_id,p.name product_name,il.lot_no,il.expiry_date,il.qty,l.id location_id,l.name location_name,(il.expiry_date-$2::date)::int days_left FROM inventory_lots il JOIN products p ON p.id=il.product_id JOIN inventory_locations l ON l.id=il.location_id WHERE il.business_id=$1 AND il.active=true AND il.qty>0 AND il.expiry_date IS NOT NULL AND il.expiry_date<=$2::date+$3::int ORDER BY il.expiry_date,p.name LIMIT 100",[bid,businessDate,Number(st.expiry_days_before||30)]);
+   rows=q.rows;if(!rows.length)return false;
+   notificationKey=crypto.createHash('sha1').update(rows.map(x=>x.lot_id+':'+x.product_id+':'+x.location_id+':'+x.expiry_date).join('|')).digest('hex').slice(0,20);
+   title='Expiry alert';subtitle=rows.length+' batch'+(rows.length===1?'':'es')+' expired or expiring within '+Number(st.expiry_days_before||30)+' days';
+   body='<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#64748b"><th style="text-align:left;padding:7px">Product</th><th style="text-align:left;padding:7px">Batch</th><th style="text-align:left;padding:7px">Location</th><th style="text-align:right;padding:7px">Qty</th><th style="text-align:right;padding:7px">Expiry</th></tr>'+rows.map(x=>'<tr><td style="padding:7px;border-top:1px solid #f1f5f9;font-weight:600">'+reportHtmlEscape(x.product_name)+'</td><td style="padding:7px;border-top:1px solid #f1f5f9">'+reportHtmlEscape(x.lot_no)+'</td><td style="padding:7px;border-top:1px solid #f1f5f9">'+reportHtmlEscape(x.location_name)+'</td><td style="padding:7px;border-top:1px solid #f1f5f9;text-align:right">'+Number(x.qty).toLocaleString()+'</td><td style="padding:7px;border-top:1px solid #f1f5f9;text-align:right">'+reportHtmlEscape(x.expiry_date)+' ('+Number(x.days_left)+'d)</td></tr>').join('')+'</table>';
+ }else if(type==='stockout'){
+   if(!st.stockout_email_enabled)return false;
+   const q=await pool.query("SELECT p.id product_id,p.name product_name,p.sku,l.id location_id,l.name location_name,ib.qty FROM inventory_balances ib JOIN products p ON p.id=ib.product_id JOIN inventory_locations l ON l.id=ib.location_id WHERE ib.business_id=$1 AND p.active=true AND ib.qty<=0 ORDER BY p.name,l.name LIMIT 100",[bid]);
+   rows=q.rows;if(!rows.length)return false;
+   notificationKey=crypto.createHash('sha1').update(rows.map(x=>x.product_id+':'+x.location_id).join('|')).digest('hex').slice(0,20);
+   title='Stock-out alert';subtitle=rows.length+' item location'+(rows.length===1?' is':'s are')+' out of stock';
+   body='<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="color:#64748b"><th style="text-align:left;padding:7px">Product</th><th style="text-align:left;padding:7px">SKU</th><th style="text-align:left;padding:7px">Location</th><th style="text-align:right;padding:7px">Stock</th></tr>'+rows.map(x=>'<tr><td style="padding:7px;border-top:1px solid #f1f5f9;font-weight:600">'+reportHtmlEscape(x.product_name)+'</td><td style="padding:7px;border-top:1px solid #f1f5f9">'+reportHtmlEscape(x.sku||'-')+'</td><td style="padding:7px;border-top:1px solid #f1f5f9">'+reportHtmlEscape(x.location_name)+'</td><td style="padding:7px;border-top:1px solid #f1f5f9;text-align:right">'+Number(x.qty).toLocaleString()+'</td></tr>').join('')+'</table>';
+ }else return false;
+ const log=await pool.query("INSERT INTO notification_email_log(business_id,notification_type,business_date,notification_key,recipients,status) VALUES($1,$2,$3,$4,$5,'sending') ON CONFLICT(business_id,notification_type,business_date,notification_key) DO NOTHING RETURNING id",[bid,type,businessDate,notificationKey,recipients]);
+ if(!log.rowCount)return false;
+ try{await sendSystemEmail({to:recipients,subject:(st.name||'MauzoPOS')+' · '+title,html:alertEmailShell(st.name,title,subtitle,body)});await pool.query("UPDATE notification_email_log SET status='sent',sent_at=now() WHERE id=$1",[log.rows[0].id]);return true}catch(e){await pool.query("UPDATE notification_email_log SET status='failed',error=$1 WHERE id=$2",[String(e.message||e).slice(0,2000),log.rows[0].id]);return false}
+}
+async function notificationEmailWorker(){
+ try{
+  const businesses=await pool.query("SELECT ns.business_id,b.timezone FROM notification_settings ns JOIN businesses b ON b.id=ns.business_id WHERE ns.expiry_email_enabled=true OR ns.stockout_email_enabled=true");
+  for(const x of businesses.rows){
+   const d=await pool.query("SELECT (now() AT TIME ZONE coalesce($1,'Africa/Kampala'))::date::text d",[x.timezone]),businessDate=d.rows[0].d;
+   await sendConditionEmail(x.business_id,'expiry',businessDate);
+   await sendConditionEmail(x.business_id,'stockout',businessDate);
+  }
+ }catch(e){console.error('notification email worker',e)}
+}
+
 async function scheduledReportWorker(){
  try{
-  const due=await pool.query("SELECT sr.*,b.timezone FROM scheduled_reports sr JOIN businesses b ON b.id=sr.business_id WHERE sr.active=true AND to_char(now() AT TIME ZONE coalesce(b.timezone,'Africa/Kampala'),'HH24:MI') >= to_char(sr.send_time,'HH24:MI') ORDER BY sr.id LIMIT 100");
+  const due=await pool.query("SELECT sr.*,b.timezone FROM scheduled_reports sr JOIN businesses b ON b.id=sr.business_id LEFT JOIN notification_settings ns ON ns.business_id=sr.business_id WHERE sr.active=true AND coalesce(ns.periodic_reports_enabled,true)=true AND to_char(now() AT TIME ZONE coalesce(b.timezone,'Africa/Kampala'),'HH24:MI') >= to_char(sr.send_time,'HH24:MI') ORDER BY sr.id LIMIT 100");
   for(const s of due.rows){
    const dateQ=await pool.query("SELECT (now() AT TIME ZONE coalesce(timezone,'Africa/Kampala'))::date::text d FROM businesses WHERE id=$1",[s.business_id]),businessDate=dateQ.rows[0].d;if(!scheduleRunsToday(s,businessDate))continue;const [periodStart,periodEnd]=schedulePeriod(s,businessDate);
    const periodKey=s.cadence==='daily'?businessDate:s.cadence==='weekly'?periodStart:(businessDate.slice(0,7));
@@ -1962,7 +2036,7 @@ async function scheduledReportWorker(){
   }
  }catch(e){console.error('scheduled report worker',e)}
 }
-function startBackgroundWorkers(){setTimeout(scheduledReportWorker,15000);setInterval(scheduledReportWorker,60000)}
+function startBackgroundWorkers(){setTimeout(scheduledReportWorker,15000);setInterval(scheduledReportWorker,60000);setTimeout(notificationEmailWorker,20000);setInterval(notificationEmailWorker,300000)}
 
 registerAccountingRoutes(app,{pool,auth,tenant,getBiz,permit,rolesAllowed,audit,hasPermission,pdfHeader,pdfFooter,pdfMetaGrid,pdfSectionTitle,pdfTable,pdfMetricCards,pdfMoney,pdfPageNumbers,pdfReportHeader,pdfReportMetaStrip,pdfReportMetricStrip});
 app.get('*',(req,res)=>res.sendFile(process.cwd()+'/public/index.html'));

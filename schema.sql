@@ -1611,6 +1611,33 @@ CREATE TABLE IF NOT EXISTS notification_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_notification_events_unread ON notification_events(business_id,read_at,created_at DESC);
+CREATE TABLE IF NOT EXISTS notification_settings (
+  business_id BIGINT PRIMARY KEY REFERENCES businesses(id) ON DELETE CASCADE,
+  expiry_email_enabled BOOLEAN NOT NULL DEFAULT false,
+  expiry_days_before INT NOT NULL DEFAULT 30 CHECK (expiry_days_before BETWEEN 1 AND 365),
+  stockout_email_enabled BOOLEAN NOT NULL DEFAULT false,
+  periodic_reports_enabled BOOLEAN NOT NULL DEFAULT true,
+  recipients TEXT[] NOT NULL DEFAULT '{}',
+  updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS notification_email_log (
+  id BIGSERIAL PRIMARY KEY,
+  business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  notification_type TEXT NOT NULL,
+  business_date DATE NOT NULL,
+  notification_key TEXT NOT NULL DEFAULT 'daily',
+  recipients TEXT[] NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'sent',
+  error TEXT,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(business_id,notification_type,business_date,notification_key)
+);
+CREATE INDEX IF NOT EXISTS idx_notification_email_log_business_date ON notification_email_log(business_id,business_date DESC);
+INSERT INTO notification_settings(business_id)
+SELECT id FROM businesses
+ON CONFLICT(business_id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS scheduled_reports (
   id BIGSERIAL PRIMARY KEY,
   business_id BIGINT REFERENCES businesses(id) ON DELETE CASCADE,
